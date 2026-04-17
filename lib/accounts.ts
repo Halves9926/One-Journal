@@ -12,6 +12,8 @@ export const ACCOUNT_TYPES = [
   'Backtest Account',
 ] as const;
 
+export const ACCOUNTS_TABLE = 'accounts';
+
 export type AccountType = (typeof ACCOUNT_TYPES)[number];
 export type AccountPhaseStatus = 'active' | 'funded' | 'passed';
 
@@ -186,13 +188,15 @@ export function mapAccountFormToInsert(
 ): AccountInsert {
   const initialEquity = toFiniteNumber(input.initial_equity) ?? 0;
   const phasesEnabled =
-    input.type === 'Propfirm Account' ? input.phases_enabled : false;
+    input.type === 'Propfirm Account' && !input.is_funded
+      ? input.phases_enabled
+      : false;
   const phaseCount =
-    input.type === 'Propfirm Account'
+    input.type === 'Propfirm Account' && phasesEnabled
       ? clampInteger(toFiniteNumber(input.phase_count), 2)
       : 1;
   const currentPhase =
-    input.type === 'Propfirm Account'
+    input.type === 'Propfirm Account' && phasesEnabled
       ? Math.min(clampInteger(toFiniteNumber(input.current_phase), 1), phaseCount)
       : 1;
 
@@ -210,7 +214,7 @@ export function mapAccountFormToInsert(
       input.type === 'Propfirm Account' ? toFiniteNumber(input.max_drawdown) : null,
     name: input.name.trim(),
     passed_phase_count:
-      input.type === 'Propfirm Account' && input.is_funded ? phaseCount : currentPhase - 1,
+      input.type === 'Propfirm Account' && input.is_funded ? 1 : currentPhase - 1,
     phase_count: phaseCount,
     phase_start_equity: initialEquity,
     phase_started_at: new Date().toISOString(),

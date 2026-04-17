@@ -3,6 +3,7 @@
 import { motion } from 'framer-motion';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useEffect, useRef } from 'react';
 
 import AccountSwitcher from '@/components/ui/account-switcher';
 import { ButtonLink, buttonVariants } from '@/components/ui/button';
@@ -21,6 +22,7 @@ const navigationItems = [
 export default function Topbar() {
   const pathname = usePathname();
   const { loading, user } = useAuth();
+  const topbarRef = useRef<HTMLDivElement | null>(null);
   const navigation = navigationItems.filter((item) => {
     const isProtected =
       item.href === '/dashboard' ||
@@ -31,8 +33,39 @@ export default function Topbar() {
     return !isProtected || Boolean(user);
   });
 
+  useEffect(() => {
+    const topbarElement = topbarRef.current;
+
+    if (!topbarElement || typeof window === 'undefined') {
+      return;
+    }
+
+    const root = document.documentElement;
+    const updateOffset = () => {
+      const topbarHeight = Math.ceil(topbarElement.getBoundingClientRect().height);
+      root.style.setProperty('--topbar-offset', `${topbarHeight}px`);
+    };
+
+    updateOffset();
+
+    const resizeObserver = new ResizeObserver(() => {
+      updateOffset();
+    });
+
+    resizeObserver.observe(topbarElement);
+    window.addEventListener('resize', updateOffset);
+
+    return () => {
+      resizeObserver.disconnect();
+      window.removeEventListener('resize', updateOffset);
+    };
+  }, []);
+
   return (
-    <div className="pointer-events-none fixed inset-x-0 top-0 z-40 px-3 pt-3 sm:px-5">
+    <div
+      ref={topbarRef}
+      className="pointer-events-none fixed inset-x-0 top-0 z-40 px-3 pt-3 sm:px-5"
+    >
       <div className="mx-auto flex max-w-7xl justify-center">
         <motion.header
           initial={{ opacity: 0, y: -18 }}
@@ -75,35 +108,42 @@ export default function Topbar() {
             </div>
           </div>
 
-          <nav className="mt-4 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            {navigation.map((item) => {
-              const isActive =
-                item.href === '/'
-                  ? pathname === '/'
-                  : pathname.startsWith(item.href);
+          <div
+            className={cx(
+              'mt-4 flex flex-col gap-3',
+              user && 'xl:flex-row xl:items-end xl:justify-between',
+            )}
+          >
+            <nav className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden xl:flex-1">
+              {navigation.map((item) => {
+                const isActive =
+                  item.href === '/'
+                    ? pathname === '/'
+                    : pathname.startsWith(item.href);
 
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={cx(
-                    'shrink-0 rounded-full px-4 py-2.5 text-sm font-medium transition',
-                    isActive
-                      ? 'bg-[linear-gradient(135deg,#9f1239,#7f1d1d)] text-white shadow-[0_14px_30px_-20px_rgba(127,29,29,0.36)]'
-                      : 'border border-[color:var(--border-color)] bg-[var(--surface-raised)] text-[var(--muted-strong)] hover:border-[color:var(--border-strong)] hover:text-[var(--foreground)]',
-                  )}
-                >
-                  {item.label}
-                </Link>
-              );
-            })}
-          </nav>
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={cx(
+                      'shrink-0 rounded-full px-4 py-2.5 text-sm font-medium transition',
+                      isActive
+                        ? 'bg-[linear-gradient(135deg,#9f1239,#7f1d1d)] text-white shadow-[0_14px_30px_-20px_rgba(127,29,29,0.36)]'
+                        : 'border border-[color:var(--border-color)] bg-[var(--surface-raised)] text-[var(--muted-strong)] hover:border-[color:var(--border-strong)] hover:text-[var(--foreground)]',
+                    )}
+                  >
+                    {item.label}
+                  </Link>
+                );
+              })}
+            </nav>
 
-          {user ? (
-            <div className="mt-4">
-              <AccountSwitcher />
-            </div>
-          ) : null}
+            {user ? (
+              <div className="xl:w-[312px] xl:flex-none">
+                <AccountSwitcher />
+              </div>
+            ) : null}
+          </div>
         </motion.header>
       </div>
     </div>

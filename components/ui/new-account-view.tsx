@@ -38,6 +38,9 @@ export default function NewAccountView() {
   } | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const isPropAccount = values.type === 'Propfirm Account';
+  const showFundedLimits = isPropAccount && values.is_funded;
+  const showPhaseToggle = isPropAccount && !values.is_funded;
+  const showPhaseFields = showPhaseToggle && values.phases_enabled;
 
   function updateValue<Key extends keyof AccountFormInput>(
     key: Key,
@@ -76,7 +79,7 @@ export default function NewAccountView() {
       nextErrors.initial_equity = 'Initial equity must be a valid number.';
     }
 
-    if (isPropAccount) {
+    if (isPropAccount && showPhaseFields) {
       if (values.phase_count.trim() && !Number.isFinite(Number(values.phase_count))) {
         nextErrors.phase_count = 'Phase count must be a valid number.';
       }
@@ -88,7 +91,9 @@ export default function NewAccountView() {
       if (values.prop_target.trim() && !Number.isFinite(Number(values.prop_target))) {
         nextErrors.prop_target = 'Prop target must be a valid number.';
       }
+    }
 
+    if (isPropAccount) {
       if (
         values.max_drawdown.trim() &&
         !Number.isFinite(Number(values.max_drawdown))
@@ -252,19 +257,13 @@ export default function NewAccountView() {
                   <PanelHeader
                     eyebrow="prop rules"
                     title="Propfirm logic"
-                    description="Configure phases, targets and drawdown rules for the prop account."
+                    description={
+                      values.is_funded
+                        ? 'Funded account selected: only the live risk limits stay visible.'
+                        : 'Configure phases, targets and drawdown rules for the prop account.'
+                    }
                   />
                   <div className="grid gap-4 px-6 pb-6 sm:px-8 sm:pb-8 md:grid-cols-2">
-                    <CheckboxField
-                      checked={values.phases_enabled}
-                      onChange={(event) =>
-                        updateValue('phases_enabled', event.target.checked)
-                      }
-                      label="Active phases"
-                      description="Enable phase-aware tracking and progression for this prop account."
-                      wrapperClassName="md:col-span-2"
-                    />
-
                     <CheckboxField
                       checked={values.is_funded}
                       onChange={(event) =>
@@ -275,37 +274,59 @@ export default function NewAccountView() {
                       wrapperClassName="md:col-span-2"
                     />
 
-                    <InputField
-                      label="Number of phases"
-                      type="number"
-                      step="1"
-                      value={values.phase_count}
-                      error={fieldErrors.phase_count}
-                      onChange={(event) => updateValue('phase_count', event.target.value)}
-                      placeholder="2"
-                    />
+                    {showPhaseToggle ? (
+                      <div className="animate-rise md:col-span-2">
+                        <CheckboxField
+                          checked={values.phases_enabled}
+                          onChange={(event) =>
+                            updateValue('phases_enabled', event.target.checked)
+                          }
+                          label="Active phases"
+                          description="Enable phase-aware tracking and progression for this prop account."
+                        />
+                      </div>
+                    ) : null}
 
-                    <InputField
-                      label="Current phase"
-                      type="number"
-                      step="1"
-                      value={values.current_phase}
-                      error={fieldErrors.current_phase}
-                      onChange={(event) =>
-                        updateValue('current_phase', event.target.value)
-                      }
-                      placeholder="1"
-                    />
+                    {showPhaseFields ? (
+                      <>
+                        <InputField
+                          label="Number of phases"
+                          type="number"
+                          step="1"
+                          value={values.phase_count}
+                          error={fieldErrors.phase_count}
+                          onChange={(event) =>
+                            updateValue('phase_count', event.target.value)
+                          }
+                          placeholder="2"
+                        />
 
-                    <InputField
-                      label="Prop target"
-                      type="number"
-                      step="0.01"
-                      value={values.prop_target}
-                      error={fieldErrors.prop_target}
-                      onChange={(event) => updateValue('prop_target', event.target.value)}
-                      placeholder="800"
-                    />
+                        <InputField
+                          label="Current phase"
+                          type="number"
+                          step="1"
+                          value={values.current_phase}
+                          error={fieldErrors.current_phase}
+                          onChange={(event) =>
+                            updateValue('current_phase', event.target.value)
+                          }
+                          placeholder="1"
+                        />
+
+                        <InputField
+                          label="Prop target"
+                          type="number"
+                          step="0.01"
+                          value={values.prop_target}
+                          error={fieldErrors.prop_target}
+                          onChange={(event) =>
+                            updateValue('prop_target', event.target.value)
+                          }
+                          placeholder="800"
+                          wrapperClassName="md:col-span-2"
+                        />
+                      </>
+                    ) : null}
 
                     <InputField
                       label="Max drawdown"
@@ -330,6 +351,17 @@ export default function NewAccountView() {
                       }
                       placeholder="500"
                     />
+
+                    {showFundedLimits ? (
+                      <div className="animate-rise rounded-[24px] border border-[color:var(--border-color)] bg-[var(--surface)] px-4 py-3 md:col-span-2">
+                        <p className="text-sm font-medium text-[var(--foreground)]">
+                          Funded account mode
+                        </p>
+                        <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
+                          Phase count, current phase and target are hidden because this account starts directly as funded.
+                        </p>
+                      </div>
+                    ) : null}
                   </div>
                 </Panel>
               </Reveal>
@@ -363,10 +395,10 @@ export default function NewAccountView() {
                     <p className="mt-2 text-lg font-semibold text-[var(--foreground)]">
                       {isPropAccount
                         ? values.is_funded
-                          ? 'Funded'
+                          ? 'Funded account'
                           : values.phases_enabled
                             ? `Phase ${values.current_phase || '1'} / ${values.phase_count || '2'}`
-                            : 'Prop without phases'
+                            : 'Prop with limits only'
                         : 'Standard account'}
                     </p>
                   </div>

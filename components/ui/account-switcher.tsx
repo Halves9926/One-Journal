@@ -17,11 +17,11 @@ export default function AccountSwitcher() {
 
   if (loading) {
     return (
-      <div className="rounded-[24px] border border-[color:var(--border-color)] bg-[var(--surface-raised)] px-4 py-3 shadow-[0_16px_36px_-30px_var(--shadow-color)]">
-        <p className="text-xs uppercase tracking-[0.22em] text-[var(--muted)]">
+      <div className="flex min-h-11 items-center rounded-full border border-[color:var(--border-color)] bg-[var(--surface)] px-4 text-sm text-[var(--muted)] shadow-[0_14px_28px_-24px_var(--shadow-color)]">
+        <p className="truncate text-xs uppercase tracking-[0.22em] text-[var(--muted)]">
           Account
         </p>
-        <p className="mt-2 text-sm text-[var(--muted)]">Loading...</p>
+        <span className="ml-3 text-sm text-[var(--muted)]">Loading...</span>
       </div>
     );
   }
@@ -40,9 +40,9 @@ export default function AccountSwitcher() {
   }
 
   return (
-    <div className="rounded-[24px] border border-[color:var(--border-color)] bg-[linear-gradient(180deg,var(--surface-raised),var(--surface))] px-4 py-3.5 shadow-[0_20px_40px_-30px_var(--shadow-color)]">
+    <div className="flex min-w-0 flex-col gap-2 xl:min-w-[290px]">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="min-w-0 sm:max-w-[240px]">
+        <div className="min-w-0 sm:max-w-[220px]">
           <p className="truncate text-sm font-semibold tracking-tight text-[var(--foreground)]">
             {activeAccount?.name ?? 'Account'}
           </p>
@@ -77,7 +77,7 @@ export default function AccountSwitcher() {
         </div>
       </div>
 
-      <label className="mt-2 block">
+      <label className="block">
         <span className="sr-only">Switch active account</span>
         <select
           value={activeAccount?.id ?? ''}
@@ -88,7 +88,7 @@ export default function AccountSwitcher() {
 
             void setActiveAccount(event.target.value);
           }}
-          className="min-h-11 w-full rounded-[16px] border border-[color:var(--border-color)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--foreground)] outline-none transition focus:border-rose-300/55 focus:ring-2 focus:ring-rose-300/18"
+          className="min-h-11 w-full rounded-[16px] border border-[color:var(--border-color)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--foreground)] shadow-[0_14px_28px_-24px_var(--shadow-color)] outline-none transition focus:border-rose-300/55 focus:ring-2 focus:ring-rose-300/18"
         >
           {accounts.map((account) => (
             <option key={account.id} value={account.id}>

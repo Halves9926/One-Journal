@@ -11,6 +11,7 @@ import {
 import { useAuth } from '@/components/ui/auth-provider';
 import {
   ACCOUNT_SELECT,
+  ACCOUNTS_TABLE,
   buildPropAdvancePhaseUpdate,
   buildPropFundedUpdate,
   buildPropPhasePassUpdate,
@@ -64,7 +65,7 @@ export function AccountsProvider({ children }: { children: ReactNode }) {
     }));
 
     const { data, error } = await supabase
-      .from('Accounts')
+      .from(ACCOUNTS_TABLE)
       .select(ACCOUNT_SELECT)
       .eq('user_id', user.id)
       .order('created_at', { ascending: true })
@@ -101,7 +102,7 @@ export function AccountsProvider({ children }: { children: ReactNode }) {
 
     async function loadInitialAccounts() {
       const { data, error } = await currentSupabase
-        .from('Accounts')
+        .from(ACCOUNTS_TABLE)
         .select(ACCOUNT_SELECT)
         .eq('user_id', currentUser.id)
         .order('created_at', { ascending: true })
@@ -140,7 +141,7 @@ export function AccountsProvider({ children }: { children: ReactNode }) {
     }
 
     const { error } = await supabase
-      .from('Accounts')
+      .from(ACCOUNTS_TABLE)
       .update(payload)
       .eq('id', accountId)
       .eq('user_id', user.id);
@@ -162,7 +163,7 @@ export function AccountsProvider({ children }: { children: ReactNode }) {
     const shouldActivate = state.accounts.length === 0;
 
     const { data, error } = await supabase
-      .from('Accounts')
+      .from(ACCOUNTS_TABLE)
       .insert({
         ...payload,
         is_active: shouldActivate,
@@ -189,7 +190,7 @@ export function AccountsProvider({ children }: { children: ReactNode }) {
     }
 
     const deactivateResult = await supabase
-      .from('Accounts')
+      .from(ACCOUNTS_TABLE)
       .update({ is_active: false })
       .eq('user_id', user.id);
 
@@ -198,7 +199,7 @@ export function AccountsProvider({ children }: { children: ReactNode }) {
     }
 
     const activateResult = await supabase
-      .from('Accounts')
+      .from(ACCOUNTS_TABLE)
       .update({ is_active: true })
       .eq('id', accountId)
       .eq('user_id', user.id);

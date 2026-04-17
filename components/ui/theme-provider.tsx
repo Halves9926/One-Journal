@@ -3,8 +3,6 @@
 import {
   createContext,
   useContext,
-  useEffect,
-  useMemo,
   useState,
   type ReactNode,
 } from 'react';
@@ -28,33 +26,48 @@ function applyTheme(theme: Theme) {
   root.classList.toggle('dark', theme === 'dark');
 }
 
+function getResolvedTheme(): Theme {
+  if (typeof window === 'undefined') {
+    return 'light';
+  }
+
+  const rootTheme = document.documentElement.dataset.theme;
+
+  if (rootTheme === 'dark' || rootTheme === 'light') {
+    return rootTheme;
+  }
+
+  const storedTheme = window.localStorage.getItem(STORAGE_KEY);
+
+  if (storedTheme === 'dark' || storedTheme === 'light') {
+    return storedTheme;
+  }
+
+  return window.matchMedia('(prefers-color-scheme: dark)').matches
+    ? 'dark'
+    : 'light';
+}
+
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>(() => {
-    if (typeof document === 'undefined') {
-      return 'light';
-    }
-
-    return document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light';
-  });
-
-  useEffect(() => {
-    applyTheme(theme);
-  }, [theme]);
+  const [theme, setThemeState] = useState<Theme>(() => getResolvedTheme());
 
   function setTheme(nextTheme: Theme) {
     setThemeState(nextTheme);
-    applyTheme(nextTheme);
-    window.localStorage.setItem(STORAGE_KEY, nextTheme);
+
+    if (typeof document !== 'undefined') {
+      applyTheme(nextTheme);
+    }
+
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(STORAGE_KEY, nextTheme);
+    }
   }
 
-  const value = useMemo<ThemeContextValue>(
-    () => ({
-      setTheme,
-      theme,
-      toggleTheme: () => setTheme(theme === 'dark' ? 'light' : 'dark'),
-    }),
-    [theme],
-  );
+  const value: ThemeContextValue = {
+    setTheme,
+    theme,
+    toggleTheme: () => setTheme(theme === 'dark' ? 'light' : 'dark'),
+  };
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }
