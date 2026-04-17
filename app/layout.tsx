@@ -1,7 +1,9 @@
 import type { Metadata } from 'next';
 
+import { AccountsProvider } from '@/components/ui/accounts-provider';
 import { fontMono, fontSans } from '@/app/fonts';
 import { AuthProvider } from '@/components/ui/auth-provider';
+import { ThemeProvider } from '@/components/ui/theme-provider';
 import { TradePreferencesProvider } from '@/components/ui/trade-preferences-provider';
 import Topbar from '@/components/ui/topbar';
 
@@ -12,20 +14,50 @@ export const metadata: Metadata = {
   description: 'Trading workspace.',
 };
 
+const themeScript = `
+(() => {
+  try {
+    const storedTheme = window.localStorage.getItem('oj-theme');
+    const preferredTheme =
+      storedTheme === 'dark' || storedTheme === 'light'
+        ? storedTheme
+        : window.matchMedia('(prefers-color-scheme: dark)').matches
+          ? 'dark'
+          : 'light';
+    const root = document.documentElement;
+    root.dataset.theme = preferredTheme;
+    root.style.colorScheme = preferredTheme;
+    root.classList.toggle('dark', preferredTheme === 'dark');
+  } catch (_) {}
+})();
+`;
+
 export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="it" className={`${fontSans.variable} ${fontMono.variable}`}>
-      <body className="min-h-screen bg-[#f8f5f2] font-sans text-neutral-900 antialiased">
-        <AuthProvider>
-          <TradePreferencesProvider>
-            <Topbar />
-            {children}
-          </TradePreferencesProvider>
-        </AuthProvider>
+    <html
+      lang="it"
+      data-scroll-behavior="smooth"
+      suppressHydrationWarning
+      className={`${fontSans.variable} ${fontMono.variable}`}
+    >
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+      </head>
+      <body className="min-h-screen bg-[var(--background)] font-sans text-[var(--foreground)] antialiased">
+        <ThemeProvider>
+          <AuthProvider>
+            <AccountsProvider>
+              <TradePreferencesProvider>
+                <Topbar />
+                {children}
+              </TradePreferencesProvider>
+            </AccountsProvider>
+          </AuthProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

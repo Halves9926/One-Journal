@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
+import { useAccounts } from '@/components/ui/accounts-provider';
 import AuthRequired from '@/components/ui/auth-required';
 import { useAuth } from '@/components/ui/auth-provider';
 import { Button, ButtonLink } from '@/components/ui/button';
@@ -37,7 +38,7 @@ type ToastState = {
   title: string;
 } | null;
 
-type FieldErrors = Partial<Record<TradeFieldKey, string>>;
+type FieldErrors = Partial<Record<TradeFieldKey | 'account_id', string>>;
 
 function getTodayValue() {
   const now = new Date();
@@ -46,8 +47,9 @@ function getTodayValue() {
   return new Date(now.getTime() - timezoneOffset).toISOString().slice(0, 10);
 }
 
-function createInitialTradeFormValues(): TradeFormInput {
+function createInitialTradeFormValues(accountId = ''): TradeFormInput {
   return {
+    account_id: accountId,
     direction: '',
     entry_price: '',
     mistake: '',
@@ -88,14 +90,43 @@ function isFieldFilled(field: TradeFieldDefinition, value: TradeFormInput[TradeF
 export default function NewTradeForm() {
   const router = useRouter();
   const { loading, supabase, user } = useAuth();
+  const {
+    accounts,
+    activeAccount,
+    error: accountsError,
+    loading: accountsLoading,
+    refreshAccounts,
+  } = useAccounts();
   const { preferences, ready } = useTradePreferences();
   const [values, setValues] = useState<TradeFormInput>(() =>
-    createInitialTradeFormValues(),
+    createInitialTradeFormValues(activeAccount?.id ?? ''),
   );
   const [feedback, setFeedback] = useState<Feedback>(null);
   const [toast, setToast] = useState<ToastState>(null);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const selectedAccount =
+    accounts.find((account) => account.id === values.account_id) ?? activeAccount ?? null;
+
+  useEffect(() => {
+    if (!activeAccount?.id || accounts.length === 0) {
+      return;
+    }
+
+    setValues((current) => {
+      if (
+        current.account_id &&
+        accounts.some((account) => account.id === current.account_id)
+      ) {
+        return current;
+      }
+
+      return {
+        ...current,
+        account_id: activeAccount.id,
+      };
+    });
+  }, [accounts, activeAccount?.id]);
 
   function updateValue<Key extends keyof TradeFormInput>(
     key: Key,
@@ -146,6 +177,24 @@ export default function NewTradeForm() {
       setFeedback({
         type: 'error',
         text: 'Supabase client unavailable. Reload and retry.',
+      });
+      return;
+    }
+
+    if (!values.account_id.trim()) {
+      setFieldErrors((current) => ({
+        ...current,
+        account_id: 'Select an account before saving.',
+      }));
+      setToast({
+        title: 'Select account',
+        message: 'Every trade must belong to an account.',
+        items: ['Account'],
+        tone: 'error',
+      });
+      setFeedback(null);
+      window.requestAnimationFrame(() => {
+        document.getElementById('field-account_id')?.focus();
       });
       return;
     }
@@ -229,12 +278,14 @@ export default function NewTradeForm() {
         throw error;
       }
 
+      await refreshAccounts();
+
       setFeedback({
         type: 'success',
         text: 'Trade saved. Redirecting...',
       });
       setFieldErrors({});
-      setValues(createInitialTradeFormValues());
+      setValues(createInitialTradeFormValues(sanitizedValues.account_id));
       router.replace('/dashboard');
     } catch (error) {
       const message =
@@ -255,11 +306,11 @@ export default function NewTradeForm() {
     }
   }
 
-  if (loading || !supabase || !ready) {
+  if (loading || !supabase || !ready || accountsLoading) {
     return (
       <PageShell>
         <Panel className="p-6 sm:p-8">
-          <p className="text-sm text-neutral-500">Loading session...</p>
+          <p className="text-sm text-[var(--muted)]">Loading session...</p>
         </Panel>
       </PageShell>
     );
@@ -272,6 +323,41 @@ export default function NewTradeForm() {
           title="Trade capture locked"
           description="Sign in to write to Trades."
         />
+      </PageShell>
+    );
+  }
+
+  if (accounts.length === 0) {
+    return (
+      <PageShell size="wide">
+        <Reveal>
+          <Panel className="px-6 py-7 sm:px-8 sm:py-8">
+            <PanelHeader
+              eyebrow="accounts"
+              title="Create an account before saving trades"
+              description="Every trade now belongs to an account. Create one account first, then trade capture becomes account-aware automatically."
+              action={
+                <div className="flex flex-col gap-3 sm:flex-row">
+                  <ButtonLink href="/accounts/new" size="lg" variant="primary">
+                    New Account
+                  </ButtonLink>
+                  <ButtonLink href="/accounts" size="lg" variant="secondary">
+                    Open Accounts
+                  </ButtonLink>
+                </div>
+              }
+            />
+            <div className="px-6 pb-6 sm:px-8 sm:pb-8">
+              {accountsError ? (
+                <MessageBanner message={accountsError} tone="error" />
+              ) : (
+                <div className="rounded-[26px] border border-dashed border-[color:var(--border-color)] bg-[var(--surface)] px-5 py-6 text-sm leading-7 text-[var(--muted)]">
+                  No accounts available yet. Create a demo, propfirm, live or backtest account to start saving trades.
+                </div>
+              )}
+            </div>
+          </Panel>
+        </Reveal>
       </PageShell>
     );
   }
@@ -295,11 +381,11 @@ export default function NewTradeForm() {
             <PanelHeader
               eyebrow="one journal"
               title="New Trade"
-              description="Fast capture."
+              description="Fast capture, account-aware."
               action={
                 <div className="flex flex-col gap-3 sm:flex-row">
-                  <ButtonLink href="/settings" size="lg" variant="secondary">
-                    Settings
+                  <ButtonLink href="/accounts" size="lg" variant="secondary">
+                    Accounts
                   </ButtonLink>
                   <ButtonLink href="/dashboard" size="lg" variant="ghost">
                     Dashboard
@@ -310,12 +396,51 @@ export default function NewTradeForm() {
           </Panel>
         </Reveal>
 
+        {accountsError ? <MessageBanner message={accountsError} tone="error" /> : null}
+
         <form
           id="trade-form"
           onSubmit={handleSubmit}
           className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px]"
         >
           <div className="space-y-6">
+            <Reveal delay={0.02}>
+              <Panel className="overflow-hidden">
+                <PanelHeader
+                  eyebrow="context"
+                  title="Trade context"
+                  description="Choose the target account or keep the active one selected."
+                />
+                <div className="grid gap-4 px-6 pb-6 sm:px-8 sm:pb-8 md:grid-cols-2">
+                  <SelectField
+                    label="Account"
+                    required
+                    error={fieldErrors.account_id}
+                    value={values.account_id}
+                    onChange={(event) => updateValue('account_id', event.target.value)}
+                    id="field-account_id"
+                  >
+                    <option value="">Select account</option>
+                    {accounts.map((account) => (
+                      <option key={account.id} value={account.id}>
+                        {account.name} - {account.type}
+                      </option>
+                    ))}
+                  </SelectField>
+
+                  <div className="rounded-[26px] border border-[color:var(--border-color)] bg-[var(--surface-raised)] px-5 py-4 shadow-[0_18px_42px_-34px_var(--shadow-color)]">
+                    <p className="text-sm text-[var(--muted)]">Selected account</p>
+                    <p className="mt-2 text-lg font-semibold text-[var(--foreground)]">
+                      {selectedAccount?.name ?? 'No account selected'}
+                    </p>
+                    <p className="mt-1 text-[11px] uppercase tracking-[0.24em] text-[var(--muted)]">
+                      {selectedAccount?.type ?? 'Assign this trade before saving'}
+                    </p>
+                  </div>
+                </div>
+              </Panel>
+            </Reveal>
+
             {TRADE_FIELD_SECTIONS.map((section, sectionIndex) => {
               const fields = TRADE_FIELD_DEFINITIONS.filter(
                 (field) => field.section === section.key && preferences[field.key],
@@ -326,7 +451,7 @@ export default function NewTradeForm() {
               }
 
               return (
-                <Reveal key={section.key} delay={sectionIndex * 0.05}>
+                <Reveal key={section.key} delay={(sectionIndex + 1) * 0.05}>
                   <Panel className="overflow-hidden">
                     <PanelHeader eyebrow={section.key} title={section.label} />
                     <div className="grid gap-4 px-6 pb-6 sm:px-8 sm:pb-8 md:grid-cols-2">
@@ -402,25 +527,34 @@ export default function NewTradeForm() {
           <div className="space-y-6 xl:sticky xl:top-32 xl:self-start">
             <Reveal delay={0.08}>
               <Panel className="p-6">
-                <p className="font-mono text-[11px] uppercase tracking-[0.32em] text-neutral-500">
+                <p className="font-mono text-[11px] uppercase tracking-[0.32em] text-[var(--muted)]">
                   Preview
                 </p>
                 <div className="mt-4 space-y-4">
-                  <div className="rounded-[22px] border border-neutral-200 bg-white p-4">
-                    <p className="text-sm text-neutral-500">Symbol</p>
-                    <p className="mt-2 text-lg font-semibold text-neutral-950">
+                  <div className="rounded-[22px] border border-[color:var(--border-color)] bg-[var(--surface-raised)] p-4 shadow-[0_14px_28px_-24px_var(--shadow-color)]">
+                    <p className="text-sm text-[var(--muted)]">Account</p>
+                    <p className="mt-2 text-lg font-semibold text-[var(--foreground)]">
+                      {selectedAccount?.name ?? 'Pending'}
+                    </p>
+                    <p className="mt-1 text-[11px] uppercase tracking-[0.22em] text-[var(--muted)]">
+                      {selectedAccount?.type ?? 'Select account'}
+                    </p>
+                  </div>
+                  <div className="rounded-[22px] border border-[color:var(--border-color)] bg-[var(--surface-raised)] p-4 shadow-[0_14px_28px_-24px_var(--shadow-color)]">
+                    <p className="text-sm text-[var(--muted)]">Symbol</p>
+                    <p className="mt-2 text-lg font-semibold text-[var(--foreground)]">
                       {values.symbol.trim() || 'Pending'}
                     </p>
                   </div>
-                  <div className="rounded-[22px] border border-neutral-200 bg-white p-4">
-                    <p className="text-sm text-neutral-500">Direction</p>
-                    <p className="mt-2 text-lg font-semibold text-neutral-950">
+                  <div className="rounded-[22px] border border-[color:var(--border-color)] bg-[var(--surface-raised)] p-4 shadow-[0_14px_28px_-24px_var(--shadow-color)]">
+                    <p className="text-sm text-[var(--muted)]">Direction</p>
+                    <p className="mt-2 text-lg font-semibold text-[var(--foreground)]">
                       {values.direction || 'Pending'}
                     </p>
                   </div>
-                  <div className="rounded-[22px] border border-neutral-200 bg-white p-4">
-                    <p className="text-sm text-neutral-500">RR / PnL</p>
-                    <p className="mt-2 text-lg font-semibold text-neutral-950">
+                  <div className="rounded-[22px] border border-[color:var(--border-color)] bg-[var(--surface-raised)] p-4 shadow-[0_14px_28px_-24px_var(--shadow-color)]">
+                    <p className="text-sm text-[var(--muted)]">RR / PnL</p>
+                    <p className="mt-2 text-lg font-semibold text-[var(--foreground)]">
                       {values.rr || '0'} / {values.pnl || '0'}
                     </p>
                   </div>
@@ -430,19 +564,19 @@ export default function NewTradeForm() {
 
             <Reveal delay={0.12}>
               <Panel className="p-6">
-                <p className="font-mono text-[11px] uppercase tracking-[0.32em] text-neutral-500">
-                  Columns
+                <p className="font-mono text-[11px] uppercase tracking-[0.32em] text-[var(--muted)]">
+                  Context
                 </p>
                 <div className="mt-4 space-y-3">
-                  <div className="rounded-[22px] border border-neutral-200 bg-white p-4">
-                    <p className="text-sm text-neutral-500">Visible</p>
-                    <p className="mt-2 text-2xl font-semibold text-neutral-950">
+                  <div className="rounded-[22px] border border-[color:var(--border-color)] bg-[var(--surface-raised)] p-4 shadow-[0_14px_28px_-24px_var(--shadow-color)]">
+                    <p className="text-sm text-[var(--muted)]">Visible</p>
+                    <p className="mt-2 text-2xl font-semibold text-[var(--foreground)]">
                       {visibleFieldCount}
                     </p>
                   </div>
-                  <div className="rounded-[22px] border border-neutral-200 bg-white p-4">
-                    <p className="text-sm text-neutral-500">Date</p>
-                    <p className="mt-2 text-lg font-semibold text-neutral-950">
+                  <div className="rounded-[22px] border border-[color:var(--border-color)] bg-[var(--surface-raised)] p-4 shadow-[0_14px_28px_-24px_var(--shadow-color)]">
+                    <p className="text-sm text-[var(--muted)]">Date</p>
+                    <p className="mt-2 text-lg font-semibold text-[var(--foreground)]">
                       {values.trade_date || 'Pending'}
                     </p>
                   </div>
@@ -452,7 +586,7 @@ export default function NewTradeForm() {
 
             <Reveal delay={0.16}>
               <Panel className="p-6">
-                <p className="font-mono text-[11px] uppercase tracking-[0.32em] text-neutral-500">
+                <p className="font-mono text-[11px] uppercase tracking-[0.32em] text-[var(--muted)]">
                   Actions
                 </p>
                 <div className="mt-4 flex flex-col gap-3">
@@ -471,7 +605,7 @@ export default function NewTradeForm() {
                     variant="secondary"
                     size="lg"
                     onClick={() => {
-                      setValues(createInitialTradeFormValues());
+                      setValues(createInitialTradeFormValues(activeAccount?.id ?? ''));
                       setFeedback(null);
                       setFieldErrors({});
                       setToast(null);

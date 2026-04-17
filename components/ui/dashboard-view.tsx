@@ -1,132 +1,193 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
-import { motion } from 'framer-motion';
+import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
+import { useAccounts } from '@/components/ui/accounts-provider';
 import AuthRequired from '@/components/ui/auth-required';
 import { useAuth } from '@/components/ui/auth-provider';
 import { Button, ButtonLink } from '@/components/ui/button';
 import { MessageBanner } from '@/components/ui/form-fields';
 import PageShell from '@/components/ui/page-shell';
-import { HoverLift, Reveal } from '@/components/ui/reveal';
-import { MetricCard, Panel, PanelHeader } from '@/components/ui/panel';
 import {
   EquityCurveCard,
+  EquitySparkline,
   PnlBarsCard,
   WinLossCard,
 } from '@/components/ui/trade-charts';
+import { MetricCard, Panel, PanelHeader } from '@/components/ui/panel';
+import { Reveal } from '@/components/ui/reveal';
+import TradeCard from '@/components/ui/trade-card';
+import { useUserTrades } from '@/components/ui/use-user-trades';
 import {
-  TRADE_SELECT,
+  buildAccountMetrics,
+  isPropAccount,
+} from '@/lib/accounts';
+import {
+  buildTradeSummary,
   formatCompactNumber,
+  formatPercentValue,
   formatSignedNumber,
-  formatTradeDate,
-  normalizeTrade,
-  type TradeView,
 } from '@/lib/trades';
-import type { TradeRow } from '@/lib/supabase';
 
-type TradesState = {
-  error: string | null;
-  items: TradeView[];
-  loading: boolean;
-};
-
-function pnlToneClassName(value: number | null) {
-  if (value === null || value === 0) {
-    return 'text-neutral-950';
+function getStreakLabel(
+  direction: 'flat' | 'loss' | 'win' | null,
+  streak: number,
+) {
+  if (!direction || streak === 0) {
+    return 'No streak yet';
   }
 
-  return value < 0 ? 'text-rose-700' : 'text-neutral-950';
+  if (direction === 'win') {
+    return `${streak} trade win streak`;
+  }
+
+  if (direction === 'loss') {
+    return `${streak} trade loss streak`;
+  }
+
+  return `${streak} flat trades`;
 }
 
-function getMostFrequentSymbol(trades: TradeView[]) {
-  const map = new Map<string, number>();
-
-  for (const trade of trades) {
-    const key = trade.symbol.trim();
-
-    if (!key) {
-      continue;
-    }
-
-    map.set(key, (map.get(key) ?? 0) + 1);
+function renderDistributionWidth(value: number, total: number) {
+  if (total <= 0 || value <= 0) {
+    return '0%';
   }
 
-  let bestSymbol: string | null = null;
-  let bestCount = 0;
-
-  for (const [symbol, count] of map.entries()) {
-    if (count > bestCount) {
-      bestSymbol = symbol;
-      bestCount = count;
-    }
-  }
-
-  return bestSymbol ?? 'n/d';
+  return `${Math.max((value / total) * 100, 8)}%`;
 }
 
 export default function DashboardView() {
   const router = useRouter();
-  const { loading, supabase, user } = useAuth();
+  const { loading: authLoading, supabase, user } = useAuth();
+  const {
+    activeAccount,
+    accounts,
+    error: accountsError,
+    loading: accountsLoading,
+  } = useAccounts();
   const [logoutError, setLogoutError] = useState<string | null>(null);
-  const [tradesState, setTradesState] = useState<TradesState>({
-    error: null,
-    items: [],
-    loading: false,
+  const tradesState = useUserTrades({
+    accountId: activeAccount?.id ?? null,
+    enabled: Boolean(user && activeAccount),
+    limit: 24,
   });
-
-  useEffect(() => {
-    if (!supabase || !user) {
-      return;
-    }
-
-    const currentSupabase = supabase;
-    const currentUserId = user.id;
-    let ignore = false;
-
-    async function loadTrades() {
-      setTradesState((current) => ({
-        ...current,
-        loading: true,
-        error: null,
-      }));
-
-      const { data, error } = await currentSupabase
-        .from('Trades')
-        .select(TRADE_SELECT)
-        .eq('user_id', currentUserId)
-        .order('Date', { ascending: false })
-        .limit(24)
-        .overrideTypes<TradeRow[], { merge: false }>();
-
-      if (ignore) {
-        return;
-      }
-
-      if (error) {
-        setTradesState({
-          error: error.message,
-          items: [],
-          loading: false,
-        });
-        return;
-      }
-
-      setTradesState({
-        error: null,
-        items: (data ?? []).map((trade, index) => normalizeTrade(trade, index)),
-        loading: false,
-      });
-    }
-
-    void loadTrades();
-
-    return () => {
-      ignore = true;
-    };
-  }, [supabase, user]);
+  const accountMetrics = useMemo(
+    () =>
+      activeAccount ? buildAccountMetrics(activeAccount, tradesState.items) : null,
+    [activeAccount, tradesState.items],
+  );
+  const summary = accountMetrics?.summary ?? buildTradeSummary([]);
+  const recentTrades = tradesState.items.slice(0, 7);
+  const directionalTotal = summary.longCount + summary.shortCount;
+  const currentEquity =
+    activeAccount && accountMetrics
+      ? isPropAccount(activeAccount) &&
+        activeAccount.phasesEnabled &&
+        !activeAccount.isFunded
+        ? accountMetrics.currentPhaseEquity
+        : accountMetrics.overallCurrentEquity
+      : null;
+  const metricCards = activeAccount
+    ? [
+        {
+          caption: 'active account balance',
+          label: 'Current equity',
+          tone: 'accent' as const,
+          value:
+            currentEquity === null
+              ? formatCompactNumber(activeAccount.initialEquity)
+              : formatCompactNumber(currentEquity),
+        },
+        {
+          caption: 'aggregate result on this account',
+          label: 'Net PnL',
+          tone: summary.netPnl < 0 ? ('danger' as const) : ('accent' as const),
+          value: formatSignedNumber(summary.netPnl),
+        },
+        {
+          caption: `${summary.wins} wins / ${summary.losses} losses`,
+          label: 'Win rate',
+          tone: 'success' as const,
+          value:
+            summary.winRate === null ? 'No trades yet' : `${Math.round(summary.winRate)}%`,
+        },
+        {
+          caption: 'risk to reward captured',
+          label: 'Average RR',
+          tone: 'neutral' as const,
+          value:
+            summary.avgRr === null
+              ? 'Not enough history'
+              : formatCompactNumber(summary.avgRr),
+        },
+        {
+          caption: 'observed from account equity path',
+          label: 'Drawdown',
+          tone: accountMetrics && accountMetrics.currentDrawdown > 0
+            ? ('danger' as const)
+            : ('neutral' as const),
+          value:
+            accountMetrics === null
+              ? 'No trades yet'
+              : formatCompactNumber(accountMetrics.currentDrawdown),
+        },
+        {
+          caption:
+            isPropAccount(activeAccount) && activeAccount.phasesEnabled
+              ? activeAccount.isFunded
+                ? 'account already funded'
+                : 'remaining to phase target'
+              : 'average positive outcome',
+          label:
+            isPropAccount(activeAccount) && activeAccount.phasesEnabled
+              ? 'Phase target'
+              : 'Average win',
+          tone:
+            isPropAccount(activeAccount) && activeAccount.phasesEnabled
+              ? ('accent' as const)
+              : ('success' as const),
+          value:
+            isPropAccount(activeAccount) && activeAccount.phasesEnabled
+              ? activeAccount.isFunded
+                ? 'Funded'
+                : accountMetrics && accountMetrics.phaseTargetRemaining !== null
+                  ? formatCompactNumber(accountMetrics.phaseTargetRemaining)
+                  : 'No target'
+              : summary.avgWin === null
+                ? 'No winning trades yet'
+                : formatSignedNumber(summary.avgWin),
+        },
+      ]
+    : [];
+  const snapshotItems = activeAccount
+    ? [
+        {
+          label: 'Account type',
+          value: activeAccount.type,
+        },
+        {
+          label: 'Initial equity',
+          value: formatCompactNumber(activeAccount.initialEquity),
+        },
+        summary.bestTrade !== null
+          ? { label: 'Best trade', value: formatSignedNumber(summary.bestTrade) }
+          : null,
+        summary.worstTrade !== null
+          ? { label: 'Worst trade', value: formatSignedNumber(summary.worstTrade) }
+          : null,
+        summary.profitFactor !== null
+          ? { label: 'Profit factor', value: formatCompactNumber(summary.profitFactor, 2) }
+          : null,
+        summary.screenshotRate !== null
+          ? {
+              label: 'Screenshot coverage',
+              value: `${Math.round(summary.screenshotRate)}%`,
+            }
+          : null,
+      ].filter((item): item is { label: string; value: string } => Boolean(item))
+    : [];
 
   async function handleLogout() {
     if (!supabase) {
@@ -146,62 +207,13 @@ export default function DashboardView() {
     router.replace('/login');
   }
 
-  const summary = useMemo(() => {
-    const trades = tradesState.items;
-    const wins = trades.filter((trade) => (trade.pnl ?? 0) > 0).length;
-    const losses = trades.filter((trade) => (trade.pnl ?? 0) < 0).length;
-    const breakeven = trades.length - wins - losses;
-    const netPnl = trades.reduce((total, trade) => total + (trade.pnl ?? 0), 0);
-    const avgRr =
-      trades.length > 0
-        ? trades.reduce((total, trade) => total + (trade.rr ?? 0), 0) / trades.length
-        : null;
-    const avgPnl =
-      trades.length > 0
-        ? trades.reduce((total, trade) => total + (trade.pnl ?? 0), 0) / trades.length
-        : null;
-    const bestTrade =
-      trades.length > 0
-        ? Math.max(...trades.map((trade) => trade.pnl ?? Number.NEGATIVE_INFINITY))
-        : null;
-    const worstTrade =
-      trades.length > 0
-        ? Math.min(...trades.map((trade) => trade.pnl ?? Number.POSITIVE_INFINITY))
-        : null;
-    const longCount = trades.filter((trade) => trade.bias === 'Long').length;
-    const shortCount = trades.filter((trade) => trade.bias === 'Short').length;
-    const riskAverage =
-      trades.length > 0
-        ? trades.reduce((total, trade) => total + (trade.riskPercent ?? 0), 0) /
-          trades.length
-        : null;
-
-    return {
-      avgPnl,
-      avgRr,
-      bestSymbol: getMostFrequentSymbol(trades),
-      bestTrade:
-        bestTrade === Number.NEGATIVE_INFINITY ? null : bestTrade,
-      breakeven,
-      longCount,
-      losses,
-      netPnl,
-      riskAverage,
-      shortCount,
-      totalTrades: trades.length,
-      winRate:
-        trades.length > 0 ? `${Math.round((wins / trades.length) * 100)}%` : 'n/d',
-      wins,
-      worstTrade:
-        worstTrade === Number.POSITIVE_INFINITY ? null : worstTrade,
-    };
-  }, [tradesState.items]);
-
-  if (loading || !supabase) {
+  if (authLoading || !supabase || accountsLoading) {
     return (
       <PageShell>
         <Panel className="p-6 sm:p-8">
-          <p className="text-sm text-neutral-500">Loading session...</p>
+          <p className="text-sm text-[var(--muted)]">
+            {accountsLoading ? 'Loading active account...' : 'Loading session...'}
+          </p>
         </Panel>
       </PageShell>
     );
@@ -218,156 +230,291 @@ export default function DashboardView() {
     );
   }
 
+  if (!activeAccount) {
+    return (
+      <PageShell size="wide">
+        <Reveal>
+          <Panel className="px-6 py-7 sm:px-8 sm:py-8">
+            <PanelHeader
+              eyebrow="accounts"
+              title="Create an account before trading"
+              description="Dashboard is now account-aware. Create the first account to unlock isolated metrics, charts and trade capture."
+              action={
+                <div className="flex flex-col gap-3 sm:flex-row">
+                  <ButtonLink href="/accounts/new" size="lg" variant="primary">
+                    New Account
+                  </ButtonLink>
+                  <ButtonLink href="/accounts" size="lg" variant="secondary">
+                    Open Accounts
+                  </ButtonLink>
+                </div>
+              }
+            />
+            <div className="px-6 pb-6 sm:px-8 sm:pb-8">
+              {accountsError ? (
+                <MessageBanner message={accountsError} tone="error" />
+              ) : (
+                <div className="rounded-[26px] border border-dashed border-[color:var(--border-color)] bg-[var(--surface)] px-5 py-6 text-sm leading-7 text-[var(--muted)]">
+                  No active account yet. Create one and the dashboard will switch to that account automatically.
+                </div>
+              )}
+            </div>
+          </Panel>
+        </Reveal>
+      </PageShell>
+    );
+  }
+
   return (
     <PageShell size="wide">
       <div className="space-y-6">
         <Reveal>
-          <Panel>
-            <PanelHeader
-              eyebrow="one journal"
-              title="Dashboard"
-              description={user.email ?? 'Active session'}
-              action={
-                <div className="flex flex-col gap-3 sm:flex-row">
+          <Panel className="px-6 py-7 sm:px-8 sm:py-8">
+            <div className="grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_380px] xl:items-stretch">
+              <div className="flex flex-col justify-between gap-6">
+                <div className="max-w-3xl">
+                  <span className="inline-flex items-center rounded-full border border-rose-500/18 bg-rose-500/10 px-3 py-1 font-mono text-[11px] uppercase tracking-[0.32em] text-rose-700 dark:text-rose-200">
+                    account dashboard
+                  </span>
+                  <h1 className="mt-5 text-4xl font-semibold tracking-[-0.04em] text-[var(--foreground)] sm:text-5xl">
+                    {activeAccount.name}
+                  </h1>
+                  <p className="mt-3 text-sm uppercase tracking-[0.28em] text-[var(--muted)]">
+                    {activeAccount.type}
+                  </p>
+
+                  <div className="mt-5 flex flex-wrap gap-2 text-sm text-[var(--muted-strong)]">
+                    <span className="rounded-full border border-[color:var(--border-color)] bg-[var(--surface-raised)] px-3 py-1.5">
+                      {accounts.length} account{accounts.length === 1 ? '' : 's'}
+                    </span>
+                    {summary.bestSymbol ? (
+                      <span className="rounded-full border border-[color:var(--border-color)] bg-[var(--surface-raised)] px-3 py-1.5">
+                        Focus symbol {summary.bestSymbol}
+                      </span>
+                    ) : null}
+                    {summary.recentWindowNetPnl !== null ? (
+                      <span className="rounded-full border border-[color:var(--border-color)] bg-[var(--surface-raised)] px-3 py-1.5">
+                        Last 5 {formatSignedNumber(summary.recentWindowNetPnl)}
+                      </span>
+                    ) : null}
+                    {isPropAccount(activeAccount) ? (
+                      <span className="rounded-full border border-amber-500/20 bg-amber-500/10 px-3 py-1.5 text-amber-700 dark:text-amber-300">
+                        {activeAccount.isFunded
+                          ? 'Funded'
+                          : `Phase ${activeAccount.currentPhase}/${activeAccount.phaseCount}`}
+                      </span>
+                    ) : null}
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
                   <ButtonLink href="/trades/new" size="lg" variant="primary">
                     New Trade
                   </ButtonLink>
-                  <ButtonLink href="/settings" size="lg" variant="secondary">
+                  <ButtonLink href="/accounts" size="lg" variant="secondary">
+                    Accounts
+                  </ButtonLink>
+                  <ButtonLink href="/settings" size="lg" variant="ghost">
                     Settings
                   </ButtonLink>
-                  <Button
-                    type="button"
-                    size="lg"
-                    variant="ghost"
-                    onClick={handleLogout}
-                  >
+                  <Button type="button" size="lg" variant="ghost" onClick={handleLogout}>
                     Logout
                   </Button>
                 </div>
-              }
-            />
+              </div>
 
-            <div className="grid gap-4 px-6 pb-6 sm:grid-cols-2 sm:px-8 sm:pb-8 xl:grid-cols-4">
-              <HoverLift>
-                <MetricCard
-                  label="Total Trades"
-                  value={String(summary.totalTrades)}
-                  tone="accent"
-                />
-              </HoverLift>
-              <HoverLift>
-                <MetricCard label="Win Rate" value={summary.winRate} tone="success" />
-              </HoverLift>
-              <HoverLift>
-                <MetricCard
-                  label="PnL"
-                  value={formatSignedNumber(summary.netPnl)}
-                  tone={summary.netPnl < 0 ? 'danger' : 'accent'}
-                />
-              </HoverLift>
-              <HoverLift>
-                <MetricCard
-                  label="Avg RR"
-                  value={formatCompactNumber(summary.avgRr)}
-                  tone="neutral"
-                />
-              </HoverLift>
+              <div className="rounded-[30px] border border-[color:var(--border-color)] bg-[linear-gradient(180deg,var(--surface-raised),var(--surface))] p-5 shadow-[0_22px_48px_-34px_var(--shadow-color)]">
+                <div className="flex h-full flex-col gap-4">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className="font-mono text-[11px] uppercase tracking-[0.28em] text-[var(--muted)]">
+                        {isPropAccount(activeAccount) &&
+                        activeAccount.phasesEnabled &&
+                        !activeAccount.isFunded
+                          ? 'Phase pulse'
+                          : 'Session pulse'}
+                      </p>
+                      <p className="mt-3 text-3xl font-semibold tracking-tight text-[var(--foreground)]">
+                        {currentEquity === null
+                          ? formatCompactNumber(activeAccount.initialEquity)
+                          : formatCompactNumber(currentEquity)}
+                      </p>
+                    </div>
+                    <span className="rounded-full border border-[color:var(--border-color)] bg-[var(--surface)] px-3 py-1.5 text-xs text-[var(--muted-strong)]">
+                      {getStreakLabel(
+                        summary.currentStreakDirection,
+                        summary.currentStreak,
+                      )}
+                    </span>
+                  </div>
+
+                  <div className="h-28">
+                    <EquitySparkline trades={tradesState.items} className="h-full" />
+                  </div>
+
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="rounded-[22px] border border-[color:var(--border-color)] bg-[var(--surface)] px-4 py-3">
+                      <p className="text-sm text-[var(--muted)]">Profit factor</p>
+                      <p className="mt-2 text-lg font-semibold text-[var(--foreground)]">
+                        {summary.profitFactor === null
+                          ? 'Not enough history'
+                          : formatCompactNumber(summary.profitFactor, 2)}
+                      </p>
+                    </div>
+                    <div className="rounded-[22px] border border-[color:var(--border-color)] bg-[var(--surface)] px-4 py-3">
+                      <p className="text-sm text-[var(--muted)]">Peak equity</p>
+                      <p className="mt-2 text-lg font-semibold text-[var(--foreground)]">
+                        {accountMetrics === null
+                          ? formatCompactNumber(activeAccount.initialEquity)
+                          : formatCompactNumber(accountMetrics.peakEquity)}
+                      </p>
+                    </div>
+                    <div className="rounded-[22px] border border-[color:var(--border-color)] bg-[var(--surface)] px-4 py-3 sm:col-span-2">
+                      <p className="text-sm text-[var(--muted)]">
+                        {isPropAccount(activeAccount) && activeAccount.phasesEnabled
+                          ? 'Phase status'
+                          : 'Latest screenshot-ready trade'}
+                      </p>
+                      <p className="mt-2 text-lg font-semibold text-[var(--foreground)]">
+                        {isPropAccount(activeAccount) && activeAccount.phasesEnabled
+                          ? activeAccount.isFunded
+                            ? 'Funded account'
+                            : accountMetrics &&
+                                accountMetrics.phaseTargetRemaining !== null
+                              ? `Target remaining ${formatCompactNumber(accountMetrics.phaseTargetRemaining)}`
+                              : `Phase ${activeAccount.currentPhase}/${activeAccount.phaseCount}`
+                          : summary.latestTradeWithScreenshot?.symbol ?? 'No screenshots yet'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
 
+            {accountsError ? (
+              <div className="mt-5">
+                <MessageBanner message={accountsError} tone="error" />
+              </div>
+            ) : null}
+
             {logoutError ? (
-              <div className="px-6 pb-6 sm:px-8 sm:pb-8">
+              <div className="mt-5">
                 <MessageBanner message={logoutError} tone="error" />
               </div>
             ) : null}
           </Panel>
         </Reveal>
 
-        <div className="grid gap-6 xl:grid-cols-[minmax(0,1.45fr)_360px]">
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          {metricCards.map((card, index) => (
+            <Reveal key={card.label} delay={index * 0.04}>
+              <MetricCard
+                label={card.label}
+                value={card.value}
+                tone={card.tone}
+                caption={card.caption}
+              />
+            </Reveal>
+          ))}
+        </div>
+
+        <div className="grid gap-6 xl:grid-cols-[minmax(0,1.42fr)_360px]">
           <div className="grid gap-6">
             <Reveal delay={0.04}>
               <EquityCurveCard trades={tradesState.items} />
             </Reveal>
 
-            <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
+            <div className="grid gap-6 xl:grid-cols-[minmax(0,1.08fr)_0.92fr]">
               <Reveal delay={0.08}>
                 <PnlBarsCard trades={tradesState.items} />
               </Reveal>
 
               <Reveal delay={0.12}>
                 <Panel className="p-6">
-                  <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-neutral-500">
+                  <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-[var(--muted)]">
                     Snapshot
                   </p>
-                  <div className="mt-5 grid gap-3">
-                    {[
-                      {
-                        label: 'Best trade',
-                        value: formatSignedNumber(summary.bestTrade),
-                      },
-                      {
-                        label: 'Worst trade',
-                        value: formatSignedNumber(summary.worstTrade),
-                      },
-                      {
-                        label: 'Avg PnL',
-                        value: formatSignedNumber(summary.avgPnl),
-                      },
-                      {
-                        label: 'Best symbol',
-                        value: summary.bestSymbol,
-                      },
-                    ].map((item) => (
-                      <div
-                        key={item.label}
-                        className="rounded-[24px] border border-neutral-200 bg-white p-4 shadow-[0_16px_30px_-26px_rgba(15,23,42,0.14)]"
-                      >
-                        <p className="text-sm text-neutral-500">{item.label}</p>
-                        <p className="mt-2 text-2xl font-semibold tracking-tight text-neutral-950">
-                          {item.value}
+
+                  {snapshotItems.length > 0 ? (
+                    <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                      {snapshotItems.map((item) => (
+                        <div
+                          key={item.label}
+                          className="rounded-[24px] border border-[color:var(--border-color)] bg-[var(--surface-raised)] px-4 py-4 shadow-[0_18px_36px_-30px_var(--shadow-color)]"
+                        >
+                          <p className="text-sm text-[var(--muted)]">{item.label}</p>
+                          <p className="mt-2 text-2xl font-semibold tracking-tight text-[var(--foreground)]">
+                            {item.value}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="mt-5 rounded-[24px] border border-dashed border-[color:var(--border-color)] bg-[var(--surface)] px-4 py-5 text-sm text-[var(--muted)]">
+                      Save a few trades to unlock a more detailed snapshot.
+                    </div>
+                  )}
+
+                  {isPropAccount(activeAccount) ? (
+                    <div className="mt-5 grid gap-3">
+                      <div className="rounded-[22px] border border-[color:var(--border-color)] bg-[var(--surface)] px-4 py-3">
+                        <p className="text-sm text-[var(--muted)]">Current phase</p>
+                        <p className="mt-2 text-lg font-semibold text-[var(--foreground)]">
+                          {activeAccount.isFunded
+                            ? 'Funded'
+                            : `${activeAccount.currentPhase} / ${activeAccount.phaseCount}`}
                         </p>
                       </div>
-                    ))}
-                  </div>
-
-                  <div className="mt-5 space-y-4">
-                    <div>
-                      <div className="mb-2 flex items-center justify-between text-sm text-neutral-500">
-                        <span>Long bias</span>
-                        <span>{summary.longCount}</span>
+                      {activeAccount.maxDrawdown !== null ? (
+                        <div className="rounded-[22px] border border-[color:var(--border-color)] bg-[var(--surface)] px-4 py-3">
+                          <p className="text-sm text-[var(--muted)]">Max drawdown rule</p>
+                          <p className="mt-2 text-lg font-semibold text-[var(--foreground)]">
+                            {formatCompactNumber(activeAccount.maxDrawdown)}
+                          </p>
+                        </div>
+                      ) : null}
+                      {activeAccount.dailyDrawdownMax !== null ? (
+                        <div className="rounded-[22px] border border-[color:var(--border-color)] bg-[var(--surface)] px-4 py-3">
+                          <p className="text-sm text-[var(--muted)]">Daily drawdown rule</p>
+                          <p className="mt-2 text-lg font-semibold text-[var(--foreground)]">
+                            {formatCompactNumber(activeAccount.dailyDrawdownMax)}
+                          </p>
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : directionalTotal > 0 ? (
+                    <div className="mt-5 space-y-4">
+                      <div>
+                        <div className="mb-2 flex items-center justify-between text-sm text-[var(--muted)]">
+                          <span>Long flow</span>
+                          <span>{summary.longCount}</span>
+                        </div>
+                        <div className="h-2 rounded-full bg-[var(--surface-soft)]">
+                          <div
+                            className="h-full rounded-full bg-[linear-gradient(90deg,var(--chart-positive),var(--chart-accent))]"
+                            style={{
+                              width: renderDistributionWidth(summary.longCount, directionalTotal),
+                            }}
+                          />
+                        </div>
                       </div>
-                      <div className="h-2 rounded-full bg-neutral-100">
-                        <div
-                          className="h-full rounded-full bg-[linear-gradient(90deg,#18181b,#7f1d1d)]"
-                          style={{
-                            width: `${
-                              ((summary.longCount /
-                                Math.max(summary.longCount + summary.shortCount, 1)) *
-                                100)
-                            }%`,
-                          }}
-                        />
+
+                      <div>
+                        <div className="mb-2 flex items-center justify-between text-sm text-[var(--muted)]">
+                          <span>Short flow</span>
+                          <span>{summary.shortCount}</span>
+                        </div>
+                        <div className="h-2 rounded-full bg-[var(--surface-soft)]">
+                          <div
+                            className="h-full rounded-full bg-[linear-gradient(90deg,var(--chart-negative),var(--chart-accent))]"
+                            style={{
+                              width: renderDistributionWidth(summary.shortCount, directionalTotal),
+                            }}
+                          />
+                        </div>
                       </div>
                     </div>
-
-                    <div>
-                      <div className="mb-2 flex items-center justify-between text-sm text-neutral-500">
-                        <span>Short bias</span>
-                        <span>{summary.shortCount}</span>
-                      </div>
-                      <div className="h-2 rounded-full bg-neutral-100">
-                        <div
-                          className="h-full rounded-full bg-[linear-gradient(90deg,#fb7185,#9f1239)]"
-                          style={{
-                            width: `${
-                              ((summary.shortCount /
-                                Math.max(summary.longCount + summary.shortCount, 1)) *
-                                100)
-                            }%`,
-                          }}
-                        />
-                      </div>
-                    </div>
-                  </div>
+                  ) : null}
                 </Panel>
               </Reveal>
             </div>
@@ -376,17 +523,25 @@ export default function DashboardView() {
               <Panel className="overflow-hidden">
                 <PanelHeader
                   eyebrow="recent trades"
-                  title="Execution"
+                  title="Execution recap"
+                  description="Featured trade first, compact cards after. Screenshots stay embedded when available."
                   action={
-                    <ButtonLink href="/trades/new" variant="secondary">
-                      Add Trade
-                    </ButtonLink>
+                    <div className="flex items-center gap-3">
+                      <span className="hidden text-sm text-[var(--muted)] sm:inline">
+                        Showing {recentTrades.length} recent trades
+                      </span>
+                      <ButtonLink href="/trades/new" variant="secondary">
+                        Add Trade
+                      </ButtonLink>
+                    </div>
                   }
                 />
 
-                <div className="px-6 pb-6 sm:px-8 sm:pb-8">
+                <div className="px-6 pb-6 pt-2 sm:px-8 sm:pb-8">
                   {tradesState.loading ? (
-                    <p className="text-sm text-neutral-500">Loading trades...</p>
+                    <div className="rounded-[24px] border border-[color:var(--border-color)] bg-[var(--surface)] px-4 py-5 text-sm text-[var(--muted)]">
+                      Loading trades...
+                    </div>
                   ) : null}
 
                   {tradesState.error ? (
@@ -398,92 +553,25 @@ export default function DashboardView() {
 
                   {!tradesState.loading &&
                   !tradesState.error &&
-                  tradesState.items.length === 0 ? (
-                    <div className="rounded-[26px] border border-dashed border-neutral-200 bg-neutral-50 p-6 text-sm text-neutral-500">
-                      No trades yet.
+                  recentTrades.length === 0 ? (
+                    <div className="rounded-[26px] border border-dashed border-[color:var(--border-color)] bg-[var(--surface)] px-5 py-6 text-sm leading-7 text-[var(--muted)]">
+                      No trades yet for this account. Save one and the execution recap will build itself.
                     </div>
                   ) : null}
 
                   {!tradesState.loading &&
                   !tradesState.error &&
-                  tradesState.items.length > 0 ? (
-                    <div className="space-y-4">
-                      {tradesState.items.map((trade, index) => (
-                        <motion.article
+                  recentTrades.length > 0 ? (
+                    <div className="grid gap-4 xl:grid-cols-2">
+                      {recentTrades.map((trade, index) => (
+                        <TradeCard
                           key={trade.id}
-                          initial={{ opacity: 0, y: 12 }}
-                          whileInView={{ opacity: 1, y: 0 }}
-                          viewport={{ once: true, amount: 0.3 }}
-                          transition={{
-                            delay: index * 0.03,
-                            duration: 0.46,
-                            ease: [0.22, 1, 0.36, 1],
-                          }}
-                          whileHover={{ y: -4 }}
-                          className="rounded-[28px] border border-neutral-200 bg-white p-5 shadow-[0_18px_36px_-30px_rgba(15,23,42,0.16)]"
-                        >
-                          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                            <div className="min-w-0">
-                              <div className="flex flex-wrap items-center gap-3">
-                                <span className="rounded-full border border-rose-200 bg-rose-50 px-3 py-1 font-mono text-[11px] uppercase tracking-[0.24em] text-rose-700">
-                                  {trade.symbol}
-                                </span>
-                                <span className="rounded-full border border-neutral-200 bg-neutral-50 px-3 py-1 text-xs uppercase tracking-[0.24em] text-neutral-600">
-                                  {trade.bias ?? 'n/d'}
-                                </span>
-                                <span className="text-sm text-neutral-500">
-                                  {formatTradeDate(trade.date)}
-                                </span>
-                              </div>
-
-                              <div className="mt-4 flex flex-wrap gap-2 text-xs text-neutral-700">
-                                <span className="rounded-full border border-neutral-200 px-3 py-1">
-                                  RR {formatCompactNumber(trade.rr)}
-                                </span>
-                                <span className="rounded-full border border-neutral-200 px-3 py-1">
-                                  Entry {formatCompactNumber(trade.entryPrice)}
-                                </span>
-                                <span className="rounded-full border border-neutral-200 px-3 py-1">
-                                  Stop {formatCompactNumber(trade.stoploss)}
-                                </span>
-                                <span className="rounded-full border border-neutral-200 px-3 py-1">
-                                  Take {formatCompactNumber(trade.takeProfit)}
-                                </span>
-                                <span className="rounded-full border border-neutral-200 px-3 py-1">
-                                  Risk {formatCompactNumber(trade.riskPercent)}%
-                                </span>
-                              </div>
-
-                              {trade.notes ? (
-                                <p className="mt-4 max-w-3xl whitespace-pre-line text-sm leading-7 text-neutral-600">
-                                  {trade.notes}
-                                </p>
-                              ) : null}
-
-                              {trade.screenshotUrl ? (
-                                <Link
-                                  href={trade.screenshotUrl}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="mt-4 inline-flex text-sm text-neutral-500 transition hover:text-neutral-950"
-                                >
-                                  Screenshot
-                                </Link>
-                              ) : null}
-                            </div>
-
-                            <div className="shrink-0 rounded-[24px] border border-neutral-200 bg-neutral-50 px-4 py-3 lg:min-w-[150px]">
-                              <p className="font-mono text-[11px] uppercase tracking-[0.28em] text-neutral-500">
-                                PnL
-                              </p>
-                              <p
-                                className={`mt-2 text-2xl font-semibold tracking-tight ${pnlToneClassName(trade.pnl)}`}
-                              >
-                                {formatSignedNumber(trade.pnl)}
-                              </p>
-                            </div>
-                          </div>
-                        </motion.article>
+                          trade={trade}
+                          index={index}
+                          featured={index === 0}
+                          compact={index > 0}
+                          className={index === 0 ? 'xl:col-span-2' : ''}
+                        />
                       ))}
                     </div>
                   ) : null}
@@ -492,7 +580,7 @@ export default function DashboardView() {
             </Reveal>
           </div>
 
-          <div className="grid gap-6">
+          <div className="grid gap-6 xl:sticky xl:top-36 xl:self-start">
             <Reveal delay={0.1}>
               <WinLossCard
                 wins={summary.wins}
@@ -503,46 +591,45 @@ export default function DashboardView() {
 
             <Reveal delay={0.14}>
               <Panel className="p-6">
-                <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-neutral-500">
-                  Pulse
+                <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-[var(--muted)]">
+                  Execution profile
                 </p>
+
                 <div className="mt-5 grid gap-3">
-                  {[
-                    {
-                      label: 'Risk avg',
-                      value: `${formatCompactNumber(summary.riskAverage)}%`,
-                    },
-                    {
-                      label: 'Breakeven',
-                      value: String(summary.breakeven),
-                    },
-                    {
-                      label: 'Recent flow',
-                      value: tradesState.items[0]?.symbol ?? 'n/d',
-                    },
-                  ].map((item) => (
-                    <div
-                      key={item.label}
-                      className="rounded-[24px] border border-neutral-200 bg-white p-4 shadow-[0_14px_24px_-22px_rgba(15,23,42,0.14)]"
-                    >
-                      <p className="text-sm text-neutral-500">{item.label}</p>
-                      <p className="mt-2 text-xl font-semibold text-neutral-950">
-                        {item.value}
-                      </p>
-                    </div>
-                  ))}
+                  <div className="rounded-[22px] border border-[color:var(--border-color)] bg-[var(--surface-raised)] p-4 shadow-[0_14px_28px_-24px_var(--shadow-color)]">
+                    <p className="text-sm text-[var(--muted)]">Recent symbol</p>
+                    <p className="mt-2 text-xl font-semibold text-[var(--foreground)]">
+                      {summary.recentSymbol ?? 'No trades yet'}
+                    </p>
+                  </div>
+                  <div className="rounded-[22px] border border-[color:var(--border-color)] bg-[var(--surface-raised)] p-4 shadow-[0_14px_28px_-24px_var(--shadow-color)]">
+                    <p className="text-sm text-[var(--muted)]">Average risk</p>
+                    <p className="mt-2 text-xl font-semibold text-[var(--foreground)]">
+                      {summary.riskAverage === null
+                        ? 'Not tracked yet'
+                        : formatPercentValue(summary.riskAverage)}
+                    </p>
+                  </div>
+                  <div className="rounded-[22px] border border-[color:var(--border-color)] bg-[var(--surface-raised)] p-4 shadow-[0_14px_28px_-24px_var(--shadow-color)]">
+                    <p className="text-sm text-[var(--muted)]">Max observed drawdown</p>
+                    <p className="mt-2 text-xl font-semibold text-[var(--foreground)]">
+                      {accountMetrics === null
+                        ? 'No trades yet'
+                        : formatCompactNumber(accountMetrics.maxObservedDrawdown)}
+                    </p>
+                  </div>
                 </div>
 
                 <div className="mt-5 flex flex-col gap-3">
                   <ButtonLink href="/trades/new" variant="primary" size="lg">
                     Capture Trade
                   </ButtonLink>
-                  <ButtonLink href="/settings" variant="secondary" size="lg">
-                    Open Settings
+                  <ButtonLink href="/accounts" variant="secondary" size="lg">
+                    Manage Accounts
                   </ButtonLink>
                   <Link
                     href="/"
-                    className="text-sm text-neutral-500 transition hover:text-neutral-950"
+                    className="text-sm text-[var(--muted)] transition hover:text-[var(--foreground)]"
                   >
                     Back home
                   </Link>

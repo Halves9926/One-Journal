@@ -105,7 +105,7 @@ export default function LoginForm() {
   if (loading || !supabase) {
     return (
       <Panel className="p-6 sm:p-8 animate-rise-delay-1">
-        <p className="text-sm text-neutral-500">Loading session...</p>
+        <p className="text-sm text-[var(--muted)]">Loading session...</p>
       </Panel>
     );
   }
@@ -113,13 +113,13 @@ export default function LoginForm() {
   if (user) {
     return (
       <Panel className="p-6 sm:p-8 animate-rise-delay-1">
-        <span className="inline-flex items-center rounded-full border border-rose-200 bg-rose-50 px-3 py-1 font-mono text-[11px] uppercase tracking-[0.28em] text-rose-700">
+        <span className="inline-flex items-center rounded-full border border-rose-500/18 bg-rose-500/10 px-3 py-1 font-mono text-[11px] uppercase tracking-[0.28em] text-rose-700 dark:text-rose-200">
           active session
         </span>
-        <h2 className="mt-5 text-3xl font-semibold tracking-tight text-neutral-950">
+        <h2 className="mt-5 text-3xl font-semibold tracking-tight text-[var(--foreground)]">
           Session active
         </h2>
-        <p className="mt-4 text-sm leading-7 text-neutral-600">
+        <p className="mt-4 text-sm leading-7 text-[var(--muted)]">
           {user.email}
         </p>
         <div className="mt-8 flex flex-col gap-3 sm:flex-row">
@@ -137,22 +137,22 @@ export default function LoginForm() {
   return (
     <Panel className="overflow-hidden p-6 sm:p-8 animate-rise-delay-1">
       <div className="mb-6">
-        <p className="font-mono text-[11px] uppercase tracking-[0.32em] text-neutral-500">
+        <p className="font-mono text-[11px] uppercase tracking-[0.32em] text-[var(--muted)]">
           access
         </p>
-        <h2 className="mt-3 text-3xl font-semibold tracking-tight text-neutral-950">
+        <h2 className="mt-3 text-3xl font-semibold tracking-tight text-[var(--foreground)]">
           Workspace access
         </h2>
       </div>
 
-      <div className="flex gap-2 rounded-full border border-neutral-200 bg-neutral-100/80 p-1">
+      <div className="flex gap-2 rounded-full border border-[color:var(--border-color)] bg-[var(--surface)] p-1">
         <button
           type="button"
           onClick={() => setMode('login')}
           className={`flex-1 rounded-full px-4 py-2.5 text-sm font-medium transition ${
             mode === 'login'
               ? 'bg-[linear-gradient(135deg,rgba(127,29,29,0.95),rgba(95,16,32,0.94),rgba(36,11,17,0.98))] text-white shadow-[0_18px_36px_-20px_rgba(127,29,29,0.9)]'
-              : 'text-neutral-600 hover:bg-white hover:text-neutral-950'
+              : 'text-[var(--muted)] hover:bg-[var(--surface-raised)] hover:text-[var(--foreground)]'
           }`}
         >
           Login
@@ -163,7 +163,7 @@ export default function LoginForm() {
           className={`flex-1 rounded-full px-4 py-2.5 text-sm font-medium transition ${
             mode === 'signup'
               ? 'bg-[linear-gradient(135deg,rgba(127,29,29,0.95),rgba(95,16,32,0.94),rgba(36,11,17,0.98))] text-white shadow-[0_18px_36px_-20px_rgba(127,29,29,0.9)]'
-              : 'text-neutral-600 hover:bg-white hover:text-neutral-950'
+              : 'text-[var(--muted)] hover:bg-[var(--surface-raised)] hover:text-[var(--foreground)]'
           }`}
         >
           Sign up
@@ -208,8 +208,8 @@ export default function LoginForm() {
         </Button>
       </form>
 
-      <div className="mt-6 border-t border-neutral-200 pt-5 text-sm text-neutral-500">
-        <Link href="/" className="transition hover:text-neutral-950">
+      <div className="mt-6 border-t border-[color:var(--border-color)] pt-5 text-sm text-[var(--muted)]">
+        <Link href="/" className="transition hover:text-[var(--foreground)]">
           Back home
         </Link>
       </div>

@@ -23,10 +23,10 @@ export default function FeedbackToast({
 }: FeedbackToastProps) {
   const toneClassName =
     tone === 'error'
-      ? 'border-rose-200 bg-white text-neutral-900'
+      ? 'border-rose-200 bg-[var(--surface-raised)] text-[var(--foreground)]'
       : tone === 'success'
-        ? 'border-emerald-200 bg-white text-neutral-900'
-        : 'border-neutral-200 bg-white text-neutral-900';
+        ? 'border-emerald-200 bg-[var(--surface-raised)] text-[var(--foreground)]'
+        : 'border-[color:var(--border-color)] bg-[var(--surface-raised)] text-[var(--foreground)]';
 
   return (
     <AnimatePresence>
@@ -40,20 +40,20 @@ export default function FeedbackToast({
         >
           <div
             className={cx(
-              'rounded-[28px] border p-5 shadow-[0_28px_60px_-32px_rgba(15,23,42,0.28)]',
+              'rounded-[28px] border p-5 shadow-[0_28px_60px_-32px_var(--shadow-color)]',
               toneClassName,
             )}
           >
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="text-sm font-semibold">{title}</p>
-                <p className="mt-1 text-sm text-neutral-600">{message}</p>
+                <p className="mt-1 text-sm text-[var(--muted)]">{message}</p>
               </div>
               {onClose ? (
                 <button
                   type="button"
                   onClick={onClose}
-                  className="rounded-full border border-neutral-200 px-2.5 py-1 text-xs text-neutral-500 transition hover:bg-neutral-50 hover:text-neutral-900"
+                  className="rounded-full border border-[color:var(--border-color)] px-2.5 py-1 text-xs text-[var(--muted)] transition hover:bg-[var(--surface)] hover:text-[var(--foreground)]"
                 >
                   Close
                 </button>
@@ -61,9 +61,12 @@ export default function FeedbackToast({
             </div>
 
             {items && items.length > 0 ? (
-              <ul className="mt-4 space-y-2 text-sm text-neutral-700">
+              <ul className="mt-4 space-y-2 text-sm text-[var(--muted-strong)]">
                 {items.map((item) => (
-                  <li key={item} className="rounded-2xl bg-neutral-50 px-3 py-2">
+                  <li
+                    key={item}
+                    className="rounded-2xl bg-[var(--surface)] px-3 py-2"
+                  >
                     {item}
                   </li>
                 ))}
@@ -75,4 +78,3 @@ export default function FeedbackToast({
     </AnimatePresence>
   );
 }
-

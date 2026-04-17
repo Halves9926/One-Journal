@@ -28,7 +28,7 @@ export default function SettingsView() {
     return (
       <PageShell>
         <Panel className="p-6 sm:p-8">
-          <p className="text-sm text-neutral-500">Loading session...</p>
+          <p className="text-sm text-[var(--muted)]">Loading session...</p>
         </Panel>
       </PageShell>
     );
@@ -77,10 +77,10 @@ export default function SettingsView() {
                   <Reveal key={section.key} delay={sectionIndex * 0.05}>
                     <div className="space-y-4">
                       <div>
-                        <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-neutral-500">
+                        <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-[var(--muted)]">
                           {section.label}
                         </p>
-                        <p className="mt-2 text-sm text-neutral-500">
+                        <p className="mt-2 text-sm text-[var(--muted)]">
                           {section.description}
                         </p>
                       </div>
@@ -111,13 +111,13 @@ export default function SettingsView() {
         <div className="space-y-6 xl:sticky xl:top-32 xl:self-start">
           <Reveal delay={0.08}>
             <Panel className="p-6">
-              <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-neutral-500">
+              <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-[var(--muted)]">
                 Active
               </p>
-              <p className="mt-4 text-4xl font-semibold tracking-tight text-neutral-950">
+              <p className="mt-4 text-4xl font-semibold tracking-tight text-[var(--foreground)]">
                 {activeCount}
               </p>
-              <p className="mt-2 text-sm text-neutral-500">
+              <p className="mt-2 text-sm text-[var(--muted)]">
                 Visible fields in New Trade.
               </p>
             </Panel>
@@ -125,19 +125,19 @@ export default function SettingsView() {
 
           <Reveal delay={0.12}>
             <Panel className="p-6">
-              <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-neutral-500">
+              <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-[var(--muted)]">
                 Sync
               </p>
               <div className="mt-4 space-y-3">
-                <div className="rounded-[22px] border border-neutral-200 bg-white p-4">
-                  <p className="text-sm text-neutral-500">Storage</p>
-                  <p className="mt-2 text-lg font-semibold text-neutral-950">
+                <div className="rounded-[22px] border border-[color:var(--border-color)] bg-[var(--surface-raised)] p-4 shadow-[0_14px_28px_-24px_var(--shadow-color)]">
+                  <p className="text-sm text-[var(--muted)]">Storage</p>
+                  <p className="mt-2 text-lg font-semibold text-[var(--foreground)]">
                     {ready ? 'Device saved' : 'Loading'}
                   </p>
                 </div>
-                <div className="rounded-[22px] border border-neutral-200 bg-white p-4">
-                  <p className="text-sm text-neutral-500">Route</p>
-                  <p className="mt-2 text-lg font-semibold text-neutral-950">
+                <div className="rounded-[22px] border border-[color:var(--border-color)] bg-[var(--surface-raised)] p-4 shadow-[0_14px_28px_-24px_var(--shadow-color)]">
+                  <p className="text-sm text-[var(--muted)]">Route</p>
+                  <p className="mt-2 text-lg font-semibold text-[var(--foreground)]">
                     /trades/new
                   </p>
                 </div>

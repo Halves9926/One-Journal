@@ -15,10 +15,10 @@ export default function AuthRequired({
       <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-[24px] border border-rose-200 bg-[linear-gradient(135deg,#9f1239,#7f1d1d)] text-sm font-semibold text-white shadow-[0_18px_30px_-22px_rgba(127,29,29,0.32)]">
         OJ
       </div>
-      <h1 className="mt-6 text-3xl font-semibold tracking-tight text-neutral-950">
+      <h1 className="mt-6 text-3xl font-semibold tracking-tight text-[var(--foreground)]">
         {title}
       </h1>
-      <p className="mx-auto mt-4 max-w-xl text-sm leading-7 text-neutral-600">
+      <p className="mx-auto mt-4 max-w-xl text-sm leading-7 text-[var(--muted)]">
         {description}
       </p>
       <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-center">
