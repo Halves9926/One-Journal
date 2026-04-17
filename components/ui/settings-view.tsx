@@ -7,14 +7,34 @@ import { CheckboxField } from '@/components/ui/form-fields';
 import PageShell from '@/components/ui/page-shell';
 import { Panel, PanelHeader } from '@/components/ui/panel';
 import { Reveal } from '@/components/ui/reveal';
+import { useTheme } from '@/components/ui/theme-provider';
 import { useTradePreferences } from '@/components/ui/trade-preferences-provider';
 import {
   TRADE_FIELD_DEFINITIONS,
   TRADE_FIELD_SECTIONS,
 } from '@/lib/trade-form-preferences';
 
+const accentOptions = [
+  {
+    label: 'Red accent',
+    theme: 'red' as const,
+    swatchClassName: 'bg-[linear-gradient(135deg,#c35b6d,#6c1f45)]',
+  },
+  {
+    label: 'White accent',
+    theme: 'white' as const,
+    swatchClassName: 'bg-[linear-gradient(135deg,#fff8f0,#c8c0b6)]',
+  },
+  {
+    label: 'Pink accent',
+    theme: 'pink' as const,
+    swatchClassName: 'bg-[linear-gradient(135deg,#ef86b8,#9f245d)]',
+  },
+];
+
 export default function SettingsView() {
   const { loading, user } = useAuth();
+  const { accentTheme, theme, setAccentTheme } = useTheme();
   const {
     preferences,
     ready,
@@ -112,6 +132,59 @@ export default function SettingsView() {
           <Reveal delay={0.08}>
             <Panel className="p-6">
               <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-[var(--muted)]">
+                Appearance
+              </p>
+              <div className="mt-4 space-y-3">
+                <div className="rounded-[22px] border border-[color:var(--border-color)] bg-[var(--surface-raised)] p-4 shadow-[0_14px_28px_-24px_var(--shadow-color)]">
+                  <p className="text-sm text-[var(--muted)]">Mode</p>
+                  <p className="mt-2 text-lg font-semibold text-[var(--foreground)]">
+                    {theme === 'dark' ? 'Dark theme' : 'Light theme'}
+                  </p>
+                </div>
+                <div className="grid gap-3">
+                  {accentOptions.map((option) => {
+                    const isActive = accentTheme === option.theme;
+
+                    return (
+                      <button
+                        key={option.theme}
+                        type="button"
+                        onClick={() => setAccentTheme(option.theme)}
+                        className={`flex items-center justify-between gap-3 rounded-[22px] border px-4 py-3.5 text-left transition duration-300 ${
+                          isActive
+                            ? 'border-[color:var(--accent-border-strong)] bg-[var(--accent-soft-bg)] shadow-[0_18px_36px_-28px_var(--shadow-color)]'
+                            : 'border-[color:var(--border-color)] bg-[var(--surface-raised)] hover:border-[color:var(--border-strong)]'
+                        }`}
+                      >
+                        <span className="flex items-center gap-3">
+                          <span
+                            className={`h-3.5 w-3.5 rounded-full shadow-[0_0_0_6px_rgba(255,255,255,0.03)] ${option.swatchClassName}`}
+                          />
+                          <span>
+                            <span className="block text-sm font-medium text-[var(--foreground)]">
+                              {option.label}
+                            </span>
+                            <span className="mt-1 block text-xs uppercase tracking-[0.24em] text-[var(--muted)]">
+                              accent theme
+                            </span>
+                          </span>
+                        </span>
+                        {isActive ? (
+                          <span className="text-xs uppercase tracking-[0.22em] text-[var(--accent-text)]">
+                            Active
+                          </span>
+                        ) : null}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </Panel>
+          </Reveal>
+
+          <Reveal delay={0.12}>
+            <Panel className="p-6">
+              <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-[var(--muted)]">
                 Active
               </p>
               <p className="mt-4 text-4xl font-semibold tracking-tight text-[var(--foreground)]">
@@ -123,7 +196,7 @@ export default function SettingsView() {
             </Panel>
           </Reveal>
 
-          <Reveal delay={0.12}>
+          <Reveal delay={0.16}>
             <Panel className="p-6">
               <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-[var(--muted)]">
                 Sync
@@ -145,7 +218,7 @@ export default function SettingsView() {
             </Panel>
           </Reveal>
 
-          <Reveal delay={0.16}>
+          <Reveal delay={0.2}>
             <Panel className="p-6">
               <div className="flex flex-col gap-3">
                 <ButtonLink href="/dashboard" variant="secondary" size="lg">

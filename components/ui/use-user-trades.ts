@@ -31,6 +31,11 @@ export function useUserTrades({
 }: UseUserTradesOptions = {}) {
   const { loading: authLoading, supabase, user } = useAuth();
   const [state, setState] = useState<UserTradesState>(initialState);
+  const [refreshCounter, setRefreshCounter] = useState(0);
+
+  function refresh() {
+    setRefreshCounter((current) => current + 1);
+  }
 
   useEffect(() => {
     if (authLoading) {
@@ -94,12 +99,13 @@ export function useUserTrades({
     return () => {
       ignore = true;
     };
-  }, [accountId, authLoading, enabled, limit, supabase, user]);
+  }, [accountId, authLoading, enabled, limit, refreshCounter, supabase, user]);
 
   const resolvedState = !supabase || !user || !enabled ? initialState : state;
 
   return {
     authLoading,
     ...resolvedState,
+    refresh,
   };
 }

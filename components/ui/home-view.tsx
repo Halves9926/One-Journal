@@ -1,6 +1,7 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, type ReactNode } from 'react';
+import Image from 'next/image';
 
 import { useAccounts } from '@/components/ui/accounts-provider';
 import { useAuth } from '@/components/ui/auth-provider';
@@ -46,13 +47,59 @@ function getAccountContextLabel() {
   return 'Account overview';
 }
 
+function HeroBrandBadge({ label }: { label: string }) {
+  return (
+    <span className="inline-flex items-center gap-3 rounded-full border border-[color:var(--accent-border-soft)] bg-[var(--accent-soft-bg)] px-3 py-1.5">
+      <span className="relative flex h-8 w-8 items-center justify-center overflow-hidden rounded-full bg-[#0f1013] shadow-[0_12px_22px_-18px_rgba(15,23,42,0.34)]">
+        <Image
+          src="/brand/one-journal-mark.png"
+          alt=""
+          width={32}
+          height={32}
+          sizes="32px"
+          className="h-full w-full object-contain p-1"
+        />
+      </span>
+      <span className="font-mono text-[11px] uppercase tracking-[0.32em] text-[var(--accent-text)]">
+        {label}
+      </span>
+    </span>
+  );
+}
+
+function HeroBannerCard({
+  alt,
+  children,
+}: {
+  alt: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="overflow-hidden rounded-[30px] border border-[color:var(--border-color)] bg-[linear-gradient(180deg,var(--surface-raised),var(--surface))] shadow-[0_22px_48px_-34px_var(--shadow-color)]">
+      <div className="relative aspect-[16/10] overflow-hidden">
+        <Image
+          src="/brand/one-journal-hero-banner.png"
+          alt={alt}
+          fill
+          preload
+          sizes="(max-width: 1280px) 100vw, 380px"
+          className="object-cover object-center"
+        />
+        <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(9,10,12,0.04),rgba(9,10,12,0.16))]" />
+      </div>
+      <div className="p-5">{children}</div>
+    </div>
+  );
+}
+
 export default function HomeView() {
-  const { user } = useAuth();
+  const { supabase, user } = useAuth();
   const {
     activeAccount,
     accounts,
     error: accountsError,
     loading: accountsLoading,
+    refreshAccounts,
   } = useAccounts();
   const tradesState = useUserTrades({
     accountId: activeAccount?.id ?? null,
@@ -115,6 +162,26 @@ export default function HomeView() {
       ]
     : [];
 
+  async function handleDeleteTrade(tradeId: string) {
+    if (!supabase || !user) {
+      return { error: 'Supabase client unavailable.' };
+    }
+
+    const { error } = await supabase
+      .from('Trades')
+      .delete()
+      .eq('ID', tradeId)
+      .eq('user_id', user.id);
+
+    if (error) {
+      return { error: error.message };
+    }
+
+    tradesState.refresh();
+    await refreshAccounts();
+    return { error: null };
+  }
+
   if (!user) {
     return (
       <PageShell size="wide">
@@ -124,9 +191,7 @@ export default function HomeView() {
               <div className="grid gap-6 xl:grid-cols-[minmax(0,1.15fr)_380px] xl:items-stretch">
                 <div className="flex flex-col justify-between gap-6">
                   <div className="max-w-3xl">
-                    <span className="inline-flex items-center rounded-full border border-rose-500/18 bg-rose-500/10 px-3 py-1 font-mono text-[11px] uppercase tracking-[0.32em] text-rose-700 dark:text-rose-200">
-                      one journal
-                    </span>
+                    <HeroBrandBadge label="one journal" />
                     <h1 className="mt-5 text-balance text-4xl font-semibold tracking-[-0.04em] text-[var(--foreground)] sm:text-5xl lg:text-6xl">
                       Trading workspace, not landing page.
                     </h1>
@@ -145,24 +210,24 @@ export default function HomeView() {
                   </div>
                 </div>
 
-                <div className="rounded-[30px] border border-[color:var(--border-color)] bg-[linear-gradient(180deg,var(--surface-raised),var(--surface))] p-5 shadow-[0_22px_48px_-34px_var(--shadow-color)]">
+                <HeroBannerCard alt="One Journal hero banner">
                   <div className="flex h-full flex-col justify-between gap-4">
                     <div>
                       <p className="font-mono text-[11px] uppercase tracking-[0.28em] text-[var(--muted)]">
-                        Journal pulse
+                        Brand visual
                       </p>
                       <p className="mt-3 text-2xl font-semibold tracking-tight text-[var(--foreground)]">
-                        Waiting for session
+                        One Journal workspace
                       </p>
                       <p className="mt-3 text-sm leading-7 text-[var(--muted)]">
-                        Once you sign in, this block becomes the live view of your active trading account.
+                        Sign in to turn this hero into your live account-aware overview.
                       </p>
                     </div>
                     <ButtonLink href="/login" variant="secondary" size="lg">
                       Unlock Workspace
                     </ButtonLink>
                   </div>
-                </div>
+                </HeroBannerCard>
               </div>
             </Panel>
           </Reveal>
@@ -226,9 +291,7 @@ export default function HomeView() {
             <div className="grid gap-6 xl:grid-cols-[minmax(0,1.15fr)_380px] xl:items-stretch">
               <div className="flex flex-col justify-between gap-6">
                 <div className="max-w-3xl">
-                  <span className="inline-flex items-center rounded-full border border-rose-500/18 bg-rose-500/10 px-3 py-1 font-mono text-[11px] uppercase tracking-[0.32em] text-rose-700 dark:text-rose-200">
-                    {getAccountContextLabel()}
-                  </span>
+                  <HeroBrandBadge label={getAccountContextLabel()} />
                   <h1 className="mt-5 text-balance text-4xl font-semibold tracking-[-0.04em] text-[var(--foreground)] sm:text-5xl lg:text-6xl">
                     {activeAccount.name}
                   </h1>
@@ -271,7 +334,7 @@ export default function HomeView() {
                 </div>
               </div>
 
-              <div className="rounded-[30px] border border-[color:var(--border-color)] bg-[linear-gradient(180deg,var(--surface-raised),var(--surface))] p-5 shadow-[0_22px_48px_-34px_var(--shadow-color)]">
+              <HeroBannerCard alt="One Journal dashboard banner">
                 <div className="flex h-full flex-col gap-4">
                   <div className="flex items-start justify-between gap-4">
                     <div>
@@ -293,7 +356,7 @@ export default function HomeView() {
                     </span>
                   </div>
 
-                  <div className="h-28">
+                  <div className="h-24">
                     <EquitySparkline trades={tradesState.items} className="h-full" />
                   </div>
 
@@ -336,7 +399,7 @@ export default function HomeView() {
                     </div>
                   </div>
                 </div>
-              </div>
+              </HeroBannerCard>
             </div>
           </Panel>
         </Reveal>
@@ -405,6 +468,8 @@ export default function HomeView() {
                       index={index}
                       featured={index === 0}
                       compact={index > 0}
+                      editHref={`/trades/${trade.id}/edit`}
+                      onDelete={handleDeleteTrade}
                       className={index === 0 ? 'xl:col-span-2' : ''}
                     />
                   ))}

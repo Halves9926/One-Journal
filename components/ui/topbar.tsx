@@ -1,6 +1,7 @@
 'use client';
 
 import { motion } from 'framer-motion';
+import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useRef } from 'react';
@@ -75,8 +76,15 @@ export default function Topbar() {
         >
           <div className="flex flex-wrap items-center justify-between gap-3">
             <Link href="/" className="flex min-w-0 items-center gap-3">
-              <span className="flex h-10 w-10 items-center justify-center rounded-2xl border border-rose-200/40 bg-[linear-gradient(135deg,#9f1239,#7f1d1d)] text-sm font-semibold text-white shadow-[0_18px_30px_-22px_rgba(127,29,29,0.36)]">
-                OJ
+              <span className="relative flex h-11 w-11 items-center justify-center overflow-hidden rounded-2xl border border-[color:var(--border-color)] bg-[#0f1013] shadow-[0_18px_30px_-22px_rgba(15,23,42,0.36)]">
+                <Image
+                  src="/brand/one-journal-mark.png"
+                  alt="One Journal brand mark"
+                  width={44}
+                  height={44}
+                  className="h-full w-full object-contain p-1.5"
+                  sizes="44px"
+                />
               </span>
               <span className="min-w-0">
                 <span className="block truncate text-sm font-semibold tracking-tight text-[var(--foreground)]">
@@ -128,7 +136,7 @@ export default function Topbar() {
                     className={cx(
                       'shrink-0 rounded-full px-4 py-2.5 text-sm font-medium transition',
                       isActive
-                        ? 'bg-[linear-gradient(135deg,#9f1239,#7f1d1d)] text-white shadow-[0_14px_30px_-20px_rgba(127,29,29,0.36)]'
+                        ? 'bg-[linear-gradient(135deg,var(--accent-gradient-start),var(--accent-gradient-end))] text-[var(--accent-button-text)] shadow-[0_14px_30px_-20px_var(--accent-button-shadow)]'
                         : 'border border-[color:var(--border-color)] bg-[var(--surface-raised)] text-[var(--muted-strong)] hover:border-[color:var(--border-strong)] hover:text-[var(--foreground)]',
                     )}
                   >

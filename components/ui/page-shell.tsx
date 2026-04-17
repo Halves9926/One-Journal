@@ -24,17 +24,17 @@ export default function PageShell({
         paddingTop: 'calc(var(--topbar-offset, 13rem) + 1rem)',
       }}
       className={cx(
-        'relative z-10 mx-auto min-h-screen w-full overflow-hidden px-4 pb-16 sm:px-6 lg:px-8',
+        'relative z-10 mx-auto min-h-screen w-full overflow-x-clip px-4 pb-16 sm:px-6 lg:px-8',
         sizeClassNames[size],
         className,
       )}
     >
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-0 -z-10 overflow-hidden"
+        className="pointer-events-none absolute inset-x-[-12rem] inset-y-[-8rem] -z-10 overflow-visible"
       >
-        <div className="animate-float-glow absolute left-[-9rem] top-12 h-72 w-72 rounded-full bg-[radial-gradient(circle,rgba(127,29,29,0.28),transparent_68%)] blur-3xl" />
-        <div className="animate-float-glow absolute right-[-8rem] top-44 h-80 w-80 rounded-full bg-[radial-gradient(circle,rgba(163,138,120,0.14),transparent_70%)] blur-3xl [animation-delay:1.2s]" />
+        <div className="animate-float-glow absolute left-[-10rem] top-0 h-[28rem] w-[28rem] rounded-full bg-[radial-gradient(circle,rgba(127,29,29,0.2),transparent_74%)] blur-[110px]" />
+        <div className="animate-float-glow absolute right-[-9rem] top-28 h-[30rem] w-[30rem] rounded-full bg-[radial-gradient(circle,rgba(163,138,120,0.12),transparent_76%)] blur-[120px] [animation-delay:1.2s]" />
       </div>
       <div className="relative z-10">{children}</div>
     </main>

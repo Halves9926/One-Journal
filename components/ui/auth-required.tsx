@@ -12,7 +12,7 @@ export default function AuthRequired({
 }: AuthRequiredProps) {
   return (
     <Panel className="mx-auto max-w-2xl p-6 text-center sm:p-8 animate-rise">
-      <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-[24px] border border-rose-200 bg-[linear-gradient(135deg,#9f1239,#7f1d1d)] text-sm font-semibold text-white shadow-[0_18px_30px_-22px_rgba(127,29,29,0.32)]">
+      <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-[24px] border border-[color:var(--accent-border-soft)] bg-[linear-gradient(135deg,var(--accent-gradient-start),var(--accent-gradient-end))] text-sm font-semibold text-[var(--accent-button-text)] shadow-[0_18px_30px_-22px_var(--accent-button-shadow)]">
         OJ
       </div>
       <h1 className="mt-6 text-3xl font-semibold tracking-tight text-[var(--foreground)]">

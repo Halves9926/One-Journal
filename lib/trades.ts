@@ -1,4 +1,4 @@
-import type { TradeInsert, TradeRow } from '@/lib/supabase';
+import type { TradeInsert, TradeRow, TradeUpdate } from '@/lib/supabase';
 
 export const TRADE_COLUMNS = {
   accountId: 'account_id',
@@ -164,33 +164,57 @@ export type TradeFormInput = {
   trade_date: string;
 };
 
-export function mapTradeFormToInsert(
+const TRADE_NOTE_PREFIX_MAP = {
+  mistake: 'Mistake:',
+  position_size: 'Position size:',
+  session: 'Session:',
+  strategy: 'Strategy:',
+} as const satisfies Record<
+  'mistake' | 'position_size' | 'session' | 'strategy',
+  string
+>;
+
+function getTodayValue() {
+  const now = new Date();
+  const timezoneOffset = now.getTimezoneOffset() * 60_000;
+
+  return new Date(now.getTime() - timezoneOffset).toISOString().slice(0, 10);
+}
+
+function toTrimmedNumberString(value: number | null) {
+  if (value === null) {
+    return '';
+  }
+
+  return String(value);
+}
+
+function buildTradeNotes(input: TradeFormInput) {
+  return [
+    input.notes.trim(),
+    input.strategy.trim() ? `Strategy: ${input.strategy.trim()}` : null,
+    input.session.trim() ? `Session: ${input.session.trim()}` : null,
+    input.position_size.trim()
+      ? `Position size: ${input.position_size.trim()}`
+      : null,
+    input.mistake.trim() ? `Mistake: ${input.mistake.trim()}` : null,
+  ].filter(Boolean);
+}
+
+function mapTradeFormToPayload(
   input: TradeFormInput,
   userId: string,
-): TradeInsert {
-  const payload: TradeInsert = {
+  clearEmptyFields: boolean,
+) {
+  const payload: TradeInsert | TradeUpdate = {
     user_id: userId,
   };
 
-  if (input.account_id.trim()) {
-    payload.account_id = input.account_id.trim();
-  }
-
-  if (input.trade_date) {
-    payload.Date = input.trade_date;
-  }
-
-  if (input.symbol.trim()) {
-    payload.Symbol = input.symbol.trim().toUpperCase();
-  }
-
-  if (input.direction) {
-    payload.Bias = input.direction;
-  }
-
-  if (input.screenshot_url.trim()) {
-    payload.ScreenShotURL = input.screenshot_url.trim();
-  }
+  payload.account_id = input.account_id.trim() || null;
+  payload.Date = input.trade_date || null;
+  payload.Symbol = input.symbol.trim() ? input.symbol.trim().toUpperCase() : null;
+  payload.Bias = input.direction || null;
+  payload.ScreenShotURL = input.screenshot_url.trim() || null;
 
   const numericFields: Array<
     [
@@ -210,6 +234,9 @@ export function mapTradeFormToInsert(
     const rawValue = input[inputKey];
 
     if (!rawValue.trim()) {
+      if (clearEmptyFields) {
+        payload[payloadKey] = null;
+      }
       continue;
     }
 
@@ -217,24 +244,122 @@ export function mapTradeFormToInsert(
 
     if (Number.isFinite(parsedValue)) {
       payload[payloadKey] = parsedValue;
+    } else if (clearEmptyFields) {
+      payload[payloadKey] = null;
     }
   }
 
-  const notesSegments = [
-    input.notes.trim(),
-    input.strategy.trim() ? `Strategy: ${input.strategy.trim()}` : null,
-    input.session.trim() ? `Session: ${input.session.trim()}` : null,
-    input.position_size.trim()
-      ? `Position size: ${input.position_size.trim()}`
-      : null,
-    input.mistake.trim() ? `Mistake: ${input.mistake.trim()}` : null,
-  ].filter(Boolean);
+  const notesSegments = buildTradeNotes(input);
 
   if (notesSegments.length > 0) {
     payload.Notes = notesSegments.join('\n\n');
+  } else if (clearEmptyFields) {
+    payload.Notes = null;
   }
 
   return payload;
+}
+
+export function mapTradeFormToInsert(
+  input: TradeFormInput,
+  userId: string,
+): TradeInsert {
+  return mapTradeFormToPayload(input, userId, false) as TradeInsert;
+}
+
+export function mapTradeFormToUpdate(
+  input: TradeFormInput,
+  userId: string,
+): TradeUpdate {
+  return mapTradeFormToPayload(input, userId, true) as TradeUpdate;
+}
+
+export function createInitialTradeFormValues(accountId = ''): TradeFormInput {
+  return {
+    account_id: accountId,
+    direction: '',
+    entry_price: '',
+    mistake: '',
+    notes: '',
+    pnl: '',
+    position_size: '',
+    risk_amount: '',
+    rr: '',
+    screenshot_url: '',
+    session: '',
+    stop_loss: '',
+    strategy: '',
+    symbol: '',
+    take_profit: '',
+    trade_date: getTodayValue(),
+  };
+}
+
+export function parseTradeNotes(notes: string | null) {
+  const parsedValues: Pick<
+    TradeFormInput,
+    'mistake' | 'notes' | 'position_size' | 'session' | 'strategy'
+  > = {
+    mistake: '',
+    notes: '',
+    position_size: '',
+    session: '',
+    strategy: '',
+  };
+
+  if (!notes) {
+    return parsedValues;
+  }
+
+  const plainNoteSegments: string[] = [];
+
+  for (const segment of notes
+    .split(/\n\s*\n/)
+    .map((value) => value.trim())
+    .filter(Boolean)) {
+    const matchingEntry = Object.entries(TRADE_NOTE_PREFIX_MAP).find(([, prefix]) =>
+      segment.startsWith(prefix),
+    );
+
+    if (!matchingEntry) {
+      plainNoteSegments.push(segment);
+      continue;
+    }
+
+    const [fieldKey, prefix] = matchingEntry;
+    parsedValues[fieldKey as keyof typeof parsedValues] = segment
+      .slice(prefix.length)
+      .trim();
+  }
+
+  parsedValues.notes = plainNoteSegments.join('\n\n');
+  return parsedValues;
+}
+
+export function mapTradeToFormValues(
+  trade: TradeView,
+  fallbackAccountId = '',
+): TradeFormInput {
+  const parsedNotes = parseTradeNotes(trade.notes);
+
+  return {
+    account_id: trade.accountId ?? fallbackAccountId,
+    direction: trade.bias ?? '',
+    entry_price: toTrimmedNumberString(trade.entryPrice),
+    mistake: parsedNotes.mistake,
+    notes: parsedNotes.notes,
+    pnl: toTrimmedNumberString(trade.pnl),
+    position_size: parsedNotes.position_size,
+    risk_amount: toTrimmedNumberString(trade.riskPercent),
+    rr: toTrimmedNumberString(trade.rr),
+    screenshot_url: trade.screenshotUrl ?? '',
+    session: parsedNotes.session,
+    stop_loss: toTrimmedNumberString(trade.stoploss),
+    strategy: parsedNotes.strategy,
+    symbol: trade.symbol,
+    take_profit: toTrimmedNumberString(trade.takeProfit),
+    trade_date: trade.date ?? getTodayValue(),
+  };
 }
 
 export function formatTradeDate(date: string | null) {
@@ -265,12 +390,20 @@ export function formatCompactNumber(value: number | null, digits = 2) {
   }).format(value);
 }
 
-export function formatSignedNumber(value: number | null) {
+export function formatCurrencyNumber(value: number | null, digits = 2) {
   if (value === null) {
     return EMPTY_VALUE;
   }
 
-  const absValue = formatCompactNumber(Math.abs(value));
+  return `$${formatCompactNumber(value, digits)}`;
+}
+
+export function formatSignedNumber(value: number | null, digits = 2) {
+  if (value === null) {
+    return EMPTY_VALUE;
+  }
+
+  const absValue = formatCurrencyNumber(Math.abs(value), digits);
 
   if (value > 0) {
     return `+${absValue}`;

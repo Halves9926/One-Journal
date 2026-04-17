@@ -19,17 +19,27 @@ import { Panel, PanelHeader } from '@/components/ui/panel';
 import { Reveal } from '@/components/ui/reveal';
 import { useTradePreferences } from '@/components/ui/trade-preferences-provider';
 import {
+  clearFormDraft,
+  readFormDraft,
+  writeFormDraft,
+} from '@/lib/form-drafts';
+import {
   TRADE_FIELD_DEFINITIONS,
   TRADE_FIELD_SECTIONS,
   type TradeFieldDefinition,
   type TradeFieldKey,
 } from '@/lib/trade-form-preferences';
-import { mapTradeFormToInsert, type TradeFormInput } from '@/lib/trades';
-
-type Feedback = {
-  type: 'error' | 'success';
-  text: string;
-} | null;
+import type { TradeRow } from '@/lib/supabase';
+import {
+  TRADE_SELECT,
+  createInitialTradeFormValues,
+  formatSignedNumber,
+  mapTradeFormToInsert,
+  mapTradeFormToUpdate,
+  mapTradeToFormValues,
+  normalizeTrade,
+  type TradeFormInput,
+} from '@/lib/trades';
 
 type ToastState = {
   items: string[];
@@ -40,33 +50,10 @@ type ToastState = {
 
 type FieldErrors = Partial<Record<TradeFieldKey | 'account_id', string>>;
 
-function getTodayValue() {
-  const now = new Date();
-  const timezoneOffset = now.getTimezoneOffset() * 60_000;
-
-  return new Date(now.getTime() - timezoneOffset).toISOString().slice(0, 10);
-}
-
-function createInitialTradeFormValues(accountId = ''): TradeFormInput {
-  return {
-    account_id: accountId,
-    direction: '',
-    entry_price: '',
-    mistake: '',
-    notes: '',
-    pnl: '',
-    position_size: '',
-    risk_amount: '',
-    rr: '',
-    screenshot_url: '',
-    session: '',
-    stop_loss: '',
-    strategy: '',
-    symbol: '',
-    take_profit: '',
-    trade_date: getTodayValue(),
-  };
-}
+type NewTradeFormProps = {
+  mode?: 'create' | 'edit';
+  tradeId?: string;
+};
 
 function validateNumericField(rawValue: string, label: string) {
   if (!rawValue.trim()) {
@@ -87,7 +74,73 @@ function isFieldFilled(field: TradeFieldDefinition, value: TradeFormInput[TradeF
   return String(value).trim().length > 0;
 }
 
-export default function NewTradeForm() {
+function buildTradeDraftStorageKey(mode: 'create' | 'edit', tradeId?: string) {
+  return mode === 'edit' && tradeId
+    ? `one-journal.trade-form.edit.${tradeId}.v1`
+    : 'one-journal.trade-form.create.v1';
+}
+
+function getTradeSaveError(error: unknown) {
+  const fallbackMessage = 'Trade save failed. Review the fields and try again.';
+
+  if (!error || typeof error !== 'object') {
+    return {
+      items: [] as string[],
+      message: fallbackMessage,
+      title: 'Save failed',
+    };
+  }
+
+  const candidate = error as {
+    code?: string;
+    details?: string;
+    hint?: string;
+    message?: string;
+  };
+  const rawMessage = candidate.message?.trim() || fallbackMessage;
+  const detailItems = [candidate.details, candidate.hint].filter(
+    (item): item is string => Boolean(item && item.trim()),
+  );
+
+  if (
+    candidate.code === '23503' &&
+    (rawMessage.includes('account_id') || candidate.details?.includes('account_id'))
+  ) {
+    return {
+      field: 'account_id' as const,
+      items: ['Select a valid account and retry the save.'],
+      message: 'The selected account is no longer available.',
+      title: 'Account required',
+    };
+  }
+
+  if (candidate.code === '42501') {
+    return {
+      items: detailItems,
+      message: 'You do not have permission to save this trade right now.',
+      title: 'Permission issue',
+    };
+  }
+
+  if (candidate.code === '23502') {
+    return {
+      items: detailItems,
+      message: 'One of the required trade fields is still missing.',
+      title: 'Missing field',
+    };
+  }
+
+  return {
+    items: detailItems,
+    message: rawMessage,
+    title: 'Save failed',
+  };
+}
+
+export default function NewTradeForm({
+  mode = 'create',
+  tradeId,
+}: NewTradeFormProps) {
   const router = useRouter();
   const { loading, supabase, user } = useAuth();
   const {
@@ -98,15 +151,28 @@ export default function NewTradeForm() {
     refreshAccounts,
   } = useAccounts();
   const { preferences, ready } = useTradePreferences();
+  const isEditMode = mode === 'edit' && Boolean(tradeId);
+  const draftStorageKey = buildTradeDraftStorageKey(mode, tradeId);
   const [values, setValues] = useState<TradeFormInput>(() =>
     createInitialTradeFormValues(activeAccount?.id ?? ''),
   );
-  const [feedback, setFeedback] = useState<Feedback>(null);
+  const [initialValues, setInitialValues] = useState<TradeFormInput>(() =>
+    createInitialTradeFormValues(activeAccount?.id ?? ''),
+  );
   const [toast, setToast] = useState<ToastState>(null);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLoadingTrade, setIsLoadingTrade] = useState(isEditMode);
+  const [tradeLoadError, setTradeLoadError] = useState<string | null>(null);
+  const [hasHydratedDraft, setHasHydratedDraft] = useState(false);
+  const [shouldPersistDraft, setShouldPersistDraft] = useState(false);
   const selectedAccount =
     accounts.find((account) => account.id === values.account_id) ?? activeAccount ?? null;
+
+  function clearDraft() {
+    clearFormDraft(draftStorageKey);
+    setShouldPersistDraft(false);
+  }
 
   useEffect(() => {
     if (!activeAccount?.id || accounts.length === 0) {
@@ -128,6 +194,100 @@ export default function NewTradeForm() {
     });
   }, [accounts, activeAccount?.id]);
 
+  useEffect(() => {
+    if (!isEditMode) {
+      return;
+    }
+
+    if (!supabase || !user || !ready || !tradeId) {
+      return;
+    }
+
+    const currentSupabase = supabase;
+    const currentUser = user;
+    const currentTradeId = tradeId;
+    let ignore = false;
+
+    async function loadTrade() {
+      setIsLoadingTrade(true);
+      setTradeLoadError(null);
+
+      const { data, error } = await currentSupabase
+        .from('Trades')
+        .select(TRADE_SELECT)
+        .eq('ID', currentTradeId)
+        .eq('user_id', currentUser.id)
+        .single()
+        .overrideTypes<TradeRow, { merge: false }>();
+
+      if (ignore) {
+        return;
+      }
+
+      if (error || !data) {
+        setTradeLoadError(error?.message ?? 'Trade not found.');
+        setIsLoadingTrade(false);
+        return;
+      }
+
+      const nextValues = mapTradeToFormValues(
+        normalizeTrade(data, 0),
+        activeAccount?.id ?? '',
+      );
+      const restoredDraft = readFormDraft(draftStorageKey, nextValues);
+      const hydratedValues = restoredDraft ?? nextValues;
+
+      setInitialValues(nextValues);
+      setValues(hydratedValues);
+      setFieldErrors({});
+      setToast(null);
+      setIsLoadingTrade(false);
+      setShouldPersistDraft(Boolean(restoredDraft));
+      setHasHydratedDraft(true);
+    }
+
+    void loadTrade();
+
+    return () => {
+      ignore = true;
+    };
+  }, [activeAccount?.id, draftStorageKey, isEditMode, ready, supabase, tradeId, user]);
+
+  useEffect(() => {
+    if (isEditMode || hasHydratedDraft || loading || !ready || accountsLoading) {
+      return;
+    }
+
+    const baseValues = createInitialTradeFormValues(activeAccount?.id ?? '');
+    const restoredDraft = readFormDraft(draftStorageKey, baseValues);
+
+    setInitialValues(baseValues);
+    setValues(restoredDraft ?? baseValues);
+    setShouldPersistDraft(Boolean(restoredDraft));
+    setHasHydratedDraft(true);
+  }, [
+    accountsLoading,
+    activeAccount?.id,
+    draftStorageKey,
+    hasHydratedDraft,
+    isEditMode,
+    loading,
+    ready,
+  ]);
+
+  useEffect(() => {
+    if (!hasHydratedDraft) {
+      return;
+    }
+
+    if (!shouldPersistDraft) {
+      clearFormDraft(draftStorageKey);
+      return;
+    }
+
+    writeFormDraft(draftStorageKey, values);
+  }, [draftStorageKey, hasHydratedDraft, shouldPersistDraft, values]);
+
   function updateValue<Key extends keyof TradeFormInput>(
     key: Key,
     value: TradeFormInput[Key],
@@ -147,6 +307,7 @@ export default function NewTradeForm() {
       return nextErrors;
     });
 
+    setShouldPersistDraft(true);
     setToast(null);
   }
 
@@ -160,10 +321,6 @@ export default function NewTradeForm() {
         items: [],
         tone: 'error',
       });
-      setFeedback({
-        type: 'error',
-        text: 'Sign in to save a trade.',
-      });
       return;
     }
 
@@ -173,10 +330,6 @@ export default function NewTradeForm() {
         message: 'Supabase client unavailable. Reload and retry.',
         items: [],
         tone: 'error',
-      });
-      setFeedback({
-        type: 'error',
-        text: 'Supabase client unavailable. Reload and retry.',
       });
       return;
     }
@@ -192,7 +345,6 @@ export default function NewTradeForm() {
         items: ['Account'],
         tone: 'error',
       });
-      setFeedback(null);
       window.requestAnimationFrame(() => {
         document.getElementById('field-account_id')?.focus();
       });
@@ -220,7 +372,6 @@ export default function NewTradeForm() {
         items: missingFields.map((field) => field.label),
         tone: 'error',
       });
-      setFeedback(null);
 
       const firstField = missingFields[0];
       window.requestAnimationFrame(() => {
@@ -254,25 +405,26 @@ export default function NewTradeForm() {
         ),
         tone: 'error',
       });
-      setFeedback(null);
       return;
     }
 
     setIsSubmitting(true);
-    setFeedback(null);
     setToast(null);
 
     try {
-      const sanitizedValues = TRADE_FIELD_DEFINITIONS.reduce<TradeFormInput>(
-        (accumulator, field) => {
-          accumulator[field.key] = preferences[field.key] ? values[field.key] : '';
-          return accumulator;
-        },
-        { ...values },
-      );
+      const submissionValues = values;
 
-      const payload = mapTradeFormToInsert(sanitizedValues, user.id);
-      const { error } = await supabase.from('Trades').insert(payload);
+      const payload = isEditMode
+        ? mapTradeFormToUpdate(submissionValues, user.id)
+        : mapTradeFormToInsert(submissionValues, user.id);
+      const query = isEditMode
+        ? supabase
+            .from('Trades')
+            .update(payload)
+            .eq('ID', tradeId ?? '')
+            .eq('user_id', user.id)
+        : supabase.from('Trades').insert(payload);
+      const { error } = await query;
 
       if (error) {
         throw error;
@@ -280,25 +432,45 @@ export default function NewTradeForm() {
 
       await refreshAccounts();
 
-      setFeedback({
-        type: 'success',
-        text: 'Trade saved. Redirecting...',
-      });
+      clearDraft();
       setFieldErrors({});
-      setValues(createInitialTradeFormValues(sanitizedValues.account_id));
+      const resetValues = isEditMode
+        ? submissionValues
+        : createInitialTradeFormValues(submissionValues.account_id);
+      setInitialValues(resetValues);
+      setValues(resetValues);
+      setToast({
+        title: isEditMode ? 'Trade updated' : 'Trade saved',
+        message: isEditMode
+          ? 'The trade changes were saved successfully.'
+          : 'The trade was saved successfully.',
+        items: [],
+        tone: 'success',
+      });
+      await new Promise((resolve) => window.setTimeout(resolve, 180));
       router.replace('/dashboard');
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : 'Trade save failed.';
-
-      setFeedback({
-        type: 'error',
-        text: message,
+      console.error('Trade save failed', {
+        error,
+        isEditMode,
+        payload: values,
+        tradeId,
+        userId: user.id,
       });
+
+      const resolvedError = getTradeSaveError(error);
+
+      if (resolvedError.field) {
+        setFieldErrors((current) => ({
+          ...current,
+          [resolvedError.field]: resolvedError.message,
+        }));
+      }
+
       setToast({
-        title: 'Save failed',
-        message,
-        items: [],
+        title: resolvedError.title,
+        message: resolvedError.message,
+        items: resolvedError.items,
         tone: 'error',
       });
     } finally {
@@ -306,11 +478,13 @@ export default function NewTradeForm() {
     }
   }
 
-  if (loading || !supabase || !ready || accountsLoading) {
+  if (loading || !supabase || !ready || accountsLoading || isLoadingTrade) {
     return (
       <PageShell>
         <Panel className="p-6 sm:p-8">
-          <p className="text-sm text-[var(--muted)]">Loading session...</p>
+          <p className="text-sm text-[var(--muted)]">
+            {isEditMode ? 'Loading trade...' : 'Loading session...'}
+          </p>
         </Panel>
       </PageShell>
     );
@@ -323,6 +497,33 @@ export default function NewTradeForm() {
           title="Trade capture locked"
           description="Sign in to write to Trades."
         />
+      </PageShell>
+    );
+  }
+
+  if (tradeLoadError) {
+    return (
+      <PageShell>
+        <Panel className="overflow-hidden">
+          <PanelHeader
+            eyebrow="trade"
+            title="Trade unavailable"
+            description="The requested trade could not be loaded for editing."
+            action={
+              <div className="flex flex-col gap-3 sm:flex-row">
+                <ButtonLink href="/dashboard" size="lg" variant="secondary">
+                  Dashboard
+                </ButtonLink>
+                <ButtonLink href="/trades/new" size="lg" variant="primary">
+                  New Trade
+                </ButtonLink>
+              </div>
+            }
+          />
+          <div className="px-6 pb-6 sm:px-8 sm:pb-8">
+            <MessageBanner message={tradeLoadError} tone="error" />
+          </div>
+        </Panel>
       </PageShell>
     );
   }
@@ -380,10 +581,19 @@ export default function NewTradeForm() {
           <Panel className="overflow-hidden">
             <PanelHeader
               eyebrow="one journal"
-              title="New Trade"
-              description="Fast capture, account-aware."
+              title={isEditMode ? 'Edit Trade' : 'New Trade'}
+              description={isEditMode ? 'Update the saved execution without breaking account awareness.' : 'Fast capture, account-aware.'}
               action={
                 <div className="flex flex-col gap-3 sm:flex-row">
+                  {isEditMode ? (
+                    <ButtonLink
+                      href={`/trades/new`}
+                      size="lg"
+                      variant="secondary"
+                    >
+                      New Trade
+                    </ButtonLink>
+                  ) : null}
                   <ButtonLink href="/accounts" size="lg" variant="secondary">
                     Accounts
                   </ButtonLink>
@@ -555,7 +765,10 @@ export default function NewTradeForm() {
                   <div className="rounded-[22px] border border-[color:var(--border-color)] bg-[var(--surface-raised)] p-4 shadow-[0_14px_28px_-24px_var(--shadow-color)]">
                     <p className="text-sm text-[var(--muted)]">RR / PnL</p>
                     <p className="mt-2 text-lg font-semibold text-[var(--foreground)]">
-                      {values.rr || '0'} / {values.pnl || '0'}
+                      {values.rr || '0'} /{' '}
+                      {values.pnl.trim() && Number.isFinite(Number(values.pnl))
+                        ? formatSignedNumber(Number(values.pnl))
+                        : '$0'}
                     </p>
                   </div>
                 </div>
@@ -598,29 +811,34 @@ export default function NewTradeForm() {
                     variant="primary"
                     className="w-full"
                   >
-                    {isSubmitting ? 'Saving...' : 'Save Trade'}
+                    {isSubmitting
+                      ? isEditMode
+                        ? 'Saving changes...'
+                        : 'Saving...'
+                      : isEditMode
+                        ? 'Save Changes'
+                        : 'Save Trade'}
                   </Button>
                   <Button
                     type="button"
                     variant="secondary"
                     size="lg"
                     onClick={() => {
-                      setValues(createInitialTradeFormValues(activeAccount?.id ?? ''));
-                      setFeedback(null);
+                      setValues(
+                        isEditMode
+                          ? initialValues
+                          : createInitialTradeFormValues(activeAccount?.id ?? ''),
+                      );
+                      clearDraft();
                       setFieldErrors({});
                       setToast(null);
                     }}
                     className="w-full"
                   >
-                    Reset
+                    {isEditMode ? 'Reset Changes' : 'Reset'}
                   </Button>
                 </div>
 
-                {feedback ? (
-                  <div className="mt-4">
-                    <MessageBanner message={feedback.text} tone={feedback.type} />
-                  </div>
-                ) : null}
               </Panel>
             </Reveal>
           </div>

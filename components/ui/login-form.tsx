@@ -113,7 +113,7 @@ export default function LoginForm() {
   if (user) {
     return (
       <Panel className="p-6 sm:p-8 animate-rise-delay-1">
-        <span className="inline-flex items-center rounded-full border border-rose-500/18 bg-rose-500/10 px-3 py-1 font-mono text-[11px] uppercase tracking-[0.28em] text-rose-700 dark:text-rose-200">
+        <span className="inline-flex items-center rounded-full border border-[color:var(--accent-border-soft)] bg-[var(--accent-soft-bg)] px-3 py-1 font-mono text-[11px] uppercase tracking-[0.28em] text-[var(--accent-text)]">
           active session
         </span>
         <h2 className="mt-5 text-3xl font-semibold tracking-tight text-[var(--foreground)]">

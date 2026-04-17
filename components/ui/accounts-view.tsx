@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 
 import { useAccounts } from '@/components/ui/accounts-provider';
 import AuthRequired from '@/components/ui/auth-required';
@@ -21,10 +22,12 @@ type Feedback = {
 } | null;
 
 export default function AccountsView() {
+  const router = useRouter();
   const { loading: authLoading, supabase, user } = useAuth();
   const {
     accounts,
     activeAccount,
+    deleteAccount,
     error: accountsError,
     loading: accountsLoading,
     markAccountFunded,
@@ -81,6 +84,52 @@ export default function AccountsView() {
       message,
       tone: 'success',
     });
+  }
+
+  async function openAccountDashboard(accountId: string) {
+    if (activeAccount?.id === accountId) {
+      router.push('/dashboard');
+      return;
+    }
+
+    setBusyAction(`${accountId}:open`);
+    setFeedback(null);
+
+    const result = await setActiveAccount(accountId);
+
+    setBusyAction(null);
+
+    if (result.error) {
+      setFeedback({
+        message: result.error,
+        tone: 'error',
+      });
+      return;
+    }
+
+    router.push('/dashboard');
+  }
+
+  async function handleDeleteAccount(accountId: string) {
+    setFeedback(null);
+    const targetEntry = accountEntries.find((entry) => entry.account.id === accountId);
+
+    const result = await deleteAccount(accountId);
+
+    if (result.error) {
+      return result;
+    }
+
+    setFeedback({
+      message:
+        targetEntry && targetEntry.metrics.summary.totalTrades > 0
+          ? `Account deleted successfully. ${targetEntry.metrics.summary.totalTrades} linked ${
+              targetEntry.metrics.summary.totalTrades === 1 ? 'trade was' : 'trades were'
+            } removed too.`
+          : 'Account deleted successfully.',
+      tone: 'success',
+    });
+    return result;
   }
 
   if (authLoading || !supabase || accountsLoading) {
@@ -186,6 +235,11 @@ export default function AccountsView() {
                   account={entry.account}
                   metrics={entry.metrics}
                   busyAction={busyAction}
+                  editHref={`/accounts/${entry.account.id}/edit`}
+                  hasFallbackAccount={accounts.some(
+                    (account) => account.id !== entry.account.id,
+                  )}
+                  linkedTradesCount={entry.metrics.summary.totalTrades}
                   onActivate={async (accountId) => {
                     await runAction(
                       `${accountId}:activate`,
@@ -207,6 +261,7 @@ export default function AccountsView() {
                       () => markPhasePassed(accountId),
                     );
                   }}
+                  onOpenDashboard={openAccountDashboard}
                   onStartNextPhase={async (accountId) => {
                     await runAction(
                       `${accountId}:next-phase`,
@@ -214,6 +269,7 @@ export default function AccountsView() {
                       () => startNextPhase(accountId),
                     );
                   }}
+                  onDelete={handleDeleteAccount}
                 />
               </Reveal>
             ))}

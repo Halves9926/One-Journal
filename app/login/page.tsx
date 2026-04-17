@@ -12,7 +12,7 @@ export default function LoginPage() {
           <Panel className="p-6 sm:p-8 lg:p-10">
             <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_280px]">
               <div>
-                <span className="inline-flex items-center rounded-full border border-rose-500/18 bg-rose-500/10 px-3 py-1 font-mono text-[11px] uppercase tracking-[0.28em] text-rose-700 dark:text-rose-200">
+                <span className="inline-flex items-center rounded-full border border-[color:var(--accent-border-soft)] bg-[var(--accent-soft-bg)] px-3 py-1 font-mono text-[11px] uppercase tracking-[0.28em] text-[var(--accent-text)]">
                   one journal
                 </span>
                 <h1 className="text-balance mt-6 max-w-2xl text-4xl font-semibold tracking-tight text-[var(--foreground)] sm:text-5xl">
@@ -34,7 +34,7 @@ export default function LoginPage() {
 
               <div className="rounded-[30px] border border-[color:var(--border-color)] bg-[linear-gradient(180deg,var(--surface-raised),var(--surface))] p-5 shadow-[0_18px_34px_-28px_var(--shadow-color)]">
                 <div className="grid gap-3">
-                  <div className="h-20 rounded-[22px] border border-[color:var(--border-color)] bg-[radial-gradient(circle_at_top,rgba(190,24,93,0.18),transparent_64%),linear-gradient(180deg,var(--surface-raised),var(--surface))]" />
+                  <div className="h-20 rounded-[22px] border border-[color:var(--border-color)] bg-[radial-gradient(circle_at_top,var(--chart-accent-soft),transparent_64%),linear-gradient(180deg,var(--surface-raised),var(--surface))]" />
                   <div className="grid grid-cols-2 gap-3">
                     <div className="h-28 rounded-[22px] border border-[color:var(--border-color)] bg-[var(--surface-raised)]" />
                     <div className="h-28 rounded-[22px] border border-[color:var(--border-color)] bg-[linear-gradient(180deg,var(--surface-raised),var(--surface))]" />

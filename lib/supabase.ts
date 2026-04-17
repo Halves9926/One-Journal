@@ -56,6 +56,10 @@ export type TradeInsert = Partial<Omit<TradeRow, 'ID'>> & {
   user_id: string;
 };
 
+export type TradeUpdate = Partial<Omit<TradeInsert, 'user_id'>> & {
+  user_id?: string;
+};
+
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabasePublishableKey =
   process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ??

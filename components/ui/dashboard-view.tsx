@@ -66,6 +66,7 @@ export default function DashboardView() {
     accounts,
     error: accountsError,
     loading: accountsLoading,
+    refreshAccounts,
   } = useAccounts();
   const [logoutError, setLogoutError] = useState<string | null>(null);
   const tradesState = useUserTrades({
@@ -207,6 +208,26 @@ export default function DashboardView() {
     router.replace('/login');
   }
 
+  async function handleDeleteTrade(tradeId: string) {
+    if (!supabase || !user) {
+      return { error: 'Supabase client unavailable.' };
+    }
+
+    const { error } = await supabase
+      .from('Trades')
+      .delete()
+      .eq('ID', tradeId)
+      .eq('user_id', user.id);
+
+    if (error) {
+      return { error: error.message };
+    }
+
+    tradesState.refresh();
+    await refreshAccounts();
+    return { error: null };
+  }
+
   if (authLoading || !supabase || accountsLoading) {
     return (
       <PageShell>
@@ -273,7 +294,7 @@ export default function DashboardView() {
             <div className="grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_380px] xl:items-stretch">
               <div className="flex flex-col justify-between gap-6">
                 <div className="max-w-3xl">
-                  <span className="inline-flex items-center rounded-full border border-rose-500/18 bg-rose-500/10 px-3 py-1 font-mono text-[11px] uppercase tracking-[0.32em] text-rose-700 dark:text-rose-200">
+                  <span className="inline-flex items-center rounded-full border border-[color:var(--accent-border-soft)] bg-[var(--accent-soft-bg)] px-3 py-1 font-mono text-[11px] uppercase tracking-[0.32em] text-[var(--accent-text)]">
                     account dashboard
                   </span>
                   <h1 className="mt-5 text-4xl font-semibold tracking-[-0.04em] text-[var(--foreground)] sm:text-5xl">
@@ -570,6 +591,8 @@ export default function DashboardView() {
                           index={index}
                           featured={index === 0}
                           compact={index > 0}
+                          editHref={`/trades/${trade.id}/edit`}
+                          onDelete={handleDeleteTrade}
                           className={index === 0 ? 'xl:col-span-2' : ''}
                         />
                       ))}

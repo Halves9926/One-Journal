@@ -77,6 +77,7 @@ export type AccountMetrics = {
 };
 
 export type AccountFormInput = {
+  current_equity: string;
   current_phase: string;
   daily_drawdown_max: string;
   initial_equity: string;
@@ -88,6 +89,36 @@ export type AccountFormInput = {
   prop_target: string;
   type: AccountType;
 };
+
+function toNumberString(value: number | null) {
+  return value === null ? '' : String(value);
+}
+
+function buildAccountConfig(input: AccountFormInput) {
+  const initialEquity = toFiniteNumber(input.initial_equity) ?? 0;
+  const currentEquity = toFiniteNumber(input.current_equity) ?? initialEquity;
+  const isProp = input.type === 'Propfirm Account';
+  const isFunded = isProp ? input.is_funded : false;
+  const phasesEnabled = isProp && !isFunded ? input.phases_enabled : false;
+  const phaseCount =
+    isProp && phasesEnabled
+      ? clampInteger(toFiniteNumber(input.phase_count), 2)
+      : 1;
+  const currentPhase =
+    isProp && phasesEnabled
+      ? Math.min(clampInteger(toFiniteNumber(input.current_phase), 1), phaseCount)
+      : 1;
+
+  return {
+    currentEquity,
+    currentPhase,
+    initialEquity,
+    isFunded,
+    isProp,
+    phaseCount,
+    phasesEnabled,
+  };
+}
 
 function toFiniteNumber(value: unknown) {
   if (typeof value === 'number' && Number.isFinite(value)) {
@@ -169,6 +200,7 @@ export function normalizeAccount(row: AccountRow, fallbackIndex = 0): AccountVie
 
 export function createInitialAccountFormValues(): AccountFormInput {
   return {
+    current_equity: '',
     current_phase: '1',
     daily_drawdown_max: '',
     initial_equity: '',
@@ -182,49 +214,126 @@ export function createInitialAccountFormValues(): AccountFormInput {
   };
 }
 
+export function mapAccountToFormValues(account: AccountView): AccountFormInput {
+  return {
+    current_equity: toNumberString(account.currentEquity),
+    current_phase: toNumberString(account.currentPhase),
+    daily_drawdown_max: toNumberString(account.dailyDrawdownMax),
+    initial_equity: toNumberString(account.initialEquity),
+    is_funded: account.isFunded,
+    max_drawdown: toNumberString(account.maxDrawdown),
+    name: account.name,
+    phase_count: toNumberString(account.phaseCount),
+    phases_enabled: account.type === 'Propfirm Account' ? account.phasesEnabled : false,
+    prop_target: toNumberString(account.propTarget),
+    type: account.type,
+  };
+}
+
 export function mapAccountFormToInsert(
   input: AccountFormInput,
   userId: string,
 ): AccountInsert {
-  const initialEquity = toFiniteNumber(input.initial_equity) ?? 0;
-  const phasesEnabled =
-    input.type === 'Propfirm Account' && !input.is_funded
-      ? input.phases_enabled
-      : false;
-  const phaseCount =
-    input.type === 'Propfirm Account' && phasesEnabled
-      ? clampInteger(toFiniteNumber(input.phase_count), 2)
-      : 1;
-  const currentPhase =
-    input.type === 'Propfirm Account' && phasesEnabled
-      ? Math.min(clampInteger(toFiniteNumber(input.current_phase), 1), phaseCount)
-      : 1;
+  const {
+    currentEquity,
+    currentPhase,
+    initialEquity,
+    isFunded,
+    isProp,
+    phaseCount,
+    phasesEnabled,
+  } = buildAccountConfig(input);
 
   return {
-    current_equity: initialEquity,
+    current_equity: currentEquity,
     current_phase: currentPhase,
     daily_drawdown_max:
-      input.type === 'Propfirm Account'
+      isProp
         ? toFiniteNumber(input.daily_drawdown_max)
         : null,
     initial_equity: initialEquity,
     is_active: false,
-    is_funded: input.type === 'Propfirm Account' ? input.is_funded : false,
+    is_funded: isFunded,
     max_drawdown:
-      input.type === 'Propfirm Account' ? toFiniteNumber(input.max_drawdown) : null,
+      isProp ? toFiniteNumber(input.max_drawdown) : null,
     name: input.name.trim(),
-    passed_phase_count:
-      input.type === 'Propfirm Account' && input.is_funded ? 1 : currentPhase - 1,
+    passed_phase_count: isProp && isFunded ? Math.max(phaseCount, 1) : currentPhase - 1,
     phase_count: phaseCount,
-    phase_start_equity: initialEquity,
+    phase_start_equity: currentEquity,
     phase_started_at: new Date().toISOString(),
-    phase_status:
-      input.type === 'Propfirm Account' && input.is_funded ? 'funded' : 'active',
+    phase_status: isProp && isFunded ? 'funded' : 'active',
     phases_enabled: phasesEnabled,
     prop_target:
-      input.type === 'Propfirm Account' ? toFiniteNumber(input.prop_target) : null,
+      isProp && phasesEnabled ? toFiniteNumber(input.prop_target) : null,
     type: input.type,
     user_id: userId,
+  };
+}
+
+export function mapAccountFormToUpdate(
+  input: AccountFormInput,
+  account: AccountView,
+): AccountUpdate {
+  const {
+    currentEquity,
+    currentPhase,
+    initialEquity,
+    isFunded,
+    isProp,
+    phaseCount,
+    phasesEnabled,
+  } = buildAccountConfig(input);
+  const shouldResetPhaseTracking =
+    !isProp ||
+    isFunded ||
+    !phasesEnabled ||
+    !account.phasesEnabled ||
+    account.currentPhase !== currentPhase ||
+    account.phaseCount !== phaseCount;
+  const passedPhaseCount = !isProp
+    ? 0
+    : isFunded
+      ? Math.max(account.passedPhaseCount, phaseCount)
+      : phasesEnabled
+        ? Math.min(account.passedPhaseCount, Math.max(currentPhase - 1, 0))
+        : 0;
+  const nextPhaseStatus: AccountPhaseStatus = !isProp
+    ? 'active'
+    : isFunded
+      ? 'funded'
+      : phasesEnabled
+        ? shouldResetPhaseTracking
+          ? 'active'
+          : account.phaseStatus === 'funded'
+            ? 'active'
+            : account.phaseStatus
+        : 'active';
+  const preservedPhaseStartedAt = account.phaseStartedAt ?? new Date().toISOString();
+
+  return {
+    current_equity: currentEquity,
+    current_phase: currentPhase,
+    daily_drawdown_max:
+      isProp ? toFiniteNumber(input.daily_drawdown_max) : null,
+    initial_equity: initialEquity,
+    is_funded: isFunded,
+    max_drawdown: isProp ? toFiniteNumber(input.max_drawdown) : null,
+    name: input.name.trim(),
+    passed_phase_count: passedPhaseCount,
+    phase_count: phaseCount,
+    phase_start_equity:
+      isProp && phasesEnabled && !isFunded && !shouldResetPhaseTracking
+        ? account.phaseStartEquity
+        : currentEquity,
+    phase_started_at:
+      isProp && phasesEnabled && !isFunded && !shouldResetPhaseTracking
+        ? preservedPhaseStartedAt
+        : new Date().toISOString(),
+    phase_status: nextPhaseStatus,
+    phases_enabled: phasesEnabled,
+    prop_target:
+      isProp && phasesEnabled ? toFiniteNumber(input.prop_target) : null,
+    type: input.type,
   };
 }
 

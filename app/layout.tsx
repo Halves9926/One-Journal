@@ -18,14 +18,22 @@ const themeScript = `
 (() => {
   try {
     const storedTheme = window.localStorage.getItem('oj-theme');
+    const storedAccentTheme = window.localStorage.getItem('oj-accent-theme');
     const preferredTheme =
       storedTheme === 'dark' || storedTheme === 'light'
         ? storedTheme
         : window.matchMedia('(prefers-color-scheme: dark)').matches
           ? 'dark'
           : 'light';
+    const preferredAccentTheme =
+      storedAccentTheme === 'red' ||
+      storedAccentTheme === 'white' ||
+      storedAccentTheme === 'pink'
+        ? storedAccentTheme
+        : 'red';
     const root = document.documentElement;
     root.dataset.theme = preferredTheme;
+    root.dataset.accent = preferredAccentTheme;
     root.style.colorScheme = preferredTheme;
     root.classList.toggle('dark', preferredTheme === 'dark');
   } catch (_) {}
@@ -41,6 +49,7 @@ export default function RootLayout({
     <html
       lang="it"
       data-scroll-behavior="smooth"
+      data-accent="red"
       suppressHydrationWarning
       className={`${fontSans.variable} ${fontMono.variable}`}
     >

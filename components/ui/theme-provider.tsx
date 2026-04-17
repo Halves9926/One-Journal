@@ -8,14 +8,18 @@ import {
 } from 'react';
 
 type Theme = 'dark' | 'light';
+export type AccentTheme = 'pink' | 'red' | 'white';
 
 type ThemeContextValue = {
+  accentTheme: AccentTheme;
+  setAccentTheme: (accentTheme: AccentTheme) => void;
   setTheme: (theme: Theme) => void;
   theme: Theme;
   toggleTheme: () => void;
 };
 
-const STORAGE_KEY = 'oj-theme';
+const THEME_STORAGE_KEY = 'oj-theme';
+const ACCENT_STORAGE_KEY = 'oj-accent-theme';
 const ThemeContext = createContext<ThemeContextValue | undefined>(undefined);
 
 function applyTheme(theme: Theme) {
@@ -24,6 +28,10 @@ function applyTheme(theme: Theme) {
   root.dataset.theme = theme;
   root.style.colorScheme = theme;
   root.classList.toggle('dark', theme === 'dark');
+}
+
+function applyAccentTheme(accentTheme: AccentTheme) {
+  document.documentElement.dataset.accent = accentTheme;
 }
 
 function getResolvedTheme(): Theme {
@@ -37,7 +45,7 @@ function getResolvedTheme(): Theme {
     return rootTheme;
   }
 
-  const storedTheme = window.localStorage.getItem(STORAGE_KEY);
+  const storedTheme = window.localStorage.getItem(THEME_STORAGE_KEY);
 
   if (storedTheme === 'dark' || storedTheme === 'light') {
     return storedTheme;
@@ -48,8 +56,39 @@ function getResolvedTheme(): Theme {
     : 'light';
 }
 
+function getResolvedAccentTheme(): AccentTheme {
+  if (typeof window === 'undefined') {
+    return 'red';
+  }
+
+  const rootAccentTheme = document.documentElement.dataset.accent;
+
+  if (
+    rootAccentTheme === 'red' ||
+    rootAccentTheme === 'white' ||
+    rootAccentTheme === 'pink'
+  ) {
+    return rootAccentTheme;
+  }
+
+  const storedAccentTheme = window.localStorage.getItem(ACCENT_STORAGE_KEY);
+
+  if (
+    storedAccentTheme === 'red' ||
+    storedAccentTheme === 'white' ||
+    storedAccentTheme === 'pink'
+  ) {
+    return storedAccentTheme;
+  }
+
+  return 'red';
+}
+
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setThemeState] = useState<Theme>(() => getResolvedTheme());
+  const [accentTheme, setAccentThemeState] = useState<AccentTheme>(() =>
+    getResolvedAccentTheme(),
+  );
 
   function setTheme(nextTheme: Theme) {
     setThemeState(nextTheme);
@@ -59,11 +98,25 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     }
 
     if (typeof window !== 'undefined') {
-      window.localStorage.setItem(STORAGE_KEY, nextTheme);
+      window.localStorage.setItem(THEME_STORAGE_KEY, nextTheme);
+    }
+  }
+
+  function setAccentTheme(nextAccentTheme: AccentTheme) {
+    setAccentThemeState(nextAccentTheme);
+
+    if (typeof document !== 'undefined') {
+      applyAccentTheme(nextAccentTheme);
+    }
+
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(ACCENT_STORAGE_KEY, nextAccentTheme);
     }
   }
 
   const value: ThemeContextValue = {
+    accentTheme,
+    setAccentTheme,
     setTheme,
     theme,
     toggleTheme: () => setTheme(theme === 'dark' ? 'light' : 'dark'),

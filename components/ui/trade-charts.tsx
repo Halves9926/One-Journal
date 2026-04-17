@@ -27,6 +27,7 @@ import { cx } from '@/lib/utils';
 
 type ChartTooltipProps = {
   active?: boolean;
+  formatter?: (value: number) => string;
   label?: string;
   payload?: Array<{
     color?: string;
@@ -49,7 +50,12 @@ const chartColors = {
   surface: 'var(--surface-raised)',
 };
 
-function ChartTooltip({ active, label, payload }: ChartTooltipProps) {
+function ChartTooltip({
+  active,
+  formatter = (value) => formatCompactNumber(value),
+  label,
+  payload,
+}: ChartTooltipProps) {
   if (!active || !payload || payload.length === 0) {
     return null;
   }
@@ -76,7 +82,7 @@ function ChartTooltip({ active, label, payload }: ChartTooltipProps) {
             </span>
             <span className="font-medium text-[var(--foreground)]">
               {typeof entry.value === 'number'
-                ? formatCompactNumber(entry.value)
+                ? formatter(entry.value)
                 : entry.value}
             </span>
           </div>
@@ -165,12 +171,12 @@ export function EquitySparkline({
           <defs>
             <linearGradient id={gradientId} x1="0" x2="0" y1="0" y2="1">
               <stop offset="0%" stopColor={chartColors.accentSoft} />
-              <stop offset="100%" stopColor="rgba(190,24,93,0)" />
+              <stop offset="100%" stopColor={chartColors.accent} stopOpacity={0} />
             </linearGradient>
           </defs>
           <Tooltip
             cursor={{ stroke: chartColors.accentSoft, strokeDasharray: '4 6' }}
-            content={<ChartTooltip />}
+            content={<ChartTooltip formatter={(value) => formatSignedNumber(value)} />}
           />
           <Area
             type="natural"
@@ -236,8 +242,8 @@ export function EquityCurveCard({ trades }: { trades: TradeView[] }) {
               <defs>
                 <linearGradient id={gradientId} x1="0" x2="0" y1="0" y2="1">
                   <stop offset="0%" stopColor={chartColors.accentSoft} />
-                  <stop offset="52%" stopColor="rgba(190,24,93,0.12)" />
-                  <stop offset="100%" stopColor="rgba(190,24,93,0)" />
+                  <stop offset="52%" stopColor={chartColors.accent} stopOpacity={0.12} />
+                  <stop offset="100%" stopColor={chartColors.accent} stopOpacity={0} />
                 </linearGradient>
               </defs>
               <CartesianGrid
@@ -267,7 +273,7 @@ export function EquityCurveCard({ trades }: { trades: TradeView[] }) {
               />
               <Tooltip
                 cursor={{ stroke: 'var(--border-strong)', strokeDasharray: '4 6' }}
-                content={<ChartTooltip />}
+                content={<ChartTooltip formatter={(value) => formatSignedNumber(value)} />}
               />
               <Area
                 type="natural"
@@ -339,8 +345,8 @@ export function PnlBarsCard({ trades }: { trades: TradeView[] }) {
                 width={76}
               />
               <Tooltip
-                cursor={{ fill: 'rgba(190,24,93,0.06)' }}
-                content={<ChartTooltip />}
+                cursor={{ fill: 'var(--accent-soft-bg)' }}
+                content={<ChartTooltip formatter={(value) => formatSignedNumber(value)} />}
               />
               <Bar dataKey="pnl" radius={[12, 12, 12, 12]} maxBarSize={26}>
                 {data.map((entry) => (
@@ -371,83 +377,128 @@ export function WinLossCard({
   losses: number;
   wins: number;
 }) {
-  const data = [
+  const outcomeData = [
     { fill: chartColors.positive, label: 'Wins', value: wins },
     { fill: chartColors.negative, label: 'Losses', value: losses },
     { fill: chartColors.neutral, label: 'Flat', value: breakeven },
   ].filter((entry) => entry.value > 0);
-
   const total = wins + losses + breakeven;
-  const rate = total > 0 ? `${Math.round((wins / Math.max(total, 1)) * 100)}%` : '0%';
+  const hasOutcomes = total > 0;
+  const winRate = total > 0 ? Math.round((wins / total) * 100) : 0;
+  const chartData = hasOutcomes
+    ? outcomeData
+    : [{ fill: chartColors.neutral, label: 'Waiting', value: 1 }];
+  const statCards = [
+    { fill: chartColors.positive, label: 'Wins', value: wins },
+    { fill: chartColors.negative, label: 'Losses', value: losses },
+    { fill: chartColors.neutral, label: 'Flat', value: breakeven },
+  ];
 
   return (
-    <Panel className="h-full p-6">
-      <div>
-        <p className="font-mono text-[11px] uppercase tracking-[0.28em] text-[var(--muted)]">
-          Outcome
-        </p>
-        <h3 className="mt-3 text-xl font-semibold tracking-tight text-[var(--foreground)]">
-          Win / loss
-        </h3>
+    <Panel className="h-full p-6 sm:p-7">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="font-mono text-[11px] uppercase tracking-[0.28em] text-[var(--muted)]">
+            Outcome
+          </p>
+          <h3 className="mt-3 text-xl font-semibold tracking-tight text-[var(--foreground)]">
+            Win / loss
+          </h3>
+          <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
+            Radial readout for the active account.
+          </p>
+        </div>
+        <span className="rounded-full border border-[color:var(--border-color)] bg-[var(--surface-raised)] px-3 py-1.5 text-xs text-[var(--muted-strong)]">
+          {total} outcomes
+        </span>
       </div>
 
-      <div className="grid gap-6 pt-5">
-        <div className="relative mx-auto aspect-square w-full max-w-[248px]">
-          {data.length > 0 ? (
+      <div className="mt-5 rounded-[32px] border border-[color:var(--border-color)] bg-[radial-gradient(circle_at_top,var(--chart-accent-soft),transparent_62%),linear-gradient(180deg,var(--surface-raised),var(--surface))] px-4 py-5 shadow-[0_28px_62px_-40px_var(--shadow-color)] sm:px-5 sm:py-6">
+        <div className="mx-auto flex max-w-[336px] flex-col items-center">
+          <div className="relative aspect-square w-full max-w-[292px]">
+            <div className="pointer-events-none absolute inset-[-10%] rounded-full bg-[radial-gradient(circle,var(--chart-accent-soft),transparent_72%)] blur-[40px]" />
+            <div className="pointer-events-none absolute inset-[7%] rounded-full border border-[color:var(--border-color)] bg-[radial-gradient(circle,rgba(255,255,255,0.04),transparent_74%)] shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]" />
+
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
-                  data={data}
+                  data={[{ label: 'Track', value: 100 }]}
                   dataKey="value"
                   cx="50%"
                   cy="50%"
-                  innerRadius="64%"
-                  outerRadius="86%"
-                  paddingAngle={4}
-                  stroke="var(--background)"
-                  strokeWidth={4}
+                  innerRadius="68%"
+                  outerRadius="90%"
+                  isAnimationActive={false}
+                  fill="rgba(255,255,255,0.06)"
+                  stroke="transparent"
+                />
+                <Pie
+                  data={chartData}
+                  dataKey="value"
+                  cx="50%"
+                  cy="50%"
+                  startAngle={110}
+                  endAngle={-250}
+                  innerRadius="68%"
+                  outerRadius="90%"
+                  paddingAngle={hasOutcomes ? 5 : 0}
+                  cornerRadius={12}
+                  stroke="var(--surface-strong)"
+                  strokeWidth={6}
                 >
-                  {data.map((entry) => (
+                  {chartData.map((entry) => (
                     <Cell key={entry.label} fill={entry.fill} />
                   ))}
                 </Pie>
-                <Tooltip content={<ChartTooltip />} />
+                {hasOutcomes ? (
+                  <Tooltip content={<ChartTooltip formatter={(value) => `${value}`} />} />
+                ) : null}
               </PieChart>
             </ResponsiveContainer>
-          ) : (
-            <div className="flex h-full items-center justify-center rounded-full border border-dashed border-[color:var(--border-color)] bg-[var(--surface)] text-sm text-[var(--muted)]">
-              No outcomes yet
-            </div>
-          )}
 
-          <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-            <div className="flex flex-col items-center rounded-full border border-[color:var(--border-color)] bg-[var(--surface-raised)] px-5 py-4 shadow-[0_18px_34px_-24px_var(--shadow-color)]">
-              <span className="text-3xl font-semibold tracking-tight text-[var(--foreground)]">
-                {rate}
-              </span>
-              <span className="mt-1 text-[10px] uppercase tracking-[0.24em] text-[var(--muted)]">
-                win rate
-              </span>
+            <div className="pointer-events-none absolute inset-0 grid place-items-center">
+              <div className="flex aspect-square w-[54%] flex-col items-center justify-center rounded-full border border-[color:var(--border-strong)] bg-[linear-gradient(180deg,var(--surface-raised),var(--surface))] px-5 text-center shadow-[0_24px_48px_-30px_var(--shadow-color),inset_0_1px_0_rgba(255,255,255,0.12)]">
+                <span className="text-[10px] uppercase tracking-[0.32em] text-[var(--muted)]">
+                  win rate
+                </span>
+                <p className="mt-2 text-[2.65rem] font-semibold leading-none tracking-[-0.06em] text-[var(--foreground)]">
+                  {winRate}%
+                </p>
+                <p className="mt-2 max-w-[10rem] text-sm leading-5 text-[var(--muted-strong)]">
+                  {hasOutcomes
+                    ? `${wins} wins from ${total} outcomes`
+                    : 'Awaiting first trade'}
+                </p>
+              </div>
             </div>
           </div>
-        </div>
 
-        <div className="grid gap-3 sm:grid-cols-3">
-          {[
-            { label: 'Wins', value: wins, tone: 'text-[var(--foreground)]' },
-            { label: 'Losses', value: losses, tone: 'text-[var(--danger)]' },
-            { label: 'Flat', value: breakeven, tone: 'text-[var(--muted)]' },
-          ].map((item) => (
-            <div
-              key={item.label}
-              className="rounded-[22px] border border-[color:var(--border-color)] bg-[var(--surface-raised)] p-4 shadow-[0_14px_26px_-24px_var(--shadow-color)]"
-            >
-              <p className="text-sm text-[var(--muted)]">{item.label}</p>
-              <p className={cx('mt-2 text-2xl font-semibold', item.tone)}>
-                {item.value}
-              </p>
-            </div>
-          ))}
+          <div className="mt-6 grid w-full grid-cols-3 gap-3">
+            {statCards.map((item) => (
+              <div
+                key={item.label}
+                className="rounded-[22px] border border-[color:var(--border-color)] bg-[linear-gradient(180deg,var(--surface-raised),var(--surface))] px-3 py-3 text-center shadow-[0_18px_36px_-30px_var(--shadow-color)]"
+              >
+                <div className="flex items-center justify-center gap-2">
+                  <span
+                    className="h-2.5 w-2.5 rounded-full shadow-[0_0_0_6px_rgba(255,255,255,0.03)]"
+                    style={{ backgroundColor: item.fill }}
+                  />
+                  <p className="text-[11px] uppercase tracking-[0.24em] text-[var(--muted)]">
+                    {item.label}
+                  </p>
+                </div>
+                <p className="mt-2.5 text-2xl font-semibold tracking-tight text-[var(--foreground)]">
+                  {item.value}
+                </p>
+                <p className="mt-1 text-xs text-[var(--muted)]">
+                  {hasOutcomes
+                    ? `${Math.round((item.value / total) * 100)}%`
+                    : '0%'}
+                </p>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     </Panel>

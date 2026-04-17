@@ -79,23 +79,37 @@ export default function AccountSwitcher() {
 
       <label className="block">
         <span className="sr-only">Switch active account</span>
-        <select
-          value={activeAccount?.id ?? ''}
-          onChange={(event) => {
-            if (!event.target.value) {
-              return;
-            }
+        <div className="relative">
+          <select
+            value={activeAccount?.id ?? ''}
+            onChange={(event) => {
+              if (!event.target.value) {
+                return;
+              }
 
-            void setActiveAccount(event.target.value);
-          }}
-          className="min-h-11 w-full rounded-[16px] border border-[color:var(--border-color)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--foreground)] shadow-[0_14px_28px_-24px_var(--shadow-color)] outline-none transition focus:border-rose-300/55 focus:ring-2 focus:ring-rose-300/18"
-        >
-          {accounts.map((account) => (
-            <option key={account.id} value={account.id}>
-              {account.name} - {account.type}
-            </option>
-          ))}
-        </select>
+              void setActiveAccount(event.target.value);
+            }}
+            className="min-h-11 w-full appearance-none rounded-[16px] border border-[color:var(--border-color)] bg-[var(--surface)] px-3 py-2 pr-10 text-sm text-[var(--foreground)] shadow-[0_14px_28px_-24px_var(--shadow-color)] outline-none transition focus:border-[color:var(--accent-border-strong)] focus:ring-2 focus:ring-[color:var(--accent-focus-ring)]"
+          >
+            {accounts.map((account) => (
+              <option key={account.id} value={account.id}>
+                {account.name} - {account.type}
+              </option>
+            ))}
+          </select>
+          <span className="pointer-events-none absolute inset-y-0 right-3.5 flex items-center text-[var(--muted)]">
+            <svg
+              aria-hidden="true"
+              viewBox="0 0 16 16"
+              className="h-4 w-4"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.7"
+            >
+              <path d="M4.25 6.5 8 10.25 11.75 6.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </span>
+        </div>
       </label>
     </div>
   );

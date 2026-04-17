@@ -1,7 +1,9 @@
 'use client';
 
+import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 
+import { useClientReady } from '@/components/ui/use-client-ready';
 import { cx } from '@/lib/utils';
 
 type FeedbackToastProps = {
@@ -21,26 +23,37 @@ export default function FeedbackToast({
   tone = 'neutral',
   visible,
 }: FeedbackToastProps) {
+  const isClient = useClientReady();
+
   const toneClassName =
     tone === 'error'
-      ? 'border-rose-200 bg-[var(--surface-raised)] text-[var(--foreground)]'
+      ? 'border-[color:color-mix(in_srgb,var(--danger)_24%,transparent)] bg-[linear-gradient(180deg,color-mix(in_srgb,var(--danger)_7%,transparent),var(--surface-raised))] text-[var(--foreground)]'
       : tone === 'success'
-        ? 'border-emerald-200 bg-[var(--surface-raised)] text-[var(--foreground)]'
-        : 'border-[color:var(--border-color)] bg-[var(--surface-raised)] text-[var(--foreground)]';
+        ? 'border-emerald-500/24 bg-[linear-gradient(180deg,rgba(16,185,129,0.08),var(--surface-raised))] text-[var(--foreground)]'
+        : 'border-[color:var(--border-color)] bg-[linear-gradient(180deg,var(--surface-raised),var(--surface))] text-[var(--foreground)]';
 
-  return (
+  if (!isClient) {
+    return null;
+  }
+
+  return createPortal(
     <AnimatePresence>
       {visible ? (
         <motion.div
-          initial={{ opacity: 0, x: 20, y: -8 }}
+          initial={{ opacity: 0, x: 20, y: 24 }}
           animate={{ opacity: 1, x: 0, y: 0 }}
-          exit={{ opacity: 0, x: 20, y: -8 }}
+          exit={{ opacity: 0, x: 20, y: 18 }}
           transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
-          className="fixed right-4 top-24 z-50 w-[min(92vw,360px)]"
+          className="pointer-events-none fixed inset-x-0 bottom-0 z-[90] flex justify-center px-4 pb-4 sm:justify-end sm:px-6"
+          style={{
+            paddingBottom: 'max(1rem, env(safe-area-inset-bottom))',
+            paddingLeft: 'max(1rem, env(safe-area-inset-left))',
+            paddingRight: 'max(1rem, env(safe-area-inset-right))',
+          }}
         >
           <div
             className={cx(
-              'rounded-[28px] border p-5 shadow-[0_28px_60px_-32px_var(--shadow-color)]',
+              'pointer-events-auto w-[min(100%,380px)] rounded-[28px] border p-5 shadow-[0_28px_60px_-32px_var(--shadow-color)] backdrop-blur',
               toneClassName,
             )}
           >
@@ -65,7 +78,7 @@ export default function FeedbackToast({
                 {items.map((item) => (
                   <li
                     key={item}
-                    className="rounded-2xl bg-[var(--surface)] px-3 py-2"
+                    className="rounded-2xl border border-[color:var(--border-color)] bg-[var(--surface)] px-3 py-2"
                   >
                     {item}
                   </li>
@@ -75,6 +88,7 @@ export default function FeedbackToast({
           </div>
         </motion.div>
       ) : null}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body,
   );
 }

@@ -15,6 +15,7 @@ import {
   buildPropAdvancePhaseUpdate,
   buildPropFundedUpdate,
   buildPropPhasePassUpdate,
+  mapAccountFormToUpdate,
   normalizeAccount,
   type AccountFormInput,
   type AccountView,
@@ -26,6 +27,7 @@ type AccountsContextValue = {
   accounts: AccountView[];
   activeAccount: AccountView | null;
   createAccount: (input: AccountFormInput) => Promise<{ error: string | null }>;
+  deleteAccount: (accountId: string) => Promise<{ error: string | null }>;
   error: string | null;
   loading: boolean;
   markAccountFunded: (accountId: string) => Promise<{ error: string | null }>;
@@ -33,6 +35,10 @@ type AccountsContextValue = {
   refreshAccounts: () => Promise<void>;
   setActiveAccount: (accountId: string) => Promise<{ error: string | null }>;
   startNextPhase: (accountId: string) => Promise<{ error: string | null }>;
+  updateAccount: (
+    accountId: string,
+    input: AccountFormInput,
+  ) => Promise<{ error: string | null }>;
 };
 
 const AccountsContext = createContext<AccountsContextValue | undefined>(undefined);
@@ -135,7 +141,7 @@ export function AccountsProvider({ children }: { children: ReactNode }) {
     };
   }, [authLoading, supabase, user]);
 
-  async function updateAccount(accountId: string, payload: AccountUpdate) {
+  async function applyAccountUpdate(accountId: string, payload: AccountUpdate) {
     if (!supabase || !user) {
       return { error: 'Supabase client unavailable.' };
     }
@@ -152,6 +158,16 @@ export function AccountsProvider({ children }: { children: ReactNode }) {
 
     await refreshAccounts();
     return { error: null };
+  }
+
+  async function updateAccount(accountId: string, input: AccountFormInput) {
+    const account = state.accounts.find((item) => item.id === accountId);
+
+    if (!account) {
+      return { error: 'Account not found.' };
+    }
+
+    return applyAccountUpdate(accountId, mapAccountFormToUpdate(input, account));
   }
 
   async function createAccount(input: AccountFormInput) {
@@ -181,6 +197,61 @@ export function AccountsProvider({ children }: { children: ReactNode }) {
       return { error: null };
     }
 
+    return { error: null };
+  }
+
+  async function deleteAccount(accountId: string) {
+    if (!supabase || !user) {
+      return { error: 'Supabase client unavailable.' };
+    }
+
+    const account = state.accounts.find((item) => item.id === accountId);
+
+    if (!account) {
+      return { error: 'Account not found.' };
+    }
+
+    const { count, error: tradeCountError } = await supabase
+      .from('Trades')
+      .select('ID', { count: 'exact', head: true })
+      .eq('user_id', user.id)
+      .eq('account_id', accountId);
+
+    if (tradeCountError) {
+      return { error: tradeCountError.message };
+    }
+
+    if ((count ?? 0) > 0) {
+      const { error: deleteTradesError } = await supabase
+        .from('Trades')
+        .delete()
+        .eq('user_id', user.id)
+        .eq('account_id', accountId);
+
+      if (deleteTradesError) {
+        return { error: deleteTradesError.message };
+      }
+    }
+
+    const fallbackAccountId =
+      account.isActive
+        ? state.accounts.find((item) => item.id !== accountId)?.id ?? null
+        : null;
+    const { error } = await supabase
+      .from(ACCOUNTS_TABLE)
+      .delete()
+      .eq('id', accountId)
+      .eq('user_id', user.id);
+
+    if (error) {
+      return { error: error.message };
+    }
+
+    if (fallbackAccountId) {
+      return setActiveAccount(fallbackAccountId);
+    }
+
+    await refreshAccounts();
     return { error: null };
   }
 
@@ -219,7 +290,7 @@ export function AccountsProvider({ children }: { children: ReactNode }) {
       return { error: 'Account not found.' };
     }
 
-    return updateAccount(accountId, buildPropPhasePassUpdate(account));
+    return applyAccountUpdate(accountId, buildPropPhasePassUpdate(account));
   }
 
   async function startNextPhase(accountId: string) {
@@ -229,7 +300,7 @@ export function AccountsProvider({ children }: { children: ReactNode }) {
       return { error: 'Account not found.' };
     }
 
-    return updateAccount(accountId, buildPropAdvancePhaseUpdate(account));
+    return applyAccountUpdate(accountId, buildPropAdvancePhaseUpdate(account));
   }
 
   async function markAccountFunded(accountId: string) {
@@ -239,7 +310,7 @@ export function AccountsProvider({ children }: { children: ReactNode }) {
       return { error: 'Account not found.' };
     }
 
-    return updateAccount(accountId, buildPropFundedUpdate(account));
+    return applyAccountUpdate(accountId, buildPropFundedUpdate(account));
   }
 
   const resolvedAccounts = !supabase || !user ? initialState.accounts : state.accounts;
@@ -249,6 +320,7 @@ export function AccountsProvider({ children }: { children: ReactNode }) {
     accounts: resolvedAccounts,
     activeAccount,
     createAccount,
+    deleteAccount,
     error: !supabase || !user ? null : state.error,
     loading: authLoading || (Boolean(supabase && user) ? state.loading : false),
     markAccountFunded,
@@ -256,6 +328,7 @@ export function AccountsProvider({ children }: { children: ReactNode }) {
     refreshAccounts,
     setActiveAccount,
     startNextPhase,
+    updateAccount,
   };
 
   return (

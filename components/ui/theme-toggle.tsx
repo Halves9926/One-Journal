@@ -30,8 +30,8 @@ export default function ThemeToggle() {
           !mounted
             ? 'bg-[var(--muted)]'
             : theme === 'dark'
-              ? 'bg-emerald-400'
-              : 'bg-rose-500',
+              ? 'bg-[var(--foreground)]'
+              : 'bg-[var(--accent-solid)]',
         )}
       />
       {mounted ? (theme === 'dark' ? 'Dark' : 'Light') : 'Theme'}

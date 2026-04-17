@@ -16,7 +16,24 @@ type BaseFieldProps = {
 };
 
 const sharedFieldClassName =
-  'w-full rounded-[24px] border border-[color:var(--border-color)] bg-[linear-gradient(180deg,var(--surface-raised),var(--surface))] px-4 py-3.5 text-sm text-[var(--foreground)] shadow-[0_16px_34px_-28px_var(--shadow-color),inset_0_1px_0_rgba(255,255,255,0.08)] outline-none transition duration-300 placeholder:text-[var(--muted)] focus:border-rose-300/55 focus:bg-[var(--surface-raised)] focus:ring-2 focus:ring-rose-300/18';
+  'w-full rounded-[24px] border border-[color:var(--border-color)] bg-[linear-gradient(180deg,var(--surface-raised),var(--surface))] px-4 py-3.5 text-sm text-[var(--foreground)] shadow-[0_16px_34px_-28px_var(--shadow-color),inset_0_1px_0_rgba(255,255,255,0.08)] outline-none transition duration-300 placeholder:text-[var(--muted)] focus:border-[color:var(--accent-border-strong)] focus:bg-[var(--surface-raised)] focus:ring-2 focus:ring-[color:var(--accent-focus-ring)]';
+
+function SelectChevron() {
+  return (
+    <span className="pointer-events-none absolute inset-y-0 right-4 flex items-center text-[var(--muted)]">
+      <svg
+        aria-hidden="true"
+        viewBox="0 0 16 16"
+        className="h-4 w-4"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.7"
+      >
+        <path d="M4.25 6.5 8 10.25 11.75 6.5" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    </span>
+  );
+}
 
 function FieldShell({
   children,
@@ -31,14 +48,14 @@ function FieldShell({
       <span className="mb-2.5 flex items-center gap-2 text-sm font-medium text-[var(--foreground)]">
         <span>{label}</span>
         {required ? (
-          <span className="rounded-full bg-rose-50 px-2 py-0.5 text-[10px] uppercase tracking-[0.22em] text-rose-700">
+          <span className="rounded-full border border-[color:var(--accent-border-soft)] bg-[var(--accent-soft-bg)] px-2 py-0.5 text-[10px] uppercase tracking-[0.22em] text-[var(--accent-text)]">
             Required
           </span>
         ) : null}
       </span>
       {children}
       {error ? (
-        <span className="mt-2 block text-xs leading-5 text-rose-600">
+        <span className="mt-2 block text-xs leading-5 text-[var(--danger)]">
           {error}
         </span>
       ) : hint ? (
@@ -76,7 +93,7 @@ export function InputField({
         aria-invalid={Boolean(error)}
         className={cx(
           sharedFieldClassName,
-          error && 'border-rose-300 bg-rose-50/60 ring-2 ring-rose-200/40',
+          error && 'border-[color:var(--danger)] bg-[color:color-mix(in_srgb,var(--danger)_8%,var(--surface-raised))] ring-2 ring-[color:color-mix(in_srgb,var(--danger)_22%,transparent)]',
           inputClassName,
         )}
         {...props}
@@ -108,17 +125,22 @@ export function SelectField({
       required={required}
       wrapperClassName={wrapperClassName}
     >
-      <select
-        aria-invalid={Boolean(error)}
-        className={cx(
-          sharedFieldClassName,
-          error && 'border-rose-300 bg-rose-50/60 ring-2 ring-rose-200/40',
-          inputClassName,
-        )}
-        {...props}
-      >
-        {children}
-      </select>
+      <div className="relative">
+        <select
+          aria-invalid={Boolean(error)}
+          className={cx(
+            sharedFieldClassName,
+            'appearance-none pr-12',
+            error &&
+              'border-[color:var(--danger)] bg-[color:color-mix(in_srgb,var(--danger)_8%,var(--surface-raised))] ring-2 ring-[color:color-mix(in_srgb,var(--danger)_22%,transparent)]',
+            inputClassName,
+          )}
+          {...props}
+        >
+          {children}
+        </select>
+        <SelectChevron />
+      </div>
     </FieldShell>
   );
 }
@@ -150,7 +172,7 @@ export function TextareaField({
         className={cx(
           sharedFieldClassName,
           'min-h-32 resize-y',
-          error && 'border-rose-300 bg-rose-50/60 ring-2 ring-rose-200/40',
+          error && 'border-[color:var(--danger)] bg-[color:color-mix(in_srgb,var(--danger)_8%,var(--surface-raised))] ring-2 ring-[color:color-mix(in_srgb,var(--danger)_22%,transparent)]',
           inputClassName,
         )}
         {...props}
@@ -177,7 +199,7 @@ export function CheckboxField({
   return (
     <label
       className={cx(
-        'group flex min-h-[92px] items-center justify-between gap-4 rounded-[26px] border border-[color:var(--border-color)] bg-[linear-gradient(180deg,var(--surface-raised),var(--surface))] p-5 shadow-[0_18px_42px_-34px_var(--shadow-color),inset_0_1px_0_rgba(255,255,255,0.08)] transition duration-300 hover:-translate-y-1 hover:border-rose-400/30',
+        'group flex min-h-[92px] items-center justify-between gap-4 rounded-[26px] border border-[color:var(--border-color)] bg-[linear-gradient(180deg,var(--surface-raised),var(--surface))] p-5 shadow-[0_18px_42px_-34px_var(--shadow-color),inset_0_1px_0_rgba(255,255,255,0.08)] transition duration-300 hover:-translate-y-1 hover:border-[color:var(--accent-border-soft)] hover:shadow-[0_24px_50px_-34px_var(--shadow-color)]',
         wrapperClassName,
       )}
     >
@@ -196,8 +218,10 @@ export function CheckboxField({
           onChange={onChange}
           className="peer sr-only"
         />
-        <span className="flex h-7 w-12 items-center rounded-full border border-[color:var(--border-color)] bg-[var(--surface-soft)] px-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.12)] transition peer-checked:border-rose-300 peer-checked:bg-rose-100/80">
-          <span className="h-5 w-5 rounded-full bg-[var(--surface-raised)] shadow-[0_10px_20px_-12px_var(--shadow-color)] transition peer-checked:translate-x-5 peer-checked:bg-rose-700" />
+        <span className="relative flex h-8 w-14 items-center">
+          <span className="absolute inset-0 rounded-full border border-[color:var(--border-color)] bg-[linear-gradient(180deg,var(--surface-soft),rgba(0,0,0,0.08))] shadow-[inset_0_1px_0_rgba(255,255,255,0.1),0_12px_22px_-18px_var(--shadow-color)] transition duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] peer-focus-visible:ring-2 peer-focus-visible:ring-[color:var(--accent-focus-ring)] peer-checked:border-[color:var(--accent-border-strong)] peer-checked:bg-[linear-gradient(135deg,var(--accent-gradient-start),var(--accent-gradient-mid)_60%,var(--accent-gradient-end))]" />
+          <span className="pointer-events-none absolute left-1 top-1 h-6 w-6 rounded-full bg-[var(--surface-raised)] shadow-[0_14px_24px_-16px_var(--shadow-color),inset_0_1px_0_rgba(255,255,255,0.3)] transition duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] peer-checked:translate-x-6 peer-checked:bg-white" />
+          <span className="pointer-events-none absolute left-[0.45rem] top-[0.45rem] h-[1.15rem] w-[1.15rem] rounded-full bg-white/26 opacity-0 blur-[8px] transition duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] peer-checked:translate-x-6 peer-checked:opacity-100" />
         </span>
       </span>
     </label>

@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
+import Link from 'next/link';
 
 import {
   formatCompactNumber,
@@ -15,8 +16,10 @@ import { cx } from '@/lib/utils';
 type TradeCardProps = {
   className?: string;
   compact?: boolean;
+  editHref?: string;
   featured?: boolean;
   index?: number;
+  onDelete?: (tradeId: string) => Promise<{ error: string | null }>;
   trade: TradeView;
 };
 
@@ -108,11 +111,16 @@ function TradeCover({
 export default function TradeCard({
   className,
   compact = false,
+  editHref,
   featured = false,
   index = 0,
+  onDelete,
   trade,
 }: TradeCardProps) {
   const hasScreenshot = Boolean(trade.screenshotUrl);
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
   const details = useMemo(
     () =>
       [
@@ -142,6 +150,27 @@ export default function TradeCard({
   const symbolLabel = trade.symbol || 'Saved trade';
   const notesPreview = getNotesPreview(trade.notes, compact);
   const shouldShowInlineCover = !featured || !hasScreenshot;
+  const hasActions = Boolean(editHref || onDelete);
+
+  async function handleDelete() {
+    if (!onDelete) {
+      return;
+    }
+
+    setIsDeleting(true);
+    setActionError(null);
+
+    const result = await onDelete(trade.id);
+
+    if (result.error) {
+      setActionError(result.error);
+      setIsDeleting(false);
+      return;
+    }
+
+    setIsDeleteConfirmOpen(false);
+    setIsDeleting(false);
+  }
 
   return (
     <motion.article
@@ -154,7 +183,7 @@ export default function TradeCard({
         ease: [0.22, 1, 0.36, 1],
       }}
       className={cx(
-        'group overflow-hidden rounded-[30px] border border-[color:var(--border-strong)] bg-[linear-gradient(180deg,var(--surface-strong),var(--surface))] p-4 shadow-[0_30px_68px_-42px_var(--shadow-color),inset_0_1px_0_rgba(255,255,255,0.08)] transition duration-300 lg:hover:-translate-y-1 lg:hover:border-rose-400/24 lg:hover:shadow-[0_34px_74px_-42px_var(--shadow-color)] sm:p-5',
+        'group overflow-hidden rounded-[30px] border border-[color:var(--border-strong)] bg-[linear-gradient(180deg,var(--surface-strong),var(--surface))] p-4 shadow-[0_30px_68px_-42px_var(--shadow-color),inset_0_1px_0_rgba(255,255,255,0.08)] transition duration-300 lg:hover:-translate-y-1 lg:hover:border-[color:var(--accent-border-soft)] lg:hover:shadow-[0_34px_74px_-42px_var(--shadow-color)] sm:p-5',
         featured &&
           'bg-[linear-gradient(180deg,var(--surface-raised),rgba(127,29,29,0.045))] shadow-[0_36px_82px_-42px_var(--shadow-color),inset_0_1px_0_rgba(255,255,255,0.1)]',
         compact && 'p-4',
@@ -173,7 +202,7 @@ export default function TradeCard({
           <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2.5">
-                <span className="rounded-full border border-rose-500/20 bg-rose-500/10 px-3 py-1 font-mono text-[11px] uppercase tracking-[0.24em] text-rose-700 dark:text-rose-200">
+                <span className="rounded-full border border-[color:var(--accent-border-soft)] bg-[var(--accent-soft-bg)] px-3 py-1 font-mono text-[11px] uppercase tracking-[0.24em] text-[var(--accent-text)]">
                   {symbolLabel}
                 </span>
                 {trade.bias ? (
@@ -200,18 +229,61 @@ export default function TradeCard({
               ) : null}
             </div>
 
-            <div className="rounded-[22px] border border-[color:var(--border-color)] bg-[var(--surface-raised)] px-4 py-3 shadow-[0_18px_36px_-30px_var(--shadow-color)] md:min-w-[148px]">
-              <p className="font-mono text-[11px] uppercase tracking-[0.26em] text-[var(--muted)]">
-                PnL
-              </p>
-              <p
-                className={cx(
-                  'mt-2 text-2xl font-semibold tracking-tight',
-                  getPnlToneClassName(trade.pnl),
-                )}
-              >
-                {trade.pnl === null ? 'Awaiting' : formatSignedNumber(trade.pnl)}
-              </p>
+            <div className="flex flex-col gap-2 md:items-end">
+              {hasActions ? (
+                <div className="flex items-center gap-2 self-start md:self-end">
+                  {editHref ? (
+                    <Link
+                      href={editHref}
+                      className="inline-flex min-h-9 items-center rounded-full border border-[color:var(--border-color)] bg-[var(--surface)] px-3 text-xs font-medium text-[var(--muted-strong)] transition hover:border-[color:var(--border-strong)] hover:text-[var(--foreground)]"
+                    >
+                      Edit
+                    </Link>
+                  ) : null}
+                  {onDelete ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActionError(null);
+                        setIsDeleteConfirmOpen((current) => !current);
+                      }}
+                      className="inline-flex min-h-9 min-w-9 items-center justify-center rounded-full border border-rose-500/20 bg-rose-500/10 px-3 text-rose-700 transition hover:border-rose-500/34 hover:bg-rose-500/16 dark:text-rose-300"
+                      aria-label="Delete trade"
+                    >
+                      <svg
+                        aria-hidden="true"
+                        viewBox="0 0 20 20"
+                        className="h-4 w-4"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.8"
+                      >
+                        <path d="M4.75 6h10.5" strokeLinecap="round" />
+                        <path d="M8 6V4.75h4V6" strokeLinecap="round" strokeLinejoin="round" />
+                        <path
+                          d="M6.25 6l.6 8.02a1 1 0 0 0 1 .93h4.3a1 1 0 0 0 1-.93L13.75 6"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                    </button>
+                  ) : null}
+                </div>
+              ) : null}
+
+              <div className="rounded-[22px] border border-[color:var(--border-color)] bg-[var(--surface-raised)] px-4 py-3 shadow-[0_18px_36px_-30px_var(--shadow-color)] md:min-w-[148px]">
+                <p className="font-mono text-[11px] uppercase tracking-[0.26em] text-[var(--muted)]">
+                  PnL
+                </p>
+                <p
+                  className={cx(
+                    'mt-2 text-2xl font-semibold tracking-tight',
+                    getPnlToneClassName(trade.pnl),
+                  )}
+                >
+                  {trade.pnl === null ? 'Awaiting' : formatSignedNumber(trade.pnl)}
+                </p>
+              </div>
             </div>
           </div>
 
@@ -245,6 +317,46 @@ export default function TradeCard({
               <p className="mt-2 text-sm leading-6 text-[var(--muted-strong)]">
                 {notesPreview}
               </p>
+            </div>
+          ) : null}
+
+          {onDelete && (isDeleteConfirmOpen || actionError) ? (
+            <div className="rounded-[22px] border border-rose-500/18 bg-[linear-gradient(180deg,rgba(127,29,29,0.08),var(--surface))] px-4 py-3.5">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-sm font-medium text-[var(--foreground)]">
+                    Delete this trade?
+                  </p>
+                  <p className="mt-1 text-sm text-[var(--muted)]">
+                    This removes the execution from the journal and updates account metrics.
+                  </p>
+                  {actionError ? (
+                    <p className="mt-2 text-sm text-[var(--danger)]">{actionError}</p>
+                  ) : null}
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsDeleteConfirmOpen(false);
+                      setActionError(null);
+                    }}
+                    className="inline-flex min-h-10 items-center rounded-full border border-[color:var(--border-color)] bg-[var(--surface-raised)] px-4 text-sm font-medium text-[var(--muted-strong)] transition hover:border-[color:var(--border-strong)] hover:text-[var(--foreground)]"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isDeleting}
+                    onClick={() => {
+                      void handleDelete();
+                    }}
+                    className="inline-flex min-h-10 items-center rounded-full border border-[#7a1c30]/26 bg-[linear-gradient(135deg,#7a1c30,#541224)] px-4 text-sm font-medium text-white shadow-[0_20px_42px_-28px_rgba(122,28,48,0.52)] transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
+                  >
+                    {isDeleting ? 'Deleting...' : 'Delete'}
+                  </button>
+                </div>
+              </div>
             </div>
           ) : null}
         </div>

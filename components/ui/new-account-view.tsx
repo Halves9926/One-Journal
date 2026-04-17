@@ -1,12 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 import { useAccounts } from '@/components/ui/accounts-provider';
 import AuthRequired from '@/components/ui/auth-required';
 import { useAuth } from '@/components/ui/auth-provider';
 import { Button, ButtonLink } from '@/components/ui/button';
+import FeedbackToast from '@/components/ui/feedback-toast';
 import {
   CheckboxField,
   InputField,
@@ -16,38 +17,116 @@ import {
 import PageShell from '@/components/ui/page-shell';
 import { Panel, PanelHeader } from '@/components/ui/panel';
 import { Reveal } from '@/components/ui/reveal';
+import { useClientReady } from '@/components/ui/use-client-ready';
+import {
+  clearFormDraft,
+  readFormDraft,
+  writeFormDraft,
+} from '@/lib/form-drafts';
 import {
   ACCOUNT_TYPES,
   createInitialAccountFormValues,
+  mapAccountToFormValues,
   type AccountFormInput,
 } from '@/lib/accounts';
 
 type FieldErrors = Partial<Record<keyof AccountFormInput, string>>;
+type ToastState = {
+  items: string[];
+  message: string;
+  tone: 'error' | 'success' | 'neutral';
+  title: string;
+} | null;
 
-export default function NewAccountView() {
+type NewAccountViewProps = {
+  accountId?: string;
+  mode?: 'create' | 'edit';
+};
+
+export default function NewAccountView({
+  accountId,
+  mode = 'create',
+}: NewAccountViewProps) {
   const router = useRouter();
   const { loading, supabase, user } = useAuth();
-  const { accounts, createAccount, error: accountsError } = useAccounts();
-  const [values, setValues] = useState<AccountFormInput>(() =>
-    createInitialAccountFormValues(),
+  const isClient = useClientReady();
+  const {
+    accounts,
+    createAccount,
+    error: accountsError,
+    loading: accountsLoading,
+    updateAccount,
+  } = useAccounts();
+  const isEditMode = mode === 'edit';
+  const draftStorageKey =
+    isEditMode && accountId
+      ? `one-journal.account-form.edit.${accountId}.v1`
+      : 'one-journal.account-form.create.v1';
+  const accountToEdit = useMemo(
+    () => (accountId ? accounts.find((account) => account.id === accountId) ?? null : null),
+    [accountId, accounts],
   );
+  const initialValues = useMemo(
+    () =>
+      isEditMode && accountToEdit
+        ? mapAccountToFormValues(accountToEdit)
+        : createInitialAccountFormValues(),
+    [accountToEdit, isEditMode],
+  );
+  const [draftValues, setDraftValues] = useState<AccountFormInput | null>(null);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
-  const [feedback, setFeedback] = useState<{
-    message: string;
-    tone: 'error' | 'success';
-  } | null>(null);
+  const [toast, setToast] = useState<ToastState>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [draftSnapshotVersion, setDraftSnapshotVersion] = useState(0);
+  const restoredDraftValues = useMemo(() => {
+    void draftSnapshotVersion;
+
+    if (!isClient || loading || !supabase || !user) {
+      return null;
+    }
+
+    if (isEditMode && accountsLoading && !accountToEdit) {
+      return null;
+    }
+
+    return readFormDraft(draftStorageKey, initialValues);
+  }, [
+    accountToEdit,
+    accountsLoading,
+    draftStorageKey,
+    draftSnapshotVersion,
+    initialValues,
+    isClient,
+    isEditMode,
+    loading,
+    supabase,
+    user,
+  ]);
+  const values = draftValues ?? restoredDraftValues ?? initialValues;
   const isPropAccount = values.type === 'Propfirm Account';
   const showFundedLimits = isPropAccount && values.is_funded;
   const showPhaseToggle = isPropAccount && !values.is_funded;
   const showPhaseFields = showPhaseToggle && values.phases_enabled;
 
+  function clearDraft() {
+    clearFormDraft(draftStorageKey);
+    setDraftSnapshotVersion((current) => current + 1);
+  }
+
+  useEffect(() => {
+    if (!isClient || !draftValues) {
+      return;
+    }
+
+    writeFormDraft(draftStorageKey, draftValues);
+  }, [draftStorageKey, draftValues, isClient]);
+
   function updateValue<Key extends keyof AccountFormInput>(
     key: Key,
     value: AccountFormInput[Key],
   ) {
-    setValues((current) => ({
-      ...current,
+    setDraftValues((current) => ({
+      ...(current ?? values),
       [key]: value,
     }));
 
@@ -61,7 +140,7 @@ export default function NewAccountView() {
       return nextErrors;
     });
 
-    setFeedback(null);
+    setToast(null);
   }
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -77,6 +156,12 @@ export default function NewAccountView() {
       nextErrors.initial_equity = 'Initial equity is required.';
     } else if (!Number.isFinite(Number(values.initial_equity))) {
       nextErrors.initial_equity = 'Initial equity must be a valid number.';
+    }
+
+    if (!values.current_equity.trim()) {
+      nextErrors.current_equity = 'Current equity is required.';
+    } else if (!Number.isFinite(Number(values.current_equity))) {
+      nextErrors.current_equity = 'Current equity must be a valid number.';
     }
 
     if (isPropAccount && showPhaseFields) {
@@ -112,40 +197,66 @@ export default function NewAccountView() {
 
     if (Object.keys(nextErrors).length > 0) {
       setFieldErrors(nextErrors);
-      setFeedback({
-        message: 'Check the highlighted fields before creating the account.',
+      setToast({
+        title: 'Check highlighted fields',
+        message: isEditMode
+          ? 'Check the highlighted fields before saving the account.'
+          : 'Check the highlighted fields before creating the account.',
+        items: Object.keys(nextErrors).map((key) =>
+          key.replaceAll('_', ' '),
+        ),
         tone: 'error',
       });
       return;
     }
 
     setIsSubmitting(true);
-    setFeedback(null);
+    setToast(null);
 
-    const result = await createAccount(values);
+    const result =
+      isEditMode && accountId
+        ? await updateAccount(accountId, values)
+        : await createAccount(values);
 
     setIsSubmitting(false);
 
     if (result.error) {
-      setFeedback({
+      console.error('Account save failed', {
+        accountId,
+        error: result.error,
+        isEditMode,
+        values,
+      });
+      setToast({
+        title: isEditMode ? 'Account save failed' : 'Account creation failed',
         message: result.error,
+        items: [],
         tone: 'error',
       });
       return;
     }
 
-    setFeedback({
-      message: 'Account created successfully.',
+    clearDraft();
+    setDraftValues(null);
+    setToast({
+      title: isEditMode ? 'Account updated' : 'Account created',
+      message: isEditMode
+        ? 'Account updated successfully.'
+        : 'Account created successfully.',
+      items: [],
       tone: 'success',
     });
+    await new Promise((resolve) => window.setTimeout(resolve, 180));
     router.replace('/accounts');
   }
 
-  if (loading || !supabase) {
+  if (loading || !supabase || (isEditMode && accountsLoading && !accountToEdit)) {
     return (
       <PageShell>
         <Panel className="p-6 sm:p-8">
-          <p className="text-sm text-[var(--muted)]">Loading session...</p>
+          <p className="text-sm text-[var(--muted)]">
+            {isEditMode ? 'Loading account...' : 'Loading session...'}
+          </p>
         </Panel>
       </PageShell>
     );
@@ -162,15 +273,40 @@ export default function NewAccountView() {
     );
   }
 
+  if (isEditMode && !accountToEdit) {
+    return (
+      <PageShell>
+        <Panel className="p-6 sm:p-8">
+          <p className="text-sm text-[var(--muted)]">
+            Account not found or no longer available.
+          </p>
+        </Panel>
+      </PageShell>
+    );
+  }
+
   return (
     <PageShell size="wide">
+      <FeedbackToast
+        visible={Boolean(toast)}
+        title={toast?.title ?? ''}
+        message={toast?.message ?? ''}
+        items={toast?.items}
+        tone={toast?.tone}
+        onClose={() => setToast(null)}
+      />
+
       <div className="space-y-6">
         <Reveal>
           <Panel className="overflow-hidden">
             <PanelHeader
               eyebrow="accounts"
-              title="New account"
-              description="Create a separate workspace for demo, propfirm, live or backtest trading."
+              title={isEditMode ? 'Edit account' : 'New account'}
+              description={
+                isEditMode
+                  ? 'Update the account setup, balances and prop rules without breaking the active workspace.'
+                  : 'Create a separate workspace for demo, propfirm, live or backtest trading.'
+              }
               action={
                 <div className="flex flex-col gap-3 sm:flex-row">
                   <ButtonLink href="/accounts" size="lg" variant="secondary">
@@ -186,7 +322,6 @@ export default function NewAccountView() {
         </Reveal>
 
         {accountsError ? <MessageBanner message={accountsError} tone="error" /> : null}
-        {feedback ? <MessageBanner message={feedback.message} tone={feedback.tone} /> : null}
 
         <form
           id="account-form"
@@ -198,8 +333,12 @@ export default function NewAccountView() {
               <Panel className="overflow-hidden">
                 <PanelHeader
                   eyebrow="basics"
-                  title="Account setup"
-                  description="Name the account and define its starting balance."
+                  title={isEditMode ? 'Account details' : 'Account setup'}
+                  description={
+                    isEditMode
+                      ? 'Refine the naming, type and balances for this account.'
+                      : 'Name the account and define both the starting and current balance.'
+                  }
                 />
                 <div className="grid gap-4 px-6 pb-6 sm:px-8 sm:pb-8 md:grid-cols-2">
                   <InputField
@@ -237,6 +376,19 @@ export default function NewAccountView() {
                       updateValue('initial_equity', event.target.value)
                     }
                     placeholder="10000"
+                  />
+
+                  <InputField
+                    label="Current equity"
+                    type="number"
+                    step="0.01"
+                    required
+                    value={values.current_equity}
+                    error={fieldErrors.current_equity}
+                    onChange={(event) =>
+                      updateValue('current_equity', event.target.value)
+                    }
+                    placeholder="10450"
                   />
 
                   <div className="rounded-[26px] border border-[color:var(--border-color)] bg-[var(--surface-raised)] px-5 py-4 shadow-[0_18px_42px_-34px_var(--shadow-color)]">
@@ -391,6 +543,12 @@ export default function NewAccountView() {
                     </p>
                   </div>
                   <div className="rounded-[22px] border border-[color:var(--border-color)] bg-[var(--surface-raised)] p-4 shadow-[0_14px_28px_-24px_var(--shadow-color)]">
+                    <p className="text-sm text-[var(--muted)]">Current equity</p>
+                    <p className="mt-2 text-lg font-semibold text-[var(--foreground)]">
+                      {values.current_equity.trim() || values.initial_equity.trim() || '0'}
+                    </p>
+                  </div>
+                  <div className="rounded-[22px] border border-[color:var(--border-color)] bg-[var(--surface-raised)] p-4 shadow-[0_14px_28px_-24px_var(--shadow-color)]">
                     <p className="text-sm text-[var(--muted)]">Phase state</p>
                     <p className="mt-2 text-lg font-semibold text-[var(--foreground)]">
                       {isPropAccount
@@ -420,20 +578,27 @@ export default function NewAccountView() {
                     variant="primary"
                     className="w-full"
                   >
-                    {isSubmitting ? 'Creating...' : 'Create Account'}
+                    {isSubmitting
+                      ? isEditMode
+                        ? 'Saving...'
+                        : 'Creating...'
+                      : isEditMode
+                        ? 'Save Account'
+                        : 'Create Account'}
                   </Button>
                   <Button
                     type="button"
                     variant="secondary"
                     size="lg"
                     onClick={() => {
-                      setValues(createInitialAccountFormValues());
+                      setDraftValues(null);
+                      clearDraft();
                       setFieldErrors({});
-                      setFeedback(null);
+                      setToast(null);
                     }}
                     className="w-full"
                   >
-                    Reset
+                    {isEditMode ? 'Reset Changes' : 'Reset'}
                   </Button>
                 </div>
               </Panel>
