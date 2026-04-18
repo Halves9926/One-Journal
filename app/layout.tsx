@@ -31,9 +31,15 @@ const themeScript = `
       storedAccentTheme === 'pink'
         ? storedAccentTheme
         : 'red';
+    const storedPnlVisualEmphasis = window.localStorage.getItem(
+      'oj-pnl-visual-emphasis',
+    );
+    const preferredPnlVisualEmphasis =
+      storedPnlVisualEmphasis === 'off' ? 'off' : 'on';
     const root = document.documentElement;
     root.dataset.theme = preferredTheme;
     root.dataset.accent = preferredAccentTheme;
+    root.dataset.pnlVisualEmphasis = preferredPnlVisualEmphasis;
     root.style.colorScheme = preferredTheme;
     root.classList.toggle('dark', preferredTheme === 'dark');
   } catch (_) {}
@@ -50,6 +56,7 @@ export default function RootLayout({
       lang="it"
       data-scroll-behavior="smooth"
       data-accent="red"
+      data-pnl-visual-emphasis="on"
       suppressHydrationWarning
       className={`${fontSans.variable} ${fontMono.variable}`}
     >

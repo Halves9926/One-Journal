@@ -1,9 +1,10 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useDeferredValue, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
+import AnalysisCard from '@/components/ui/analysis-card';
 import { useAccounts } from '@/components/ui/accounts-provider';
 import AuthRequired from '@/components/ui/auth-required';
 import { useAuth } from '@/components/ui/auth-provider';
@@ -19,7 +20,9 @@ import {
 import { MetricCard, Panel, PanelHeader } from '@/components/ui/panel';
 import { Reveal } from '@/components/ui/reveal';
 import TradeCard from '@/components/ui/trade-card';
+import { useUserAnalyses } from '@/components/ui/use-user-analyses';
 import { useUserTrades } from '@/components/ui/use-user-trades';
+import { getAnalysisSearchText, type AnalysisView } from '@/lib/analyses';
 import {
   buildAccountMetrics,
   isPropAccount,
@@ -27,9 +30,16 @@ import {
 import {
   buildTradeSummary,
   formatCompactNumber,
+  formatCurrency,
+  formatPnl,
   formatPercentValue,
-  formatSignedNumber,
+  getPnlBadgeClassName,
+  getPnlCardClassName,
+  getTradeSearchText,
+  getPnlTextClassName,
+  type TradeView,
 } from '@/lib/trades';
+import { cx } from '@/lib/utils';
 
 function getStreakLabel(
   direction: 'flat' | 'loss' | 'win' | null,
@@ -58,6 +68,46 @@ function renderDistributionWidth(value: number, total: number) {
   return `${Math.max((value / total) * 100, 8)}%`;
 }
 
+type FeedScope = 'all' | 'analyses' | 'trades';
+
+type JournalFeedEntry =
+  | {
+      createdAt: string | null;
+      id: string;
+      kind: 'trade';
+      searchText: string;
+      sortDate: string | null;
+      updatedAt: string | null;
+      value: TradeView;
+    }
+  | {
+      createdAt: string | null;
+      id: string;
+      kind: 'analysis';
+      searchText: string;
+      sortDate: string | null;
+      updatedAt: string | null;
+      value: AnalysisView;
+    };
+
+function getEntrySortTimestamp(entry: JournalFeedEntry) {
+  const primaryValue = entry.sortDate ? new Date(entry.sortDate).valueOf() : 0;
+
+  if (!Number.isNaN(primaryValue) && primaryValue > 0) {
+    return primaryValue;
+  }
+
+  const updatedValue = entry.updatedAt ? new Date(entry.updatedAt).valueOf() : 0;
+
+  if (!Number.isNaN(updatedValue) && updatedValue > 0) {
+    return updatedValue;
+  }
+
+  const createdValue = entry.createdAt ? new Date(entry.createdAt).valueOf() : 0;
+
+  return Number.isNaN(createdValue) ? 0 : createdValue;
+}
+
 export default function DashboardView() {
   const router = useRouter();
   const { loading: authLoading, supabase, user } = useAuth();
@@ -69,10 +119,18 @@ export default function DashboardView() {
     refreshAccounts,
   } = useAccounts();
   const [logoutError, setLogoutError] = useState<string | null>(null);
+  const [feedScope, setFeedScope] = useState<FeedScope>('all');
+  const [feedSearchValue, setFeedSearchValue] = useState('');
+  const deferredFeedSearchValue = useDeferredValue(feedSearchValue.trim().toLowerCase());
   const tradesState = useUserTrades({
     accountId: activeAccount?.id ?? null,
     enabled: Boolean(user && activeAccount),
-    limit: 24,
+    limit: null,
+  });
+  const analysesState = useUserAnalyses({
+    accountId: activeAccount?.id ?? null,
+    enabled: Boolean(user && activeAccount),
+    limit: null,
   });
   const accountMetrics = useMemo(
     () =>
@@ -80,7 +138,6 @@ export default function DashboardView() {
     [activeAccount, tradesState.items],
   );
   const summary = accountMetrics?.summary ?? buildTradeSummary([]);
-  const recentTrades = tradesState.items.slice(0, 7);
   const directionalTotal = summary.longCount + summary.shortCount;
   const currentEquity =
     activeAccount && accountMetrics
@@ -94,37 +151,46 @@ export default function DashboardView() {
     ? [
         {
           caption: 'active account balance',
+          className: '',
           label: 'Current equity',
           tone: 'accent' as const,
           value:
             currentEquity === null
-              ? formatCompactNumber(activeAccount.initialEquity)
-              : formatCompactNumber(currentEquity),
+              ? formatCurrency(activeAccount.initialEquity)
+              : formatCurrency(currentEquity),
+          valueClassName: '',
         },
         {
           caption: 'aggregate result on this account',
+          className: getPnlCardClassName(summary.netPnl),
           label: 'Net PnL',
           tone: summary.netPnl < 0 ? ('danger' as const) : ('accent' as const),
-          value: formatSignedNumber(summary.netPnl),
+          value: formatPnl(summary.netPnl),
+          valueClassName: getPnlTextClassName(summary.netPnl),
         },
         {
           caption: `${summary.wins} wins / ${summary.losses} losses`,
+          className: '',
           label: 'Win rate',
           tone: 'success' as const,
           value:
             summary.winRate === null ? 'No trades yet' : `${Math.round(summary.winRate)}%`,
+          valueClassName: '',
         },
         {
           caption: 'risk to reward captured',
+          className: '',
           label: 'Average RR',
           tone: 'neutral' as const,
           value:
             summary.avgRr === null
               ? 'Not enough history'
               : formatCompactNumber(summary.avgRr),
+          valueClassName: '',
         },
         {
           caption: 'observed from account equity path',
+          className: '',
           label: 'Drawdown',
           tone: accountMetrics && accountMetrics.currentDrawdown > 0
             ? ('danger' as const)
@@ -132,7 +198,8 @@ export default function DashboardView() {
           value:
             accountMetrics === null
               ? 'No trades yet'
-              : formatCompactNumber(accountMetrics.currentDrawdown),
+              : formatCurrency(accountMetrics.currentDrawdown),
+          valueClassName: '',
         },
         {
           caption:
@@ -154,11 +221,19 @@ export default function DashboardView() {
               ? activeAccount.isFunded
                 ? 'Funded'
                 : accountMetrics && accountMetrics.phaseTargetRemaining !== null
-                  ? formatCompactNumber(accountMetrics.phaseTargetRemaining)
+                  ? formatCurrency(accountMetrics.phaseTargetRemaining)
                   : 'No target'
               : summary.avgWin === null
                 ? 'No winning trades yet'
-                : formatSignedNumber(summary.avgWin),
+                : formatPnl(summary.avgWin),
+          className:
+            !isPropAccount(activeAccount) && summary.avgWin !== null
+              ? getPnlCardClassName(summary.avgWin)
+              : '',
+          valueClassName:
+            !isPropAccount(activeAccount) && summary.avgWin !== null
+              ? getPnlTextClassName(summary.avgWin)
+              : '',
         },
       ]
     : [];
@@ -170,13 +245,21 @@ export default function DashboardView() {
         },
         {
           label: 'Initial equity',
-          value: formatCompactNumber(activeAccount.initialEquity),
+          value: formatCurrency(activeAccount.initialEquity),
         },
         summary.bestTrade !== null
-          ? { label: 'Best trade', value: formatSignedNumber(summary.bestTrade) }
+          ? {
+              label: 'Best trade',
+              value: formatPnl(summary.bestTrade),
+              valueClassName: getPnlTextClassName(summary.bestTrade),
+            }
           : null,
         summary.worstTrade !== null
-          ? { label: 'Worst trade', value: formatSignedNumber(summary.worstTrade) }
+          ? {
+              label: 'Worst trade',
+              value: formatPnl(summary.worstTrade),
+              valueClassName: getPnlTextClassName(summary.worstTrade),
+            }
           : null,
         summary.profitFactor !== null
           ? { label: 'Profit factor', value: formatCompactNumber(summary.profitFactor, 2) }
@@ -187,8 +270,55 @@ export default function DashboardView() {
               value: `${Math.round(summary.screenshotRate)}%`,
             }
           : null,
-      ].filter((item): item is { label: string; value: string } => Boolean(item))
+      ].filter(
+        (
+          item,
+        ): item is { label: string; value: string; valueClassName?: string } =>
+          Boolean(item),
+      )
     : [];
+  const journalFeed = useMemo<JournalFeedEntry[]>(
+    () =>
+      [
+        ...tradesState.items.map((trade) => ({
+          createdAt: trade.createdAt,
+          id: trade.id,
+          kind: 'trade' as const,
+          searchText: getTradeSearchText(trade),
+          sortDate: trade.date,
+          updatedAt: trade.updatedAt,
+          value: trade,
+        })),
+        ...analysesState.items.map((analysis) => ({
+          createdAt: analysis.createdAt,
+          id: analysis.id,
+          kind: 'analysis' as const,
+          searchText: getAnalysisSearchText(analysis),
+          sortDate: analysis.analysisDate,
+          updatedAt: analysis.updatedAt,
+          value: analysis,
+        })),
+      ].sort((leftEntry, rightEntry) => getEntrySortTimestamp(rightEntry) - getEntrySortTimestamp(leftEntry)),
+    [analysesState.items, tradesState.items],
+  );
+  const filteredJournalFeed = useMemo(
+    () =>
+      journalFeed.filter((entry) => {
+        if (
+          (feedScope === 'trades' && entry.kind !== 'trade') ||
+          (feedScope === 'analyses' && entry.kind !== 'analysis')
+        ) {
+          return false;
+        }
+
+        if (!deferredFeedSearchValue) {
+          return true;
+        }
+
+        return entry.searchText.includes(deferredFeedSearchValue);
+      }),
+    [deferredFeedSearchValue, feedScope, journalFeed],
+  );
 
   async function handleLogout() {
     if (!supabase) {
@@ -225,6 +355,25 @@ export default function DashboardView() {
 
     tradesState.refresh();
     await refreshAccounts();
+    return { error: null };
+  }
+
+  async function handleDeleteAnalysis(analysisId: string) {
+    if (!supabase || !user) {
+      return { error: 'Supabase client unavailable.' };
+    }
+
+    const { error } = await supabase
+      .from('analyses')
+      .delete()
+      .eq('id', analysisId)
+      .eq('user_id', user.id);
+
+    if (error) {
+      return { error: error.message };
+    }
+
+    analysesState.refresh();
     return { error: null };
   }
 
@@ -314,8 +463,13 @@ export default function DashboardView() {
                       </span>
                     ) : null}
                     {summary.recentWindowNetPnl !== null ? (
-                      <span className="rounded-full border border-[color:var(--border-color)] bg-[var(--surface-raised)] px-3 py-1.5">
-                        Last 5 {formatSignedNumber(summary.recentWindowNetPnl)}
+                      <span
+                        className={cx(
+                          'rounded-full border px-3 py-1.5',
+                          getPnlBadgeClassName(summary.recentWindowNetPnl),
+                        )}
+                      >
+                        Last 5 {formatPnl(summary.recentWindowNetPnl)}
                       </span>
                     ) : null}
                     {isPropAccount(activeAccount) ? (
@@ -331,6 +485,9 @@ export default function DashboardView() {
                 <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
                   <ButtonLink href="/trades/new" size="lg" variant="primary">
                     New Trade
+                  </ButtonLink>
+                  <ButtonLink href="/analyses/new" size="lg" variant="secondary">
+                    New Analysis
                   </ButtonLink>
                   <ButtonLink href="/accounts" size="lg" variant="secondary">
                     Accounts
@@ -357,8 +514,8 @@ export default function DashboardView() {
                       </p>
                       <p className="mt-3 text-3xl font-semibold tracking-tight text-[var(--foreground)]">
                         {currentEquity === null
-                          ? formatCompactNumber(activeAccount.initialEquity)
-                          : formatCompactNumber(currentEquity)}
+                          ? formatCurrency(activeAccount.initialEquity)
+                          : formatCurrency(currentEquity)}
                       </p>
                     </div>
                     <span className="rounded-full border border-[color:var(--border-color)] bg-[var(--surface)] px-3 py-1.5 text-xs text-[var(--muted-strong)]">
@@ -386,8 +543,8 @@ export default function DashboardView() {
                       <p className="text-sm text-[var(--muted)]">Peak equity</p>
                       <p className="mt-2 text-lg font-semibold text-[var(--foreground)]">
                         {accountMetrics === null
-                          ? formatCompactNumber(activeAccount.initialEquity)
-                          : formatCompactNumber(accountMetrics.peakEquity)}
+                          ? formatCurrency(activeAccount.initialEquity)
+                          : formatCurrency(accountMetrics.peakEquity)}
                       </p>
                     </div>
                     <div className="rounded-[22px] border border-[color:var(--border-color)] bg-[var(--surface)] px-4 py-3 sm:col-span-2">
@@ -402,7 +559,7 @@ export default function DashboardView() {
                             ? 'Funded account'
                             : accountMetrics &&
                                 accountMetrics.phaseTargetRemaining !== null
-                              ? `Target remaining ${formatCompactNumber(accountMetrics.phaseTargetRemaining)}`
+                              ? `Target remaining ${formatCurrency(accountMetrics.phaseTargetRemaining)}`
                               : `Phase ${activeAccount.currentPhase}/${activeAccount.phaseCount}`
                           : summary.latestTradeWithScreenshot?.symbol ?? 'No screenshots yet'}
                       </p>
@@ -434,6 +591,8 @@ export default function DashboardView() {
                 value={card.value}
                 tone={card.tone}
                 caption={card.caption}
+                className={card.className}
+                valueClassName={card.valueClassName}
               />
             </Reveal>
           ))}
@@ -464,7 +623,12 @@ export default function DashboardView() {
                           className="rounded-[24px] border border-[color:var(--border-color)] bg-[var(--surface-raised)] px-4 py-4 shadow-[0_18px_36px_-30px_var(--shadow-color)]"
                         >
                           <p className="text-sm text-[var(--muted)]">{item.label}</p>
-                          <p className="mt-2 text-2xl font-semibold tracking-tight text-[var(--foreground)]">
+                          <p
+                            className={cx(
+                              'mt-2 text-2xl font-semibold tracking-tight text-[var(--foreground)]',
+                              item.valueClassName,
+                            )}
+                          >
                             {item.value}
                           </p>
                         </div>
@@ -490,7 +654,7 @@ export default function DashboardView() {
                         <div className="rounded-[22px] border border-[color:var(--border-color)] bg-[var(--surface)] px-4 py-3">
                           <p className="text-sm text-[var(--muted)]">Max drawdown rule</p>
                           <p className="mt-2 text-lg font-semibold text-[var(--foreground)]">
-                            {formatCompactNumber(activeAccount.maxDrawdown)}
+                            {formatCurrency(activeAccount.maxDrawdown)}
                           </p>
                         </div>
                       ) : null}
@@ -498,7 +662,7 @@ export default function DashboardView() {
                         <div className="rounded-[22px] border border-[color:var(--border-color)] bg-[var(--surface)] px-4 py-3">
                           <p className="text-sm text-[var(--muted)]">Daily drawdown rule</p>
                           <p className="mt-2 text-lg font-semibold text-[var(--foreground)]">
-                            {formatCompactNumber(activeAccount.dailyDrawdownMax)}
+                            {formatCurrency(activeAccount.dailyDrawdownMax)}
                           </p>
                         </div>
                       ) : null}
@@ -543,25 +707,71 @@ export default function DashboardView() {
             <Reveal delay={0.16}>
               <Panel className="overflow-hidden">
                 <PanelHeader
-                  eyebrow="recent trades"
-                  title="Execution recap"
-                  description="Featured trade first, compact cards after. Screenshots stay embedded when available."
+                  eyebrow="journal feed"
+                  title="Account activity"
+                  description="Search and filter trades plus analyses for the active account."
                   action={
                     <div className="flex items-center gap-3">
                       <span className="hidden text-sm text-[var(--muted)] sm:inline">
-                        Showing {recentTrades.length} recent trades
+                        Showing {filteredJournalFeed.length} results
                       </span>
-                      <ButtonLink href="/trades/new" variant="secondary">
-                        Add Trade
-                      </ButtonLink>
+                      <div className="flex items-center gap-2">
+                        <ButtonLink href="/trades/new" variant="secondary">
+                          Add Trade
+                        </ButtonLink>
+                        <ButtonLink href="/analyses/new" variant="ghost">
+                          Add Analysis
+                        </ButtonLink>
+                      </div>
                     </div>
                   }
                 />
 
                 <div className="px-6 pb-6 pt-2 sm:px-8 sm:pb-8">
-                  {tradesState.loading ? (
+                  <div className="mb-5 flex flex-col gap-4 rounded-[26px] border border-[color:var(--border-color)] bg-[linear-gradient(180deg,var(--surface-raised),var(--surface))] p-4 shadow-[0_18px_42px_-34px_var(--shadow-color)]">
+                    <div className="flex flex-wrap gap-2">
+                      {(['all', 'trades', 'analyses'] as FeedScope[]).map((scope) => {
+                        const isActive = feedScope === scope;
+                        const label =
+                          scope === 'all'
+                            ? 'All'
+                            : scope === 'trades'
+                              ? 'Trades'
+                              : 'Analyses';
+
+                        return (
+                          <button
+                            key={scope}
+                            type="button"
+                            onClick={() => setFeedScope(scope)}
+                            className={cx(
+                              'rounded-full border px-4 py-2 text-sm font-medium transition',
+                              isActive
+                                ? 'border-[color:var(--accent-border-soft)] bg-[var(--accent-soft-bg)] text-[var(--accent-text)]'
+                                : 'border-[color:var(--border-color)] bg-[var(--surface)] text-[var(--muted-strong)] hover:border-[color:var(--border-strong)] hover:text-[var(--foreground)]',
+                            )}
+                          >
+                            {label}
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    <label className="block">
+                      <span className="sr-only">Search journal feed</span>
+                      <input
+                        type="search"
+                        value={feedSearchValue}
+                        onChange={(event) => setFeedSearchValue(event.target.value)}
+                        placeholder="Search symbol, date, bias, session, notes, confluences, strategy..."
+                        className="w-full rounded-[20px] border border-[color:var(--border-color)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--foreground)] outline-none transition focus:border-[color:var(--accent-border-strong)] focus:ring-2 focus:ring-[color:var(--accent-focus-ring)]"
+                      />
+                    </label>
+                  </div>
+
+                  {tradesState.loading || analysesState.loading ? (
                     <div className="rounded-[24px] border border-[color:var(--border-color)] bg-[var(--surface)] px-4 py-5 text-sm text-[var(--muted)]">
-                      Loading trades...
+                      Loading journal feed...
                     </div>
                   ) : null}
 
@@ -572,29 +782,60 @@ export default function DashboardView() {
                     />
                   ) : null}
 
+                  {analysesState.error ? (
+                    <MessageBanner
+                      message={`Analyses query error: ${analysesState.error}`}
+                      tone="error"
+                    />
+                  ) : null}
+
                   {!tradesState.loading &&
+                  !analysesState.loading &&
                   !tradesState.error &&
-                  recentTrades.length === 0 ? (
+                  !analysesState.error &&
+                  journalFeed.length === 0 ? (
                     <div className="rounded-[26px] border border-dashed border-[color:var(--border-color)] bg-[var(--surface)] px-5 py-6 text-sm leading-7 text-[var(--muted)]">
-                      No trades yet for this account. Save one and the execution recap will build itself.
+                      No trades or analyses yet for this account. Save one and the journal feed will build itself.
                     </div>
                   ) : null}
 
                   {!tradesState.loading &&
+                  !analysesState.loading &&
                   !tradesState.error &&
-                  recentTrades.length > 0 ? (
+                  !analysesState.error &&
+                  journalFeed.length > 0 &&
+                  filteredJournalFeed.length === 0 ? (
+                    <div className="rounded-[26px] border border-dashed border-[color:var(--border-color)] bg-[var(--surface)] px-5 py-6 text-sm leading-7 text-[var(--muted)]">
+                      No journal entries match the current filter or search.
+                    </div>
+                  ) : null}
+
+                  {!tradesState.loading &&
+                  !analysesState.loading &&
+                  !tradesState.error &&
+                  !analysesState.error &&
+                  filteredJournalFeed.length > 0 ? (
                     <div className="grid gap-4 xl:grid-cols-2">
-                      {recentTrades.map((trade, index) => (
-                        <TradeCard
-                          key={trade.id}
-                          trade={trade}
-                          index={index}
-                          featured={index === 0}
-                          compact={index > 0}
-                          editHref={`/trades/${trade.id}/edit`}
-                          onDelete={handleDeleteTrade}
-                          className={index === 0 ? 'xl:col-span-2' : ''}
-                        />
+                      {filteredJournalFeed.map((entry, index) => (
+                        entry.kind === 'trade' ? (
+                          <TradeCard
+                            key={`trade-${entry.id}`}
+                            trade={entry.value}
+                            index={index}
+                            compact
+                            editHref={`/trades/${entry.value.id}/edit`}
+                            onDelete={handleDeleteTrade}
+                          />
+                        ) : (
+                          <AnalysisCard
+                            key={`analysis-${entry.id}`}
+                            analysis={entry.value}
+                            index={index}
+                            compact
+                            editHref={`/analyses/${entry.value.id}/edit`}
+                            onDelete={handleDeleteAnalysis}
+                          />
+                        )
                       ))}
                     </div>
                   ) : null}
@@ -638,7 +879,7 @@ export default function DashboardView() {
                     <p className="mt-2 text-xl font-semibold text-[var(--foreground)]">
                       {accountMetrics === null
                         ? 'No trades yet'
-                        : formatCompactNumber(accountMetrics.maxObservedDrawdown)}
+                        : formatCurrency(accountMetrics.maxObservedDrawdown)}
                     </p>
                   </div>
                 </div>

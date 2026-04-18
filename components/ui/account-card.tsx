@@ -7,7 +7,12 @@ import { Button } from '@/components/ui/button';
 import { EquitySparkline } from '@/components/ui/trade-charts';
 import { Panel } from '@/components/ui/panel';
 import type { AccountMetrics, AccountView } from '@/lib/accounts';
-import { formatCompactNumber, formatSignedNumber } from '@/lib/trades';
+import {
+  formatCurrency,
+  formatPnl,
+  getPnlCardClassName,
+  getPnlTextClassName,
+} from '@/lib/trades';
 import { cx } from '@/lib/utils';
 
 type AccountCardProps = {
@@ -115,7 +120,12 @@ export default function AccountCard({
   }
 
   return (
-    <Panel className="h-full p-6 transition duration-300 hover:border-[color:var(--accent-border-soft)] hover:shadow-[0_38px_82px_-44px_var(--shadow-color)] sm:p-7">
+    <Panel
+      className={cx(
+        'h-full p-6 transition duration-300 hover:border-[color:var(--accent-border-soft)] hover:shadow-[0_38px_82px_-44px_var(--shadow-color)] sm:p-7',
+        getPnlCardClassName(metrics.summary.netPnl),
+      )}
+    >
       <div className="flex h-full flex-col gap-5">
         <button
           type="button"
@@ -166,10 +176,15 @@ export default function AccountCard({
                   : 'Current equity'}
               </p>
               <p className="mt-2 text-3xl font-semibold tracking-tight text-[var(--foreground)]">
-                {formatCompactNumber(displayEquity)}
+                {formatCurrency(displayEquity)}
               </p>
-              <p className="mt-2 text-sm text-[var(--muted)]">
-                Net PnL {formatSignedNumber(metrics.summary.netPnl)}
+              <p
+                className={cx(
+                  'mt-2 text-sm',
+                  getPnlTextClassName(metrics.summary.netPnl),
+                )}
+              >
+                Net PnL {formatPnl(metrics.summary.netPnl)}
               </p>
             </div>
 
@@ -193,18 +208,28 @@ export default function AccountCard({
           <div className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-3">
             <div className="rounded-[22px] border border-[color:var(--border-color)] bg-[var(--surface)] px-4 py-3">
               <p className="text-sm text-[var(--muted)]">Best trade</p>
-              <p className="mt-2 text-lg font-semibold text-[var(--foreground)]">
+              <p
+                className={cx(
+                  'mt-2 text-lg font-semibold text-[var(--foreground)]',
+                  getPnlTextClassName(metrics.summary.bestTrade),
+                )}
+              >
                 {metrics.summary.bestTrade === null
                   ? 'No trades yet'
-                  : formatSignedNumber(metrics.summary.bestTrade)}
+                  : formatPnl(metrics.summary.bestTrade)}
               </p>
             </div>
             <div className="rounded-[22px] border border-[color:var(--border-color)] bg-[var(--surface)] px-4 py-3">
               <p className="text-sm text-[var(--muted)]">Worst trade</p>
-              <p className="mt-2 text-lg font-semibold text-[var(--foreground)]">
+              <p
+                className={cx(
+                  'mt-2 text-lg font-semibold text-[var(--foreground)]',
+                  getPnlTextClassName(metrics.summary.worstTrade),
+                )}
+              >
                 {metrics.summary.worstTrade === null
                   ? 'No trades yet'
-                  : formatSignedNumber(metrics.summary.worstTrade)}
+                  : formatPnl(metrics.summary.worstTrade)}
               </p>
             </div>
             <div className="rounded-[22px] border border-[color:var(--border-color)] bg-[var(--surface)] px-4 py-3">
@@ -216,9 +241,9 @@ export default function AccountCard({
                   ? account.isFunded
                     ? 'Funded'
                     : metrics.phaseTargetRemaining !== null
-                      ? formatCompactNumber(metrics.phaseTargetRemaining)
+                      ? formatCurrency(metrics.phaseTargetRemaining)
                       : 'No target'
-                  : formatCompactNumber(metrics.currentDrawdown)}
+                  : formatCurrency(metrics.currentDrawdown)}
               </p>
             </div>
           </div>
@@ -233,15 +258,20 @@ export default function AccountCard({
               </div>
               <div className="rounded-[22px] border border-[color:var(--border-color)] bg-[var(--surface-raised)] px-4 py-3">
                 <p className="text-sm text-[var(--muted)]">Phase PnL</p>
-                <p className="mt-2 text-lg font-semibold text-[var(--foreground)]">
-                  {formatSignedNumber(metrics.currentPhaseNetPnl)}
+                <p
+                  className={cx(
+                    'mt-2 text-lg font-semibold text-[var(--foreground)]',
+                    getPnlTextClassName(metrics.currentPhaseNetPnl),
+                  )}
+                >
+                  {formatPnl(metrics.currentPhaseNetPnl)}
                 </p>
               </div>
               {account.maxDrawdown !== null ? (
                 <div className="rounded-[22px] border border-[color:var(--border-color)] bg-[var(--surface-raised)] px-4 py-3">
                   <p className="text-sm text-[var(--muted)]">Max drawdown rule</p>
                   <p className="mt-2 text-lg font-semibold text-[var(--foreground)]">
-                    {formatCompactNumber(account.maxDrawdown)}
+                    {formatCurrency(account.maxDrawdown)}
                   </p>
                 </div>
               ) : null}
@@ -249,7 +279,7 @@ export default function AccountCard({
                 <div className="rounded-[22px] border border-[color:var(--border-color)] bg-[var(--surface-raised)] px-4 py-3">
                   <p className="text-sm text-[var(--muted)]">Daily drawdown rule</p>
                   <p className="mt-2 text-lg font-semibold text-[var(--foreground)]">
-                    {formatCompactNumber(account.dailyDrawdownMax)}
+                    {formatCurrency(account.dailyDrawdownMax)}
                   </p>
                 </div>
               ) : null}

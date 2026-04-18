@@ -1,5 +1,7 @@
 export type TradeFieldKey =
   | 'trade_date'
+  | 'open_time'
+  | 'close_time'
   | 'symbol'
   | 'direction'
   | 'entry_price'
@@ -34,7 +36,7 @@ export type TradeFieldDefinition = {
   requiredWhenVisible: boolean;
   section: TradeFieldSectionKey;
   step?: string;
-  type?: 'date' | 'number' | 'text' | 'url';
+  type?: 'date' | 'number' | 'text' | 'time' | 'url';
 };
 
 export const TRADE_FIELD_SECTIONS: Array<{
@@ -70,6 +72,28 @@ export const TRADE_FIELD_DEFINITIONS: TradeFieldDefinition[] = [
     defaultEnabled: true,
     persistsToSupabase: true,
     requiredWhenVisible: true,
+  },
+  {
+    key: 'open_time',
+    label: 'Open Time',
+    description: 'Execution start.',
+    section: 'setup',
+    control: 'input',
+    type: 'time',
+    defaultEnabled: true,
+    persistsToSupabase: true,
+    requiredWhenVisible: false,
+  },
+  {
+    key: 'close_time',
+    label: 'Close Time',
+    description: 'Execution end.',
+    section: 'setup',
+    control: 'input',
+    type: 'time',
+    defaultEnabled: true,
+    persistsToSupabase: true,
+    requiredWhenVisible: false,
   },
   {
     key: 'symbol',
@@ -258,6 +282,8 @@ export const DEFAULT_TRADE_FIELD_PREFERENCES = TRADE_FIELD_DEFINITIONS.reduce<Tr
   },
   {
     trade_date: true,
+    open_time: true,
+    close_time: true,
     symbol: true,
     direction: true,
     entry_price: true,

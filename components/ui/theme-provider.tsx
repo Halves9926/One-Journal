@@ -12,6 +12,8 @@ export type AccentTheme = 'pink' | 'red' | 'white';
 
 type ThemeContextValue = {
   accentTheme: AccentTheme;
+  pnlVisualEmphasis: boolean;
+  setPnlVisualEmphasis: (enabled: boolean) => void;
   setAccentTheme: (accentTheme: AccentTheme) => void;
   setTheme: (theme: Theme) => void;
   theme: Theme;
@@ -20,6 +22,7 @@ type ThemeContextValue = {
 
 const THEME_STORAGE_KEY = 'oj-theme';
 const ACCENT_STORAGE_KEY = 'oj-accent-theme';
+const PNL_VISUAL_EMPHASIS_STORAGE_KEY = 'oj-pnl-visual-emphasis';
 const ThemeContext = createContext<ThemeContextValue | undefined>(undefined);
 
 function applyTheme(theme: Theme) {
@@ -32,6 +35,10 @@ function applyTheme(theme: Theme) {
 
 function applyAccentTheme(accentTheme: AccentTheme) {
   document.documentElement.dataset.accent = accentTheme;
+}
+
+function applyPnlVisualEmphasis(enabled: boolean) {
+  document.documentElement.dataset.pnlVisualEmphasis = enabled ? 'on' : 'off';
 }
 
 function getResolvedTheme(): Theme {
@@ -84,10 +91,35 @@ function getResolvedAccentTheme(): AccentTheme {
   return 'red';
 }
 
+function getResolvedPnlVisualEmphasis() {
+  if (typeof window === 'undefined') {
+    return true;
+  }
+
+  const rootPreference = document.documentElement.dataset.pnlVisualEmphasis;
+
+  if (rootPreference === 'on' || rootPreference === 'off') {
+    return rootPreference === 'on';
+  }
+
+  const storedPreference = window.localStorage.getItem(
+    PNL_VISUAL_EMPHASIS_STORAGE_KEY,
+  );
+
+  if (storedPreference === 'on' || storedPreference === 'off') {
+    return storedPreference === 'on';
+  }
+
+  return true;
+}
+
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setThemeState] = useState<Theme>(() => getResolvedTheme());
   const [accentTheme, setAccentThemeState] = useState<AccentTheme>(() =>
     getResolvedAccentTheme(),
+  );
+  const [pnlVisualEmphasis, setPnlVisualEmphasisState] = useState<boolean>(() =>
+    getResolvedPnlVisualEmphasis(),
   );
 
   function setTheme(nextTheme: Theme) {
@@ -114,8 +146,25 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  function setPnlVisualEmphasis(enabled: boolean) {
+    setPnlVisualEmphasisState(enabled);
+
+    if (typeof document !== 'undefined') {
+      applyPnlVisualEmphasis(enabled);
+    }
+
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(
+        PNL_VISUAL_EMPHASIS_STORAGE_KEY,
+        enabled ? 'on' : 'off',
+      );
+    }
+  }
+
   const value: ThemeContextValue = {
     accentTheme,
+    pnlVisualEmphasis,
+    setPnlVisualEmphasis,
     setAccentTheme,
     setTheme,
     theme,

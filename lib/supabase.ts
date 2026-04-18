@@ -45,6 +45,8 @@ export type TradeRow = {
   PnL?: number | string | null;
   Notes?: string | null;
   ScreenShotURL?: string | null;
+  open_time?: string | null;
+  close_time?: string | null;
   account_id?: string | null;
   created_at?: string | null;
   updated_at?: string | null;
@@ -57,6 +59,36 @@ export type TradeInsert = Partial<Omit<TradeRow, 'ID'>> & {
 };
 
 export type TradeUpdate = Partial<Omit<TradeInsert, 'user_id'>> & {
+  user_id?: string;
+};
+
+export type AnalysisRow = {
+  id?: string | null;
+  user_id?: string | null;
+  account_id?: string | null;
+  analysis_date?: string | null;
+  bias?: string | null;
+  confluences?: string | null;
+  market_context?: string | null;
+  key_levels?: string | null;
+  liquidity_notes?: string | null;
+  entry_plan?: string | null;
+  invalidation?: string | null;
+  session?: string | null;
+  symbol?: string | null;
+  timeframe?: string | null;
+  notes?: string | null;
+  screenshot_url?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+  [key: string]: unknown;
+};
+
+export type AnalysisInsert = Partial<Omit<AnalysisRow, 'id'>> & {
+  user_id: string;
+};
+
+export type AnalysisUpdate = Partial<Omit<AnalysisInsert, 'user_id'>> & {
   user_id?: string;
 };
 

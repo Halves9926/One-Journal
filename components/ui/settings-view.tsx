@@ -3,7 +3,7 @@
 import AuthRequired from '@/components/ui/auth-required';
 import { useAuth } from '@/components/ui/auth-provider';
 import { Button, ButtonLink } from '@/components/ui/button';
-import { CheckboxField } from '@/components/ui/form-fields';
+import { SwitchField } from '@/components/ui/form-fields';
 import PageShell from '@/components/ui/page-shell';
 import { Panel, PanelHeader } from '@/components/ui/panel';
 import { Reveal } from '@/components/ui/reveal';
@@ -34,7 +34,13 @@ const accentOptions = [
 
 export default function SettingsView() {
   const { loading, user } = useAuth();
-  const { accentTheme, theme, setAccentTheme } = useTheme();
+  const {
+    accentTheme,
+    pnlVisualEmphasis,
+    setAccentTheme,
+    setPnlVisualEmphasis,
+    theme,
+  } = useTheme();
   const {
     preferences,
     ready,
@@ -109,13 +115,13 @@ export default function SettingsView() {
                         {TRADE_FIELD_DEFINITIONS.filter(
                           (field) => field.section === section.key,
                         ).map((field) => (
-                          <CheckboxField
+                          <SwitchField
                             key={field.key}
                             checked={preferences[field.key]}
                             label={field.label}
                             description={`${field.description} ${field.requiredWhenVisible ? 'Required when visible.' : 'Optional.'}`}
-                            onChange={(event) =>
-                              setFieldPreference(field.key, event.target.checked)
+                            onCheckedChange={(checked) =>
+                              setFieldPreference(field.key, checked)
                             }
                           />
                         ))}
@@ -141,6 +147,16 @@ export default function SettingsView() {
                     {theme === 'dark' ? 'Dark theme' : 'Light theme'}
                   </p>
                 </div>
+                <SwitchField
+                  checked={pnlVisualEmphasis}
+                  label="PnL visual emphasis"
+                  description={
+                    pnlVisualEmphasis
+                      ? 'Premium green/red emphasis with glow across PnL cards, badges and tooltips.'
+                      : 'More neutral PnL presentation for a calmer trading workspace.'
+                  }
+                  onCheckedChange={setPnlVisualEmphasis}
+                />
                 <div className="grid gap-3">
                   {accentOptions.map((option) => {
                     const isActive = accentTheme === option.theme;

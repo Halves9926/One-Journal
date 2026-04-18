@@ -20,7 +20,10 @@ import {
 import { Panel } from '@/components/ui/panel';
 import {
   formatCompactNumber,
-  formatSignedNumber,
+  formatCurrency,
+  formatPnl,
+  getPnlBadgeClassName,
+  getPnlTextClassName,
   type TradeView,
 } from '@/lib/trades';
 import { cx } from '@/lib/utils';
@@ -29,6 +32,7 @@ type ChartTooltipProps = {
   active?: boolean;
   formatter?: (value: number) => string;
   label?: string;
+  valueTone?: 'neutral' | 'pnl';
   payload?: Array<{
     color?: string;
     name?: string;
@@ -55,6 +59,7 @@ function ChartTooltip({
   formatter = (value) => formatCompactNumber(value),
   label,
   payload,
+  valueTone = 'neutral',
 }: ChartTooltipProps) {
   if (!active || !payload || payload.length === 0) {
     return null;
@@ -80,7 +85,14 @@ function ChartTooltip({
               />
               {entry.name}
             </span>
-            <span className="font-medium text-[var(--foreground)]">
+            <span
+              className={cx(
+                'font-medium text-[var(--foreground)]',
+                valueTone === 'pnl' &&
+                  typeof entry.value === 'number' &&
+                  getPnlTextClassName(entry.value),
+              )}
+            >
               {typeof entry.value === 'number'
                 ? formatter(entry.value)
                 : entry.value}
@@ -176,7 +188,7 @@ export function EquitySparkline({
           </defs>
           <Tooltip
             cursor={{ stroke: chartColors.accentSoft, strokeDasharray: '4 6' }}
-            content={<ChartTooltip formatter={(value) => formatSignedNumber(value)} />}
+            content={<ChartTooltip formatter={(value) => formatPnl(value)} valueTone="pnl" />}
           />
           <Area
             type="natural"
@@ -219,8 +231,13 @@ export function EquityCurveCard({ trades }: { trades: TradeView[] }) {
               {trades.length} tracked trades
             </span>
             {recentWindowValue !== null ? (
-              <span className="rounded-full border border-[color:var(--border-color)] bg-[var(--surface-raised)] px-3 py-1.5 text-xs text-[var(--muted-strong)]">
-                Last 5 {formatSignedNumber(recentWindowValue)}
+              <span
+                className={cx(
+                  'rounded-full border px-3 py-1.5 text-xs',
+                  getPnlBadgeClassName(recentWindowValue),
+                )}
+              >
+                Last 5 {formatPnl(recentWindowValue)}
               </span>
             ) : null}
           </div>
@@ -228,10 +245,10 @@ export function EquityCurveCard({ trades }: { trades: TradeView[] }) {
         <span
           className={cx(
             'text-sm font-medium',
-            latestValue < 0 ? 'text-[var(--danger)]' : 'text-[var(--foreground)]',
+            getPnlTextClassName(latestValue),
           )}
         >
-          Current {formatSignedNumber(latestValue)}
+          Current {formatPnl(latestValue)}
         </span>
       </div>
 
@@ -267,13 +284,13 @@ export function EquityCurveCard({ trades }: { trades: TradeView[] }) {
                 axisLine={false}
                 tick={axisTickStyle}
                 tickLine={false}
-                tickFormatter={(value: number) => formatCompactNumber(value, 1)}
+                tickFormatter={(value: number) => formatCurrency(value, 1)}
                 tickMargin={12}
-                width={76}
+                width={92}
               />
               <Tooltip
                 cursor={{ stroke: 'var(--border-strong)', strokeDasharray: '4 6' }}
-                content={<ChartTooltip formatter={(value) => formatSignedNumber(value)} />}
+                content={<ChartTooltip formatter={(value) => formatPnl(value)} valueTone="pnl" />}
               />
               <Area
                 type="natural"
@@ -340,13 +357,13 @@ export function PnlBarsCard({ trades }: { trades: TradeView[] }) {
                 axisLine={false}
                 tick={axisTickStyle}
                 tickLine={false}
-                tickFormatter={(value: number) => formatCompactNumber(value, 1)}
+                tickFormatter={(value: number) => formatCurrency(value, 1)}
                 tickMargin={12}
-                width={76}
+                width={92}
               />
               <Tooltip
                 cursor={{ fill: 'var(--accent-soft-bg)' }}
-                content={<ChartTooltip formatter={(value) => formatSignedNumber(value)} />}
+                content={<ChartTooltip formatter={(value) => formatPnl(value)} valueTone="pnl" />}
               />
               <Bar dataKey="pnl" radius={[12, 12, 12, 12]} maxBarSize={26}>
                 {data.map((entry) => (
@@ -402,11 +419,8 @@ export function WinLossCard({
             Outcome
           </p>
           <h3 className="mt-3 text-xl font-semibold tracking-tight text-[var(--foreground)]">
-            Win / loss
+            Win rate
           </h3>
-          <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
-            Radial readout for the active account.
-          </p>
         </div>
         <span className="rounded-full border border-[color:var(--border-color)] bg-[var(--surface-raised)] px-3 py-1.5 text-xs text-[var(--muted-strong)]">
           {total} outcomes
@@ -459,15 +473,10 @@ export function WinLossCard({
             <div className="pointer-events-none absolute inset-0 grid place-items-center">
               <div className="flex aspect-square w-[54%] flex-col items-center justify-center rounded-full border border-[color:var(--border-strong)] bg-[linear-gradient(180deg,var(--surface-raised),var(--surface))] px-5 text-center shadow-[0_24px_48px_-30px_var(--shadow-color),inset_0_1px_0_rgba(255,255,255,0.12)]">
                 <span className="text-[10px] uppercase tracking-[0.32em] text-[var(--muted)]">
-                  win rate
+                  Win Rate
                 </span>
                 <p className="mt-2 text-[2.65rem] font-semibold leading-none tracking-[-0.06em] text-[var(--foreground)]">
                   {winRate}%
-                </p>
-                <p className="mt-2 max-w-[10rem] text-sm leading-5 text-[var(--muted-strong)]">
-                  {hasOutcomes
-                    ? `${wins} wins from ${total} outcomes`
-                    : 'Awaiting first trade'}
                 </p>
               </div>
             </div>
@@ -481,7 +490,7 @@ export function WinLossCard({
               >
                 <div className="flex items-center justify-center gap-2">
                   <span
-                    className="h-2.5 w-2.5 rounded-full shadow-[0_0_0_6px_rgba(255,255,255,0.03)]"
+                    className="inline-flex h-2.5 w-2.5 rounded-full"
                     style={{ backgroundColor: item.fill }}
                   />
                   <p className="text-[11px] uppercase tracking-[0.24em] text-[var(--muted)]">
@@ -490,11 +499,6 @@ export function WinLossCard({
                 </div>
                 <p className="mt-2.5 text-2xl font-semibold tracking-tight text-[var(--foreground)]">
                   {item.value}
-                </p>
-                <p className="mt-1 text-xs text-[var(--muted)]">
-                  {hasOutcomes
-                    ? `${Math.round((item.value / total) * 100)}%`
-                    : '0%'}
                 </p>
               </div>
             ))}

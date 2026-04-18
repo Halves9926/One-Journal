@@ -1,5 +1,7 @@
 import type { TradeInsert, TradeRow, TradeUpdate } from '@/lib/supabase';
 
+import { cx } from '@/lib/utils';
+
 export const TRADE_COLUMNS = {
   accountId: 'account_id',
   createdAt: 'created_at',
@@ -15,6 +17,8 @@ export const TRADE_COLUMNS = {
   pnl: 'PnL',
   notes: 'Notes',
   screenshotUrl: 'ScreenShotURL',
+  openTime: 'open_time',
+  closeTime: 'close_time',
   updatedAt: 'updated_at',
   userId: 'user_id',
 } as const;
@@ -32,6 +36,8 @@ export const TRADE_SELECT = [
   'PnL',
   'Notes',
   'ScreenShotURL',
+  'open_time',
+  'close_time',
   'account_id',
   'created_at',
   'updated_at',
@@ -43,6 +49,8 @@ export type TradeView = {
   createdAt: string | null;
   id: string;
   date: string | null;
+  openTime: string | null;
+  closeTime: string | null;
   symbol: string;
   bias: string | null;
   entryPrice: number | null;
@@ -109,6 +117,26 @@ function toNumber(value: unknown) {
   return null;
 }
 
+function normalizeTimeValue(value: unknown) {
+  if (typeof value !== 'string') {
+    return null;
+  }
+
+  const trimmedValue = value.trim();
+
+  if (!trimmedValue) {
+    return null;
+  }
+
+  const matchedParts = trimmedValue.match(/^(\d{2}):(\d{2})(?::\d{2})?$/);
+
+  if (!matchedParts) {
+    return trimmedValue;
+  }
+
+  return `${matchedParts[1]}:${matchedParts[2]}`;
+}
+
 function getTradeOutcome(trade: TradeView) {
   if ((trade.pnl ?? 0) > 0) {
     return 'win' as const;
@@ -130,6 +158,8 @@ export function normalizeTrade(row: TradeRow, fallbackIndex = 0): TradeView {
         ? String(row.ID)
         : `trade-${fallbackIndex}`,
     date: typeof row.Date === 'string' ? row.Date : null,
+    openTime: normalizeTimeValue(row.open_time),
+    closeTime: normalizeTimeValue(row.close_time),
     symbol: cleanText(row.Symbol)?.toUpperCase() ?? '',
     bias: cleanText(row.Bias),
     entryPrice: toNumber(row['Entry Price']),
@@ -147,10 +177,12 @@ export function normalizeTrade(row: TradeRow, fallbackIndex = 0): TradeView {
 
 export type TradeFormInput = {
   account_id: string;
+  close_time: string;
   direction: string;
   entry_price: string;
   mistake: string;
   notes: string;
+  open_time: string;
   pnl: string;
   position_size: string;
   rr: string;
@@ -215,6 +247,8 @@ function mapTradeFormToPayload(
   payload.Symbol = input.symbol.trim() ? input.symbol.trim().toUpperCase() : null;
   payload.Bias = input.direction || null;
   payload.ScreenShotURL = input.screenshot_url.trim() || null;
+  payload.open_time = input.open_time.trim() || null;
+  payload.close_time = input.close_time.trim() || null;
 
   const numericFields: Array<
     [
@@ -277,10 +311,12 @@ export function mapTradeFormToUpdate(
 export function createInitialTradeFormValues(accountId = ''): TradeFormInput {
   return {
     account_id: accountId,
+    close_time: '',
     direction: '',
     entry_price: '',
     mistake: '',
     notes: '',
+    open_time: '',
     pnl: '',
     position_size: '',
     risk_amount: '',
@@ -344,10 +380,12 @@ export function mapTradeToFormValues(
 
   return {
     account_id: trade.accountId ?? fallbackAccountId,
+    close_time: trade.closeTime ?? '',
     direction: trade.bias ?? '',
     entry_price: toTrimmedNumberString(trade.entryPrice),
     mistake: parsedNotes.mistake,
     notes: parsedNotes.notes,
+    open_time: trade.openTime ?? '',
     pnl: toTrimmedNumberString(trade.pnl),
     position_size: parsedNotes.position_size,
     risk_amount: toTrimmedNumberString(trade.riskPercent),
@@ -380,6 +418,31 @@ export function formatTradeDate(date: string | null) {
   });
 }
 
+export function formatTradeTime(value: string | null) {
+  const normalizedValue = normalizeTimeValue(value);
+
+  if (!normalizedValue) {
+    return EMPTY_VALUE;
+  }
+
+  return normalizedValue;
+}
+
+export function getTradeTimeRangeLabel(trade: Pick<TradeView, 'openTime' | 'closeTime'>) {
+  const openTime = formatTradeTime(trade.openTime);
+  const closeTime = formatTradeTime(trade.closeTime);
+
+  if (openTime === EMPTY_VALUE && closeTime === EMPTY_VALUE) {
+    return null;
+  }
+
+  if (openTime !== EMPTY_VALUE && closeTime !== EMPTY_VALUE) {
+    return `${openTime} -> ${closeTime}`;
+  }
+
+  return openTime !== EMPTY_VALUE ? `Open ${openTime}` : `Close ${closeTime}`;
+}
+
 export function formatCompactNumber(value: number | null, digits = 2) {
   if (value === null) {
     return EMPTY_VALUE;
@@ -390,7 +453,15 @@ export function formatCompactNumber(value: number | null, digits = 2) {
   }).format(value);
 }
 
-export function formatCurrencyNumber(value: number | null, digits = 2) {
+export function getPnlTone(value: number | null) {
+  if (value === null || value === 0) {
+    return 'flat' as const;
+  }
+
+  return value > 0 ? ('profit' as const) : ('loss' as const);
+}
+
+export function formatCurrency(value: number | null, digits = 2) {
   if (value === null) {
     return EMPTY_VALUE;
   }
@@ -398,12 +469,12 @@ export function formatCurrencyNumber(value: number | null, digits = 2) {
   return `$${formatCompactNumber(value, digits)}`;
 }
 
-export function formatSignedNumber(value: number | null, digits = 2) {
+export function formatPnl(value: number | null, digits = 2) {
   if (value === null) {
     return EMPTY_VALUE;
   }
 
-  const absValue = formatCurrencyNumber(Math.abs(value), digits);
+  const absValue = formatCurrency(Math.abs(value), digits);
 
   if (value > 0) {
     return `+${absValue}`;
@@ -416,12 +487,89 @@ export function formatSignedNumber(value: number | null, digits = 2) {
   return absValue;
 }
 
+export function formatCurrencyNumber(value: number | null, digits = 2) {
+  return formatCurrency(value, digits);
+}
+
+export function formatSignedNumber(value: number | null, digits = 2) {
+  return formatPnl(value, digits);
+}
+
+export function getPnlTextClassName(value: number | null) {
+  const tone = getPnlTone(value);
+
+  if (tone === 'profit') {
+    return 'text-[color:var(--pnl-positive-text)] [text-shadow:var(--pnl-positive-glow)]';
+  }
+
+  if (tone === 'loss') {
+    return 'text-[color:var(--pnl-negative-text)] [text-shadow:var(--pnl-negative-glow)]';
+  }
+
+  return 'text-[var(--foreground)]';
+}
+
+export function getPnlBadgeClassName(value: number | null) {
+  const tone = getPnlTone(value);
+
+  if (tone === 'profit') {
+    return cx(
+      'border-[color:var(--pnl-positive-border)] bg-[var(--pnl-positive-surface)]',
+      'text-[color:var(--pnl-positive-text)] shadow-[0_22px_42px_-34px_var(--pnl-positive-shadow)]',
+    );
+  }
+
+  if (tone === 'loss') {
+    return cx(
+      'border-[color:var(--pnl-negative-border)] bg-[var(--pnl-negative-surface)]',
+      'text-[color:var(--pnl-negative-text)] shadow-[0_22px_42px_-34px_var(--pnl-negative-shadow)]',
+    );
+  }
+
+  return 'border-[color:var(--border-color)] bg-[var(--surface-raised)] text-[var(--muted-strong)]';
+}
+
+export function getPnlCardClassName(value: number | null) {
+  const tone = getPnlTone(value);
+
+  if (tone === 'profit') {
+    return 'border-[color:var(--pnl-positive-border)] shadow-[0_30px_60px_-42px_var(--pnl-positive-shadow)]';
+  }
+
+  if (tone === 'loss') {
+    return 'border-[color:var(--pnl-negative-border)] shadow-[0_30px_60px_-42px_var(--pnl-negative-shadow)]';
+  }
+
+  return '';
+}
+
 export function formatPercentValue(value: number | null, digits = 1) {
   if (value === null) {
     return EMPTY_VALUE;
   }
 
   return `${formatCompactNumber(value, digits)}%`;
+}
+
+export function getTradeSearchText(trade: TradeView) {
+  const parsedNotes = parseTradeNotes(trade.notes);
+  const timeRange = getTradeTimeRangeLabel(trade);
+
+  return [
+    trade.symbol,
+    trade.date ?? '',
+    formatTradeDate(trade.date),
+    trade.bias ?? '',
+    trade.notes ?? '',
+    parsedNotes.strategy,
+    parsedNotes.session,
+    parsedNotes.mistake,
+    timeRange ?? '',
+    trade.openTime ?? '',
+    trade.closeTime ?? '',
+  ]
+    .join(' ')
+    .toLowerCase();
 }
 
 function getMostFrequentSymbol(trades: TradeView[]) {

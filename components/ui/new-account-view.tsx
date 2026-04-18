@@ -9,10 +9,10 @@ import { useAuth } from '@/components/ui/auth-provider';
 import { Button, ButtonLink } from '@/components/ui/button';
 import FeedbackToast from '@/components/ui/feedback-toast';
 import {
-  CheckboxField,
   InputField,
   MessageBanner,
   SelectField,
+  SwitchField,
 } from '@/components/ui/form-fields';
 import PageShell from '@/components/ui/page-shell';
 import { Panel, PanelHeader } from '@/components/ui/panel';
@@ -29,6 +29,7 @@ import {
   mapAccountToFormValues,
   type AccountFormInput,
 } from '@/lib/accounts';
+import { formatCurrency } from '@/lib/trades';
 
 type FieldErrors = Partial<Record<keyof AccountFormInput, string>>;
 type ToastState = {
@@ -42,6 +43,11 @@ type NewAccountViewProps = {
   accountId?: string;
   mode?: 'create' | 'edit';
 };
+
+function formatPreviewCurrency(value: string) {
+  const parsedValue = Number(value);
+  return Number.isFinite(parsedValue) ? formatCurrency(parsedValue) : '$0';
+}
 
 export default function NewAccountView({
   accountId,
@@ -416,11 +422,9 @@ export default function NewAccountView({
                     }
                   />
                   <div className="grid gap-4 px-6 pb-6 sm:px-8 sm:pb-8 md:grid-cols-2">
-                    <CheckboxField
+                    <SwitchField
                       checked={values.is_funded}
-                      onChange={(event) =>
-                        updateValue('is_funded', event.target.checked)
-                      }
+                      onCheckedChange={(checked) => updateValue('is_funded', checked)}
                       label="Already funded"
                       description="Use this when the account has already passed evaluation and is funded."
                       wrapperClassName="md:col-span-2"
@@ -428,10 +432,10 @@ export default function NewAccountView({
 
                     {showPhaseToggle ? (
                       <div className="animate-rise md:col-span-2">
-                        <CheckboxField
+                        <SwitchField
                           checked={values.phases_enabled}
-                          onChange={(event) =>
-                            updateValue('phases_enabled', event.target.checked)
+                          onCheckedChange={(checked) =>
+                            updateValue('phases_enabled', checked)
                           }
                           label="Active phases"
                           description="Enable phase-aware tracking and progression for this prop account."
@@ -539,13 +543,15 @@ export default function NewAccountView({
                   <div className="rounded-[22px] border border-[color:var(--border-color)] bg-[var(--surface-raised)] p-4 shadow-[0_14px_28px_-24px_var(--shadow-color)]">
                     <p className="text-sm text-[var(--muted)]">Initial equity</p>
                     <p className="mt-2 text-lg font-semibold text-[var(--foreground)]">
-                      {values.initial_equity.trim() || '0'}
+                      {formatPreviewCurrency(values.initial_equity.trim() || '0')}
                     </p>
                   </div>
                   <div className="rounded-[22px] border border-[color:var(--border-color)] bg-[var(--surface-raised)] p-4 shadow-[0_14px_28px_-24px_var(--shadow-color)]">
                     <p className="text-sm text-[var(--muted)]">Current equity</p>
                     <p className="mt-2 text-lg font-semibold text-[var(--foreground)]">
-                      {values.current_equity.trim() || values.initial_equity.trim() || '0'}
+                      {formatPreviewCurrency(
+                        values.current_equity.trim() || values.initial_equity.trim() || '0',
+                      )}
                     </p>
                   </div>
                   <div className="rounded-[22px] border border-[color:var(--border-color)] bg-[var(--surface-raised)] p-4 shadow-[0_14px_28px_-24px_var(--shadow-color)]">

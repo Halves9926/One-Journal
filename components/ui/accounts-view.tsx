@@ -14,7 +14,7 @@ import { MetricCard, Panel, PanelHeader } from '@/components/ui/panel';
 import { Reveal } from '@/components/ui/reveal';
 import { useUserTrades } from '@/components/ui/use-user-trades';
 import { buildAccountMetrics, getTradesForAccount } from '@/lib/accounts';
-import { formatSignedNumber } from '@/lib/trades';
+import { formatPnl, getPnlCardClassName, getPnlTextClassName } from '@/lib/trades';
 
 type Feedback = {
   message: string;
@@ -210,9 +210,11 @@ export default function AccountsView() {
           <Reveal delay={0.08}>
             <MetricCard
               label="Tracked PnL"
-              value={formatSignedNumber(totalNetPnl)}
+              value={formatPnl(totalNetPnl)}
               caption="across every account"
               tone={totalNetPnl < 0 ? 'danger' : 'accent'}
+              className={getPnlCardClassName(totalNetPnl)}
+              valueClassName={getPnlTextClassName(totalNetPnl)}
             />
           </Reveal>
         </div>

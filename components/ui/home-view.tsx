@@ -20,9 +20,16 @@ import {
 import {
   buildTradeSummary,
   formatCompactNumber,
-  formatSignedNumber,
+  formatCurrency,
+  formatPnl,
+  formatPercentValue,
   formatTradeDate,
+  getPnlBadgeClassName,
+  getPnlCardClassName,
+  getPnlTextClassName,
+  type TradeView,
 } from '@/lib/trades';
+import { cx } from '@/lib/utils';
 
 function getStreakLabel(
   direction: 'flat' | 'loss' | 'win' | null,
@@ -45,6 +52,28 @@ function getStreakLabel(
 
 function getAccountContextLabel() {
   return 'Account overview';
+}
+
+function buildMomentumBars(trades: TradeView[], limit = 8) {
+  const recentValues = trades
+    .slice(0, limit)
+    .reverse()
+    .map((trade, index) => ({
+      id: `${trade.id}-${index}`,
+      value: trade.pnl ?? 0,
+    }));
+  const maxMagnitude = Math.max(
+    1,
+    ...recentValues.map((entry) => Math.abs(entry.value)),
+  );
+
+  return recentValues.map((entry) => ({
+    ...entry,
+    heightPercent:
+      entry.value === 0
+        ? 14
+        : Math.max((Math.abs(entry.value) / maxMagnitude) * 100, 22),
+  }));
 }
 
 function HeroBrandBadge({ label }: { label: string }) {
@@ -121,43 +150,90 @@ export default function HomeView() {
         ? accountMetrics.currentPhaseEquity
         : accountMetrics.overallCurrentEquity
       : null;
+  const momentumBars = useMemo(
+    () => buildMomentumBars(tradesState.items),
+    [tradesState.items],
+  );
+  const overviewStatus = activeAccount
+    ? isPropAccount(activeAccount) && activeAccount.phasesEnabled
+      ? activeAccount.isFunded
+        ? 'Funded account'
+        : accountMetrics && accountMetrics.phaseTargetRemaining !== null
+          ? `Target ${formatCurrency(accountMetrics.phaseTargetRemaining)} left`
+          : `Phase ${activeAccount.currentPhase}/${activeAccount.phaseCount}`
+      : getStreakLabel(summary.currentStreakDirection, summary.currentStreak)
+    : '';
+  const overviewStatusMeta = activeAccount
+    ? isPropAccount(activeAccount) && activeAccount.phasesEnabled
+      ? activeAccount.isFunded
+        ? 'Live limits only'
+        : `Phase ${activeAccount.currentPhase}/${activeAccount.phaseCount}`
+      : summary.winRate === null
+        ? 'Awaiting first outcome'
+        : `Win ${Math.round(summary.winRate)}%`
+    : '';
+  const overviewStatusProgress = activeAccount
+    ? isPropAccount(activeAccount) &&
+      activeAccount.phasesEnabled &&
+      !activeAccount.isFunded &&
+      activeAccount.propTarget !== null &&
+      activeAccount.propTarget > 0
+      ? Math.max(
+          0,
+          Math.min(
+            ((accountMetrics?.currentPhaseNetPnl ?? 0) / activeAccount.propTarget) * 100,
+            100,
+          ),
+        )
+      : Math.max(0, Math.min(summary.winRate ?? 0, 100))
+    : 0;
   const overviewCards = activeAccount
     ? [
         {
           caption: 'for the active account',
+          className: '',
           label: 'Total trades',
           tone: 'neutral' as const,
           value: String(summary.totalTrades),
+          valueClassName: '',
         },
         {
           caption: `${summary.wins} wins / ${summary.losses} losses`,
+          className: '',
           label: 'Win rate',
           tone: 'success' as const,
           value:
             summary.winRate === null ? 'No trades yet' : `${Math.round(summary.winRate)}%`,
+          valueClassName: '',
         },
         {
           caption: 'net performance on this account',
+          className: getPnlCardClassName(summary.netPnl),
           label: 'Net PnL',
           tone: summary.netPnl < 0 ? ('danger' as const) : ('accent' as const),
-          value: formatSignedNumber(summary.netPnl),
+          value: formatPnl(summary.netPnl),
+          valueClassName: getPnlTextClassName(summary.netPnl),
         },
         {
           caption: 'average risk-to-reward captured',
+          className: '',
           label: 'Average RR',
           tone: 'neutral' as const,
           value:
             summary.avgRr === null
               ? 'Not enough history'
               : formatCompactNumber(summary.avgRr),
+          valueClassName: '',
         },
         {
           caption: summary.lastTrade?.date
             ? formatTradeDate(summary.lastTrade.date)
             : 'No trades yet',
+          className: '',
           label: 'Last trade',
           tone: 'accent' as const,
           value: summary.lastTrade?.symbol || 'Waiting for first trade',
+          valueClassName: '',
         },
       ]
     : [];
@@ -304,7 +380,7 @@ export default function HomeView() {
                       {accounts.length} account{accounts.length === 1 ? '' : 's'}
                     </span>
                     <span className="rounded-full border border-[color:var(--border-color)] bg-[var(--surface-raised)] px-3 py-1.5">
-                      Initial equity {formatCompactNumber(activeAccount.initialEquity)}
+                      Initial equity {formatCurrency(activeAccount.initialEquity)}
                     </span>
                     {isPropAccount(activeAccount) ? (
                       <span className="rounded-full border border-amber-500/20 bg-amber-500/10 px-3 py-1.5 text-amber-700 dark:text-amber-300">
@@ -318,6 +394,135 @@ export default function HomeView() {
                         Focus symbol {summary.bestSymbol}
                       </span>
                     ) : null}
+                  </div>
+
+                  <div className="mt-6 grid gap-3 xl:grid-cols-[minmax(0,1.1fr)_minmax(220px,0.9fr)]">
+                    <div
+                      className={cx(
+                        'rounded-[28px] border bg-[linear-gradient(180deg,var(--surface-raised),var(--surface))] p-5 shadow-[0_26px_56px_-38px_var(--shadow-color)]',
+                        getPnlCardClassName(summary.netPnl),
+                      )}
+                    >
+                      <div className="flex items-start justify-between gap-4">
+                        <div>
+                          <p className="font-mono text-[10px] uppercase tracking-[0.28em] text-[var(--muted)]">
+                            PnL pulse
+                          </p>
+                          <p
+                            className={cx(
+                              'mt-3 text-3xl font-semibold tracking-tight',
+                              getPnlTextClassName(summary.netPnl),
+                            )}
+                          >
+                            {formatPnl(summary.netPnl)}
+                          </p>
+                        </div>
+                        {summary.recentWindowNetPnl !== null ? (
+                          <span
+                            className={cx(
+                              'rounded-full border px-3 py-1.5 text-[11px] uppercase tracking-[0.24em]',
+                              getPnlBadgeClassName(summary.recentWindowNetPnl),
+                            )}
+                          >
+                            5T {formatPnl(summary.recentWindowNetPnl)}
+                          </span>
+                        ) : null}
+                      </div>
+
+                      {momentumBars.length > 0 ? (
+                        <div className="relative mt-5 h-20">
+                          <div className="pointer-events-none absolute inset-x-0 top-1/2 h-px bg-[linear-gradient(90deg,transparent,var(--border-strong),transparent)]" />
+                          <div className="grid h-full grid-cols-8 items-center gap-2">
+                            {momentumBars.map((entry) => (
+                              <div
+                                key={entry.id}
+                                className="relative h-full"
+                              >
+                                <span
+                                  className={cx(
+                                    'absolute inset-x-0 rounded-full',
+                                    entry.value > 0
+                                      ? 'bg-[linear-gradient(180deg,var(--chart-positive),color-mix(in_srgb,var(--chart-positive)_54%,white))]'
+                                      : entry.value < 0
+                                        ? 'bg-[linear-gradient(180deg,var(--chart-negative),color-mix(in_srgb,var(--chart-negative)_54%,white))]'
+                                        : 'bg-[var(--chart-neutral)]',
+                                  )}
+                                  style={{
+                                    height: `${Math.max(entry.heightPercent / 2, 8)}%`,
+                                    bottom: entry.value >= 0 ? '50%' : undefined,
+                                    opacity: entry.value === 0 ? 0.45 : 1,
+                                    top: entry.value < 0 ? '50%' : undefined,
+                                  }}
+                                />
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="mt-5 flex h-20 items-center justify-center rounded-[22px] border border-dashed border-[color:var(--border-color)] bg-[var(--surface)] text-sm text-[var(--muted)]">
+                          Waiting for first executions
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="grid gap-3">
+                      <div className="rounded-[24px] border border-[color:var(--border-color)] bg-[linear-gradient(180deg,var(--surface-raised),var(--surface))] p-4 shadow-[0_18px_42px_-32px_var(--shadow-color)]">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="font-mono text-[10px] uppercase tracking-[0.28em] text-[var(--muted)]">
+                              Last trade
+                            </p>
+                            <p className="mt-2 text-lg font-semibold tracking-tight text-[var(--foreground)]">
+                              {summary.lastTrade?.symbol || 'Waiting'}
+                            </p>
+                            <p className="mt-1 text-sm text-[var(--muted)]">
+                              {summary.lastTrade?.date
+                                ? formatTradeDate(summary.lastTrade.date)
+                                : 'No trade yet'}
+                            </p>
+                          </div>
+                          {summary.lastTrade?.pnl !== null &&
+                          summary.lastTrade?.pnl !== undefined ? (
+                            <span
+                              className={cx(
+                                'rounded-full border px-3 py-1.5 text-xs font-medium',
+                                getPnlBadgeClassName(summary.lastTrade.pnl),
+                              )}
+                            >
+                              {formatPnl(summary.lastTrade.pnl)}
+                            </span>
+                          ) : null}
+                        </div>
+                      </div>
+
+                      <div className="rounded-[24px] border border-[color:var(--border-color)] bg-[linear-gradient(180deg,var(--surface-raised),var(--surface))] p-4 shadow-[0_18px_42px_-32px_var(--shadow-color)]">
+                        <p className="font-mono text-[10px] uppercase tracking-[0.28em] text-[var(--muted)]">
+                          {isPropAccount(activeAccount) ? 'Account status' : 'Session status'}
+                        </p>
+                        <p className="mt-2 text-lg font-semibold tracking-tight text-[var(--foreground)]">
+                          {overviewStatus}
+                        </p>
+                        <div className="mt-3 h-2 rounded-full bg-[var(--surface-soft)]">
+                          <div
+                            className="h-full rounded-full bg-[linear-gradient(90deg,var(--chart-accent),var(--chart-positive))]"
+                            style={{
+                              width:
+                                overviewStatusProgress > 0
+                                  ? `${Math.max(overviewStatusProgress, 10)}%`
+                                  : '0%',
+                            }}
+                          />
+                        </div>
+                        <div className="mt-3 flex items-center justify-between gap-3 text-sm text-[var(--muted)]">
+                          <span>{overviewStatusMeta}</span>
+                          <span>
+                            {summary.riskAverage === null
+                              ? 'Risk --'
+                              : `Risk ${formatPercentValue(summary.riskAverage)}`}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
@@ -348,11 +553,16 @@ export default function HomeView() {
                       <p className="mt-3 text-3xl font-semibold tracking-tight text-[var(--foreground)]">
                         {displayEquity === null
                           ? 'No trades yet'
-                          : formatCompactNumber(displayEquity)}
+                          : formatCurrency(displayEquity)}
                       </p>
                     </div>
-                    <span className="rounded-full border border-[color:var(--border-color)] bg-[var(--surface)] px-3 py-1.5 text-xs text-[var(--muted-strong)]">
-                      {formatSignedNumber(summary.netPnl)}
+                    <span
+                      className={cx(
+                        'rounded-full border px-3 py-1.5 text-xs',
+                        getPnlBadgeClassName(summary.netPnl),
+                      )}
+                    >
+                      {formatPnl(summary.netPnl)}
                     </span>
                   </div>
 
@@ -363,18 +573,28 @@ export default function HomeView() {
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div className="rounded-[22px] border border-[color:var(--border-color)] bg-[var(--surface)] px-4 py-3">
                       <p className="text-sm text-[var(--muted)]">Best trade</p>
-                      <p className="mt-2 text-lg font-semibold text-[var(--foreground)]">
+                      <p
+                        className={cx(
+                          'mt-2 text-lg font-semibold text-[var(--foreground)]',
+                          getPnlTextClassName(summary.bestTrade),
+                        )}
+                      >
                         {summary.bestTrade === null
                           ? 'No trades yet'
-                          : formatSignedNumber(summary.bestTrade)}
+                          : formatPnl(summary.bestTrade)}
                       </p>
                     </div>
                     <div className="rounded-[22px] border border-[color:var(--border-color)] bg-[var(--surface)] px-4 py-3">
                       <p className="text-sm text-[var(--muted)]">Worst trade</p>
-                      <p className="mt-2 text-lg font-semibold text-[var(--foreground)]">
+                      <p
+                        className={cx(
+                          'mt-2 text-lg font-semibold text-[var(--foreground)]',
+                          getPnlTextClassName(summary.worstTrade),
+                        )}
+                      >
                         {summary.worstTrade === null
                           ? 'No trades yet'
-                          : formatSignedNumber(summary.worstTrade)}
+                          : formatPnl(summary.worstTrade)}
                       </p>
                     </div>
                     <div className="rounded-[22px] border border-[color:var(--border-color)] bg-[var(--surface)] px-4 py-3 sm:col-span-2">
@@ -389,7 +609,7 @@ export default function HomeView() {
                             ? 'Funded account'
                             : accountMetrics &&
                                 accountMetrics.phaseTargetRemaining !== null
-                              ? `Target remaining ${formatCompactNumber(accountMetrics.phaseTargetRemaining)}`
+                              ? `Target remaining ${formatCurrency(accountMetrics.phaseTargetRemaining)}`
                               : `Phase ${activeAccount.currentPhase}/${activeAccount.phaseCount}`
                           : getStreakLabel(
                               summary.currentStreakDirection,
@@ -415,6 +635,8 @@ export default function HomeView() {
                   value={card.value}
                   tone={card.tone}
                   caption={card.caption}
+                  className={card.className}
+                  valueClassName={card.valueClassName}
                 />
               </Reveal>
             ))}

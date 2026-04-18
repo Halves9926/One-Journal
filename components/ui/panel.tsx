@@ -64,8 +64,10 @@ export function PanelHeader({
 }
 
 type MetricCardProps = {
+  className?: string;
   label: string;
   value: string;
+  valueClassName?: string;
   caption?: string;
   tone?: 'neutral' | 'accent' | 'success' | 'danger';
 };
@@ -80,19 +82,27 @@ const metricToneClassNames: Record<NonNullable<MetricCardProps['tone']>, string>
 
 export function MetricCard({
   caption,
+  className,
   label,
   tone = 'neutral',
   value,
+  valueClassName,
 }: MetricCardProps) {
   return (
     <article
       className={cx(
         'min-h-[164px] rounded-[28px] border border-[color:var(--border-color)] bg-[linear-gradient(180deg,var(--surface-raised),var(--surface))] p-5 shadow-[0_24px_48px_-34px_var(--shadow-color),inset_0_1px_0_rgba(255,255,255,0.06)] transition duration-300 hover:-translate-y-1 hover:border-[color:var(--accent-border-soft)] hover:shadow-[0_28px_54px_-34px_var(--shadow-color)]',
         `bg-gradient-to-br ${metricToneClassNames[tone]}`,
+        className,
       )}
     >
       <p className="text-sm text-[var(--muted)]">{label}</p>
-      <p className="mt-3 text-3xl font-semibold tracking-tight text-[var(--foreground)]">
+      <p
+        className={cx(
+          'mt-3 text-3xl font-semibold tracking-tight text-[var(--foreground)]',
+          valueClassName,
+        )}
+      >
         {value}
       </p>
       {caption ? (

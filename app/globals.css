@@ -40,6 +40,24 @@
   --chart-positive: #0f766e;
   --chart-negative: #be123c;
   --chart-neutral: #8b95a3;
+  --pnl-positive-text: #0c8b6d;
+  --pnl-negative-text: #ca3157;
+  --pnl-positive-border: rgba(12, 139, 109, 0.24);
+  --pnl-negative-border: rgba(202, 49, 87, 0.24);
+  --pnl-positive-surface: color-mix(
+    in srgb,
+    var(--surface-raised) 88%,
+    rgba(12, 139, 109, 0.18)
+  );
+  --pnl-negative-surface: color-mix(
+    in srgb,
+    var(--surface-raised) 88%,
+    rgba(202, 49, 87, 0.18)
+  );
+  --pnl-positive-shadow: rgba(12, 139, 109, 0.34);
+  --pnl-negative-shadow: rgba(202, 49, 87, 0.32);
+  --pnl-positive-glow: 0 0 18px rgba(12, 139, 109, 0.18);
+  --pnl-negative-glow: 0 0 18px rgba(202, 49, 87, 0.16);
   --topbar-offset: 13rem;
   --body-gradient:
     radial-gradient(circle at top, var(--accent-glow-top), transparent 28%),
@@ -97,6 +115,24 @@ html[data-theme="dark"] {
   --chart-positive: #4b9b88;
   --chart-negative: #e18395;
   --chart-neutral: #8e877f;
+  --pnl-positive-text: #7edbc2;
+  --pnl-negative-text: #ffafbd;
+  --pnl-positive-border: rgba(126, 219, 194, 0.24);
+  --pnl-negative-border: rgba(255, 175, 189, 0.24);
+  --pnl-positive-surface: color-mix(
+    in srgb,
+    var(--surface-raised) 86%,
+    rgba(126, 219, 194, 0.16)
+  );
+  --pnl-negative-surface: color-mix(
+    in srgb,
+    var(--surface-raised) 86%,
+    rgba(255, 175, 189, 0.16)
+  );
+  --pnl-positive-shadow: rgba(75, 155, 136, 0.42);
+  --pnl-negative-shadow: rgba(225, 131, 149, 0.38);
+  --pnl-positive-glow: 0 0 22px rgba(75, 155, 136, 0.22);
+  --pnl-negative-glow: 0 0 22px rgba(225, 131, 149, 0.2);
   --body-gradient:
     radial-gradient(circle at top, var(--accent-glow-top), transparent 30%),
     radial-gradient(circle at 16% 18%, rgba(255, 255, 255, 0.04), transparent 20%),
@@ -198,6 +234,37 @@ html[data-theme="dark"][data-accent="white"] {
   --accent-panel-glow-soft: rgba(241, 237, 230, 0.04);
   --chart-accent: #f1ede6;
   --chart-accent-soft: rgba(241, 237, 230, 0.16);
+}
+
+html[data-pnl-visual-emphasis="off"] {
+  --chart-positive: color-mix(in srgb, var(--foreground) 24%, #0f766e);
+  --chart-negative: color-mix(in srgb, var(--foreground) 24%, #be123c);
+  --pnl-positive-text: color-mix(in srgb, var(--foreground) 88%, #0f766e);
+  --pnl-negative-text: color-mix(in srgb, var(--foreground) 88%, #be123c);
+  --pnl-positive-border: color-mix(
+    in srgb,
+    var(--border-strong) 82%,
+    rgba(15, 118, 110, 0.24)
+  );
+  --pnl-negative-border: color-mix(
+    in srgb,
+    var(--border-strong) 82%,
+    rgba(190, 18, 60, 0.24)
+  );
+  --pnl-positive-surface: color-mix(
+    in srgb,
+    var(--surface-raised) 94%,
+    rgba(15, 118, 110, 0.08)
+  );
+  --pnl-negative-surface: color-mix(
+    in srgb,
+    var(--surface-raised) 94%,
+    rgba(190, 18, 60, 0.08)
+  );
+  --pnl-positive-shadow: rgba(15, 23, 42, 0.12);
+  --pnl-negative-shadow: rgba(15, 23, 42, 0.12);
+  --pnl-positive-glow: 0 0 0 rgba(0, 0, 0, 0);
+  --pnl-negative-glow: 0 0 0 rgba(0, 0, 0, 0);
 }
 
 @theme inline {

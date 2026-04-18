@@ -7,8 +7,12 @@ import Link from 'next/link';
 import {
   formatCompactNumber,
   formatPercentValue,
-  formatSignedNumber,
+  formatPnl,
   formatTradeDate,
+  formatTradeTime,
+  getTradeTimeRangeLabel,
+  getPnlBadgeClassName,
+  getPnlTextClassName,
   type TradeView,
 } from '@/lib/trades';
 import { cx } from '@/lib/utils';
@@ -22,14 +26,6 @@ type TradeCardProps = {
   onDelete?: (tradeId: string) => Promise<{ error: string | null }>;
   trade: TradeView;
 };
-
-function getPnlToneClassName(value: number | null) {
-  if (value === null || value === 0) {
-    return 'text-[var(--foreground)]';
-  }
-
-  return value < 0 ? 'text-[var(--danger)]' : 'text-[var(--foreground)]';
-}
 
 function getDirectionToneClassName(direction: string | null) {
   if (direction === 'Long') {
@@ -124,6 +120,12 @@ export default function TradeCard({
   const details = useMemo(
     () =>
       [
+        trade.openTime !== null
+          ? { label: 'Open', value: formatTradeTime(trade.openTime) }
+          : null,
+        trade.closeTime !== null
+          ? { label: 'Close', value: formatTradeTime(trade.closeTime) }
+          : null,
         trade.rr !== null ? { label: 'RR', value: formatCompactNumber(trade.rr) } : null,
         trade.entryPrice !== null
           ? { label: 'Entry', value: formatCompactNumber(trade.entryPrice) }
@@ -140,15 +142,18 @@ export default function TradeCard({
       ].filter((detail): detail is { label: string; value: string } => Boolean(detail)),
     [
       trade.entryPrice,
+      trade.closeTime,
       trade.riskPercent,
       trade.rr,
       trade.stoploss,
       trade.takeProfit,
+      trade.openTime,
     ],
   );
 
   const symbolLabel = trade.symbol || 'Saved trade';
   const notesPreview = getNotesPreview(trade.notes, compact);
+  const tradeTimeRangeLabel = getTradeTimeRangeLabel(trade);
   const shouldShowInlineCover = !featured || !hasScreenshot;
   const hasActions = Boolean(editHref || onDelete);
 
@@ -225,6 +230,7 @@ export default function TradeCard({
               {trade.date ? (
                 <p className="mt-3 text-sm text-[var(--muted)]">
                   {formatTradeDate(trade.date)}
+                  {tradeTimeRangeLabel ? ` • ${tradeTimeRangeLabel}` : ''}
                 </p>
               ) : null}
             </div>
@@ -271,17 +277,22 @@ export default function TradeCard({
                 </div>
               ) : null}
 
-              <div className="rounded-[22px] border border-[color:var(--border-color)] bg-[var(--surface-raised)] px-4 py-3 shadow-[0_18px_36px_-30px_var(--shadow-color)] md:min-w-[148px]">
+              <div
+                className={cx(
+                  'rounded-[22px] border px-4 py-3 shadow-[0_18px_36px_-30px_var(--shadow-color)] md:min-w-[148px]',
+                  getPnlBadgeClassName(trade.pnl),
+                )}
+              >
                 <p className="font-mono text-[11px] uppercase tracking-[0.26em] text-[var(--muted)]">
                   PnL
                 </p>
                 <p
                   className={cx(
                     'mt-2 text-2xl font-semibold tracking-tight',
-                    getPnlToneClassName(trade.pnl),
+                    getPnlTextClassName(trade.pnl),
                   )}
                 >
-                  {trade.pnl === null ? 'Awaiting' : formatSignedNumber(trade.pnl)}
+                  {trade.pnl === null ? 'Awaiting' : formatPnl(trade.pnl)}
                 </p>
               </div>
             </div>

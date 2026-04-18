@@ -15,7 +15,9 @@ import { cx } from '@/lib/utils';
 const navigationItems = [
   { href: '/', label: 'Home' },
   { href: '/dashboard', label: 'Dashboard' },
+  { href: '/analytics', label: 'Analytics' },
   { href: '/accounts', label: 'Accounts' },
+  { href: '/analyses', label: 'Analyses' },
   { href: '/trades/new', label: 'New Trade' },
   { href: '/settings', label: 'Settings' },
 ];
@@ -27,7 +29,9 @@ export default function Topbar() {
   const navigation = navigationItems.filter((item) => {
     const isProtected =
       item.href === '/dashboard' ||
+      item.href === '/analytics' ||
       item.href === '/accounts' ||
+      item.href === '/analyses' ||
       item.href === '/trades/new' ||
       item.href === '/settings';
 

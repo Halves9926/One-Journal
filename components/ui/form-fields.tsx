@@ -4,7 +4,9 @@ import type {
   SelectHTMLAttributes,
   TextareaHTMLAttributes,
 } from 'react';
+import { useId } from 'react';
 
+import { Switch } from '@/components/ui/switch';
 import { cx } from '@/lib/utils';
 
 type BaseFieldProps = {
@@ -181,23 +183,27 @@ export function TextareaField({
   );
 }
 
-type CheckboxFieldProps = {
+type SwitchFieldProps = {
   checked: boolean;
   description?: string;
+  disabled?: boolean;
   label: string;
-  onChange: InputHTMLAttributes<HTMLInputElement>['onChange'];
+  onCheckedChange: (checked: boolean) => void;
   wrapperClassName?: string;
 };
 
-export function CheckboxField({
+export function SwitchField({
   checked,
   description,
+  disabled,
   label,
-  onChange,
+  onCheckedChange,
   wrapperClassName,
-}: CheckboxFieldProps) {
+}: SwitchFieldProps) {
+  const descriptionId = useId();
+
   return (
-    <label
+    <div
       className={cx(
         'group flex min-h-[92px] items-center justify-between gap-4 rounded-[26px] border border-[color:var(--border-color)] bg-[linear-gradient(180deg,var(--surface-raised),var(--surface))] p-5 shadow-[0_18px_42px_-34px_var(--shadow-color),inset_0_1px_0_rgba(255,255,255,0.08)] transition duration-300 hover:-translate-y-1 hover:border-[color:var(--accent-border-soft)] hover:shadow-[0_24px_50px_-34px_var(--shadow-color)]',
         wrapperClassName,
@@ -206,25 +212,41 @@ export function CheckboxField({
       <span className="block">
         <span className="block text-sm font-medium text-[var(--foreground)]">{label}</span>
         {description ? (
-          <span className="mt-1.5 block max-w-xs text-xs leading-5 text-[var(--muted)]">
+          <span
+            id={descriptionId}
+            className="mt-1.5 block max-w-xs text-xs leading-5 text-[var(--muted)]"
+          >
             {description}
           </span>
         ) : null}
       </span>
-      <span className="relative shrink-0">
-        <input
-          type="checkbox"
-          checked={checked}
-          onChange={onChange}
-          className="peer sr-only"
-        />
-        <span className="relative flex h-8 w-14 items-center">
-          <span className="absolute inset-0 rounded-full border border-[color:var(--border-color)] bg-[linear-gradient(180deg,var(--surface-soft),rgba(0,0,0,0.08))] shadow-[inset_0_1px_0_rgba(255,255,255,0.1),0_12px_22px_-18px_var(--shadow-color)] transition duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] peer-focus-visible:ring-2 peer-focus-visible:ring-[color:var(--accent-focus-ring)] peer-checked:border-[color:var(--accent-border-strong)] peer-checked:bg-[linear-gradient(135deg,var(--accent-gradient-start),var(--accent-gradient-mid)_60%,var(--accent-gradient-end))]" />
-          <span className="pointer-events-none absolute left-1 top-1 h-6 w-6 rounded-full bg-[var(--surface-raised)] shadow-[0_14px_24px_-16px_var(--shadow-color),inset_0_1px_0_rgba(255,255,255,0.3)] transition duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] peer-checked:translate-x-6 peer-checked:bg-white" />
-          <span className="pointer-events-none absolute left-[0.45rem] top-[0.45rem] h-[1.15rem] w-[1.15rem] rounded-full bg-white/26 opacity-0 blur-[8px] transition duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] peer-checked:translate-x-6 peer-checked:opacity-100" />
-        </span>
-      </span>
-    </label>
+      <Switch
+        checked={checked}
+        disabled={disabled}
+        aria-describedby={description ? descriptionId : undefined}
+        onCheckedChange={onCheckedChange}
+      />
+    </div>
+  );
+}
+
+export function CheckboxField({
+  checked,
+  description,
+  disabled,
+  label,
+  onCheckedChange,
+  wrapperClassName,
+}: SwitchFieldProps) {
+  return (
+    <SwitchField
+      checked={checked}
+      description={description}
+      disabled={disabled}
+      label={label}
+      onCheckedChange={onCheckedChange}
+      wrapperClassName={wrapperClassName}
+    />
   );
 }
 

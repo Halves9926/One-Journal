@@ -33,7 +33,8 @@ import type { TradeRow } from '@/lib/supabase';
 import {
   TRADE_SELECT,
   createInitialTradeFormValues,
-  formatSignedNumber,
+  formatPnl,
+  getTradeTimeRangeLabel,
   mapTradeFormToInsert,
   mapTradeFormToUpdate,
   mapTradeToFormValues,
@@ -767,7 +768,7 @@ export default function NewTradeForm({
                     <p className="mt-2 text-lg font-semibold text-[var(--foreground)]">
                       {values.rr || '0'} /{' '}
                       {values.pnl.trim() && Number.isFinite(Number(values.pnl))
-                        ? formatSignedNumber(Number(values.pnl))
+                        ? formatPnl(Number(values.pnl))
                         : '$0'}
                     </p>
                   </div>
@@ -788,9 +789,15 @@ export default function NewTradeForm({
                     </p>
                   </div>
                   <div className="rounded-[22px] border border-[color:var(--border-color)] bg-[var(--surface-raised)] p-4 shadow-[0_14px_28px_-24px_var(--shadow-color)]">
-                    <p className="text-sm text-[var(--muted)]">Date</p>
+                    <p className="text-sm text-[var(--muted)]">Date / Time</p>
                     <p className="mt-2 text-lg font-semibold text-[var(--foreground)]">
                       {values.trade_date || 'Pending'}
+                    </p>
+                    <p className="mt-1 text-[11px] uppercase tracking-[0.22em] text-[var(--muted)]">
+                      {getTradeTimeRangeLabel({
+                        openTime: values.open_time || null,
+                        closeTime: values.close_time || null,
+                      }) ?? 'Timing pending'}
                     </p>
                   </div>
                 </div>
