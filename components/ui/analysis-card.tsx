@@ -78,7 +78,7 @@ function AnalysisCover({
       rel="noreferrer"
       className="group/cover relative block overflow-hidden rounded-[24px] border border-[color:var(--border-color)] bg-[var(--surface)] shadow-[0_22px_48px_-34px_var(--shadow-color)] transition duration-300 lg:hover:border-[color:var(--border-strong)]"
     >
-      <div className="aspect-[16/9] overflow-hidden bg-[radial-gradient(circle_at_top,rgba(190,24,93,0.12),transparent_54%),linear-gradient(180deg,var(--surface-strong),var(--surface))]">
+      <div className="aspect-[16/9] overflow-hidden bg-[radial-gradient(circle_at_top,var(--accent-primary-glow),transparent_54%),linear-gradient(180deg,var(--surface-strong),var(--surface))]">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={screenshotUrl}

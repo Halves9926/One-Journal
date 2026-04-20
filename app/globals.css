@@ -12,31 +12,68 @@
   --surface-soft: rgba(247, 243, 238, 0.92);
   --border-color: rgba(15, 23, 42, 0.1);
   --border-strong: rgba(15, 23, 42, 0.16);
-  --accent-solid: #9f1239;
-  --accent-strong: #7f1d1d;
-  --accent-gradient-start: #8f1d40;
-  --accent-gradient-mid: #5f132a;
-  --accent-gradient-end: #40101f;
-  --accent-soft-bg: rgba(190, 24, 93, 0.1);
-  --accent-soft-bg-strong: rgba(190, 24, 93, 0.16);
-  --accent-border-soft: rgba(190, 24, 93, 0.18);
-  --accent-border-strong: rgba(190, 24, 93, 0.3);
-  --accent-text: #9f1239;
-  --accent-text-strong: #7f1d1d;
+  --accent-primary: #9f1239;
+  --accent-secondary: #8a244a;
+  --accent-primary-soft: color-mix(in srgb, var(--accent-primary) 12%, transparent);
+  --accent-primary-glow: color-mix(in srgb, var(--accent-primary) 18%, transparent);
+  --accent-secondary-soft: color-mix(in srgb, var(--accent-secondary) 10%, transparent);
+  --accent-secondary-glow: color-mix(in srgb, var(--accent-secondary) 14%, transparent);
+  --accent-solid: var(--accent-primary);
+  --accent-strong: color-mix(in srgb, var(--accent-primary) 58%, var(--foreground));
+  --accent-gradient: linear-gradient(
+    135deg,
+    var(--accent-gradient-start),
+    var(--accent-gradient-mid) 60%,
+    var(--accent-gradient-end)
+  );
+  --accent-gradient-start: var(--accent-primary);
+  --accent-gradient-mid: color-mix(
+    in srgb,
+    var(--accent-primary) 72%,
+    var(--accent-secondary)
+  );
+  --accent-gradient-end: color-mix(
+    in srgb,
+    var(--accent-secondary) 78%,
+    var(--accent-primary)
+  );
+  --accent-soft-bg: color-mix(in srgb, var(--accent-primary) 10%, transparent);
+  --accent-soft-bg-strong: color-mix(
+    in srgb,
+    var(--accent-primary) 16%,
+    transparent
+  );
+  --accent-border-soft: color-mix(in srgb, var(--accent-primary) 20%, transparent);
+  --accent-border-strong: color-mix(
+    in srgb,
+    var(--accent-primary) 34%,
+    transparent
+  );
+  --accent-text: color-mix(in srgb, var(--accent-primary) 68%, var(--foreground));
+  --accent-text-strong: color-mix(
+    in srgb,
+    var(--accent-primary) 48%,
+    var(--foreground)
+  );
   --accent-button-text: #ffffff;
-  --accent-button-shadow: rgba(127, 29, 29, 0.42);
-  --accent-focus-ring: rgba(190, 24, 93, 0.18);
-  --accent-glow-top: rgba(190, 24, 93, 0.14);
-  --accent-glow-side: rgba(127, 29, 29, 0.12);
-  --accent-panel-glow: rgba(190, 24, 93, 0.1);
-  --accent-panel-glow-soft: rgba(159, 18, 57, 0.05);
+  --accent-button-shadow: color-mix(in srgb, var(--accent-primary) 42%, transparent);
+  --accent-focus-ring: color-mix(in srgb, var(--accent-primary) 24%, transparent);
+  --accent-glow-top: color-mix(in srgb, var(--accent-primary) 16%, transparent);
+  --accent-glow-side: color-mix(in srgb, var(--accent-secondary) 14%, transparent);
+  --accent-panel-glow: color-mix(in srgb, var(--accent-primary) 12%, transparent);
+  --accent-panel-glow-soft: color-mix(
+    in srgb,
+    var(--accent-secondary) 8%,
+    transparent
+  );
   --ring: var(--accent-focus-ring);
   --danger: #be123c;
   --success: #047857;
   --shadow-color: rgba(15, 23, 42, 0.24);
   --grid-color: rgba(15, 23, 42, 0.085);
-  --chart-accent: var(--accent-solid);
-  --chart-accent-soft: rgba(190, 24, 93, 0.22);
+  --chart-accent: var(--accent-primary);
+  --chart-accent-soft: color-mix(in srgb, var(--accent-secondary) 22%, transparent);
+  --chart-secondary: var(--accent-secondary);
   --chart-positive: #0f766e;
   --chart-negative: #be123c;
   --chart-neutral: #8b95a3;
@@ -87,31 +124,58 @@ html[data-theme="dark"] {
   --surface-soft: rgba(16, 17, 19, 0.94);
   --border-color: rgba(226, 218, 206, 0.1);
   --border-strong: rgba(226, 218, 206, 0.16);
-  --accent-solid: #c35b6d;
-  --accent-strong: #f3c0ca;
-  --accent-gradient-start: #c35b6d;
-  --accent-gradient-mid: #8a244a;
-  --accent-gradient-end: #55162f;
-  --accent-soft-bg: rgba(195, 91, 109, 0.12);
-  --accent-soft-bg-strong: rgba(195, 91, 109, 0.18);
-  --accent-border-soft: rgba(195, 91, 109, 0.2);
-  --accent-border-strong: rgba(195, 91, 109, 0.32);
-  --accent-text: #f1c1cb;
-  --accent-text-strong: #ffe2e8;
+  --accent-primary: #c35b6d;
+  --accent-secondary: #8a244a;
+  --accent-solid: var(--accent-primary);
+  --accent-strong: color-mix(in srgb, var(--accent-primary) 58%, var(--foreground));
+  --accent-gradient-start: var(--accent-primary);
+  --accent-gradient-mid: color-mix(
+    in srgb,
+    var(--accent-primary) 72%,
+    var(--accent-secondary)
+  );
+  --accent-gradient-end: color-mix(
+    in srgb,
+    var(--accent-secondary) 78%,
+    var(--accent-primary)
+  );
+  --accent-soft-bg: color-mix(in srgb, var(--accent-primary) 12%, transparent);
+  --accent-soft-bg-strong: color-mix(
+    in srgb,
+    var(--accent-primary) 18%,
+    transparent
+  );
+  --accent-border-soft: color-mix(in srgb, var(--accent-primary) 20%, transparent);
+  --accent-border-strong: color-mix(
+    in srgb,
+    var(--accent-primary) 34%,
+    transparent
+  );
+  --accent-text: color-mix(in srgb, var(--accent-primary) 68%, var(--foreground));
+  --accent-text-strong: color-mix(
+    in srgb,
+    var(--accent-primary) 48%,
+    var(--foreground)
+  );
   --accent-button-text: #ffffff;
-  --accent-button-shadow: rgba(122, 28, 48, 0.48);
-  --accent-focus-ring: rgba(195, 91, 109, 0.22);
-  --accent-glow-top: rgba(154, 33, 58, 0.18);
-  --accent-glow-side: rgba(110, 26, 44, 0.18);
-  --accent-panel-glow: rgba(195, 91, 109, 0.14);
-  --accent-panel-glow-soft: rgba(195, 91, 109, 0.06);
+  --accent-button-shadow: color-mix(in srgb, var(--accent-primary) 42%, transparent);
+  --accent-focus-ring: color-mix(in srgb, var(--accent-primary) 24%, transparent);
+  --accent-glow-top: color-mix(in srgb, var(--accent-primary) 16%, transparent);
+  --accent-glow-side: color-mix(in srgb, var(--accent-secondary) 14%, transparent);
+  --accent-panel-glow: color-mix(in srgb, var(--accent-primary) 12%, transparent);
+  --accent-panel-glow-soft: color-mix(
+    in srgb,
+    var(--accent-secondary) 8%,
+    transparent
+  );
   --ring: var(--accent-focus-ring);
   --danger: #e18395;
   --success: #4ba38f;
   --shadow-color: rgba(0, 0, 0, 0.64);
   --grid-color: rgba(226, 218, 206, 0.08);
-  --chart-accent: var(--accent-solid);
-  --chart-accent-soft: rgba(195, 91, 109, 0.2);
+  --chart-accent: var(--accent-primary);
+  --chart-accent-soft: color-mix(in srgb, var(--accent-secondary) 22%, transparent);
+  --chart-secondary: var(--accent-secondary);
   --chart-positive: #4b9b88;
   --chart-negative: #e18395;
   --chart-neutral: #8e877f;
@@ -142,98 +206,6 @@ html[data-theme="dark"] {
     radial-gradient(circle at bottom left, var(--accent-glow-side), transparent 26%),
     radial-gradient(circle at bottom right, rgba(255, 255, 255, 0.03), transparent 24%),
     linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent 20%);
-}
-
-html[data-accent="pink"] {
-  --accent-solid: #d9468a;
-  --accent-strong: #a3205a;
-  --accent-gradient-start: #ef6aa7;
-  --accent-gradient-mid: #c13778;
-  --accent-gradient-end: #741b45;
-  --accent-soft-bg: rgba(217, 70, 138, 0.1);
-  --accent-soft-bg-strong: rgba(217, 70, 138, 0.16);
-  --accent-border-soft: rgba(217, 70, 138, 0.18);
-  --accent-border-strong: rgba(217, 70, 138, 0.3);
-  --accent-text: #b42362;
-  --accent-text-strong: #8a1245;
-  --accent-button-text: #ffffff;
-  --accent-button-shadow: rgba(193, 55, 120, 0.34);
-  --accent-focus-ring: rgba(217, 70, 138, 0.18);
-  --accent-glow-top: rgba(217, 70, 138, 0.14);
-  --accent-glow-side: rgba(193, 55, 120, 0.12);
-  --accent-panel-glow: rgba(217, 70, 138, 0.12);
-  --accent-panel-glow-soft: rgba(217, 70, 138, 0.05);
-  --chart-accent: #d9468a;
-  --chart-accent-soft: rgba(217, 70, 138, 0.22);
-}
-
-html[data-theme="dark"][data-accent="pink"] {
-  --accent-solid: #ef86b8;
-  --accent-strong: #ffd2e7;
-  --accent-gradient-start: #ef86b8;
-  --accent-gradient-mid: #c44d83;
-  --accent-gradient-end: #6c1f45;
-  --accent-soft-bg: rgba(239, 134, 184, 0.1);
-  --accent-soft-bg-strong: rgba(239, 134, 184, 0.16);
-  --accent-border-soft: rgba(239, 134, 184, 0.18);
-  --accent-border-strong: rgba(239, 134, 184, 0.3);
-  --accent-text: #f5b6d5;
-  --accent-text-strong: #ffe6f2;
-  --accent-button-text: #ffffff;
-  --accent-button-shadow: rgba(196, 77, 131, 0.42);
-  --accent-focus-ring: rgba(239, 134, 184, 0.2);
-  --accent-glow-top: rgba(239, 134, 184, 0.14);
-  --accent-glow-side: rgba(196, 77, 131, 0.12);
-  --accent-panel-glow: rgba(239, 134, 184, 0.12);
-  --accent-panel-glow-soft: rgba(239, 134, 184, 0.06);
-  --chart-accent: #ef86b8;
-  --chart-accent-soft: rgba(239, 134, 184, 0.2);
-}
-
-html[data-accent="white"] {
-  --accent-solid: #d4cdc3;
-  --accent-strong: #8c857c;
-  --accent-gradient-start: #ece5dc;
-  --accent-gradient-mid: #d5cdc3;
-  --accent-gradient-end: #b8b0a6;
-  --accent-soft-bg: rgba(212, 205, 195, 0.12);
-  --accent-soft-bg-strong: rgba(212, 205, 195, 0.18);
-  --accent-border-soft: rgba(184, 176, 166, 0.22);
-  --accent-border-strong: rgba(184, 176, 166, 0.32);
-  --accent-text: #6f675d;
-  --accent-text-strong: #4f4840;
-  --accent-button-text: #1a1c20;
-  --accent-button-shadow: rgba(184, 176, 166, 0.28);
-  --accent-focus-ring: rgba(212, 205, 195, 0.22);
-  --accent-glow-top: rgba(212, 205, 195, 0.16);
-  --accent-glow-side: rgba(184, 176, 166, 0.12);
-  --accent-panel-glow: rgba(212, 205, 195, 0.12);
-  --accent-panel-glow-soft: rgba(212, 205, 195, 0.05);
-  --chart-accent: #d4cdc3;
-  --chart-accent-soft: rgba(212, 205, 195, 0.22);
-}
-
-html[data-theme="dark"][data-accent="white"] {
-  --accent-solid: #f1ede6;
-  --accent-strong: #fff8f0;
-  --accent-gradient-start: #f8f4ec;
-  --accent-gradient-mid: #ddd7ce;
-  --accent-gradient-end: #aea79d;
-  --accent-soft-bg: rgba(241, 237, 230, 0.08);
-  --accent-soft-bg-strong: rgba(241, 237, 230, 0.14);
-  --accent-border-soft: rgba(241, 237, 230, 0.18);
-  --accent-border-strong: rgba(241, 237, 230, 0.28);
-  --accent-text: #f1ede6;
-  --accent-text-strong: #fffbf6;
-  --accent-button-text: #121316;
-  --accent-button-shadow: rgba(241, 237, 230, 0.24);
-  --accent-focus-ring: rgba(241, 237, 230, 0.18);
-  --accent-glow-top: rgba(241, 237, 230, 0.1);
-  --accent-glow-side: rgba(241, 237, 230, 0.08);
-  --accent-panel-glow: rgba(241, 237, 230, 0.08);
-  --accent-panel-glow-soft: rgba(241, 237, 230, 0.04);
-  --chart-accent: #f1ede6;
-  --chart-accent-soft: rgba(241, 237, 230, 0.16);
 }
 
 html[data-pnl-visual-emphasis="off"] {

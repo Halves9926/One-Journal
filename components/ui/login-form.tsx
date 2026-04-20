@@ -151,7 +151,7 @@ export default function LoginForm() {
           onClick={() => setMode('login')}
           className={`flex-1 rounded-full px-4 py-2.5 text-sm font-medium transition ${
             mode === 'login'
-              ? 'bg-[linear-gradient(135deg,rgba(127,29,29,0.95),rgba(95,16,32,0.94),rgba(36,11,17,0.98))] text-white shadow-[0_18px_36px_-20px_rgba(127,29,29,0.9)]'
+              ? 'bg-[linear-gradient(135deg,var(--accent-gradient-start),var(--accent-gradient-mid)_60%,var(--accent-gradient-end))] text-[var(--accent-button-text)] shadow-[0_18px_36px_-20px_var(--accent-button-shadow)]'
               : 'text-[var(--muted)] hover:bg-[var(--surface-raised)] hover:text-[var(--foreground)]'
           }`}
         >
@@ -162,7 +162,7 @@ export default function LoginForm() {
           onClick={() => setMode('signup')}
           className={`flex-1 rounded-full px-4 py-2.5 text-sm font-medium transition ${
             mode === 'signup'
-              ? 'bg-[linear-gradient(135deg,rgba(127,29,29,0.95),rgba(95,16,32,0.94),rgba(36,11,17,0.98))] text-white shadow-[0_18px_36px_-20px_rgba(127,29,29,0.9)]'
+              ? 'bg-[linear-gradient(135deg,var(--accent-gradient-start),var(--accent-gradient-mid)_60%,var(--accent-gradient-end))] text-[var(--accent-button-text)] shadow-[0_18px_36px_-20px_var(--accent-button-shadow)]'
               : 'text-[var(--muted)] hover:bg-[var(--surface-raised)] hover:text-[var(--foreground)]'
           }`}
         >

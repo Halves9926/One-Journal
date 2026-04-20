@@ -14,31 +14,15 @@ import {
   TRADE_FIELD_SECTIONS,
 } from '@/lib/trade-form-preferences';
 
-const accentOptions = [
-  {
-    label: 'Red accent',
-    theme: 'red' as const,
-    swatchClassName: 'bg-[linear-gradient(135deg,#c35b6d,#6c1f45)]',
-  },
-  {
-    label: 'White accent',
-    theme: 'white' as const,
-    swatchClassName: 'bg-[linear-gradient(135deg,#fff8f0,#c8c0b6)]',
-  },
-  {
-    label: 'Pink accent',
-    theme: 'pink' as const,
-    swatchClassName: 'bg-[linear-gradient(135deg,#ef86b8,#9f245d)]',
-  },
-];
-
 export default function SettingsView() {
   const { loading, user } = useAuth();
   const {
-    accentTheme,
+    accentColors,
     pnlVisualEmphasis,
-    setAccentTheme,
+    resetAccentColors,
     setPnlVisualEmphasis,
+    setPrimaryAccentColor,
+    setSecondaryAccentColor,
     theme,
   } = useTheme();
   const {
@@ -157,42 +141,79 @@ export default function SettingsView() {
                   }
                   onCheckedChange={setPnlVisualEmphasis}
                 />
-                <div className="grid gap-3">
-                  {accentOptions.map((option) => {
-                    const isActive = accentTheme === option.theme;
+                <div className="space-y-3 rounded-[24px] border border-[color:var(--border-color)] bg-[var(--surface-raised)] p-4 shadow-[0_14px_28px_-24px_var(--shadow-color)]">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-medium text-[var(--foreground)]">
+                        Colors
+                      </p>
+                      <p className="mt-1 text-xs leading-5 text-[var(--muted)]">
+                        Primary drives actions. Secondary stays subtle.
+                      </p>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={resetAccentColors}
+                    >
+                      Reset
+                    </Button>
+                  </div>
 
-                    return (
-                      <button
-                        key={option.theme}
-                        type="button"
-                        onClick={() => setAccentTheme(option.theme)}
-                        className={`flex items-center justify-between gap-3 rounded-[22px] border px-4 py-3.5 text-left transition duration-300 ${
-                          isActive
-                            ? 'border-[color:var(--accent-border-strong)] bg-[var(--accent-soft-bg)] shadow-[0_18px_36px_-28px_var(--shadow-color)]'
-                            : 'border-[color:var(--border-color)] bg-[var(--surface-raised)] hover:border-[color:var(--border-strong)]'
-                        }`}
-                      >
-                        <span className="flex items-center gap-3">
-                          <span
-                            className={`h-3.5 w-3.5 rounded-full shadow-[0_0_0_6px_rgba(255,255,255,0.03)] ${option.swatchClassName}`}
-                          />
-                          <span>
-                            <span className="block text-sm font-medium text-[var(--foreground)]">
-                              {option.label}
-                            </span>
-                            <span className="mt-1 block text-xs uppercase tracking-[0.24em] text-[var(--muted)]">
-                              accent theme
-                            </span>
-                          </span>
-                        </span>
-                        {isActive ? (
-                          <span className="text-xs uppercase tracking-[0.22em] text-[var(--accent-text)]">
-                            Active
-                          </span>
-                        ) : null}
-                      </button>
-                    );
-                  })}
+                  <div
+                    className="relative overflow-hidden rounded-[20px] border border-[color:var(--accent-border-soft)] bg-[linear-gradient(135deg,var(--accent-gradient-start),var(--accent-gradient-mid)_60%,var(--accent-gradient-end))] p-4 shadow-[0_18px_42px_-28px_var(--accent-button-shadow)]"
+                    aria-hidden="true"
+                  >
+                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,var(--accent-secondary-glow),transparent_58%)]" />
+                    <div className="relative flex items-center justify-between gap-3">
+                      <span className="h-8 w-8 rounded-full border border-white/30 bg-[var(--accent-primary)] shadow-[0_12px_24px_-18px_rgba(0,0,0,0.5)]" />
+                      <span className="h-8 w-8 rounded-full border border-white/30 bg-[var(--accent-secondary)] shadow-[0_12px_24px_-18px_rgba(0,0,0,0.5)]" />
+                    </div>
+                    <div className="relative mt-5 h-2 rounded-full bg-white/28">
+                      <div className="h-full w-2/3 rounded-full bg-white/80" />
+                    </div>
+                  </div>
+
+                  <label className="flex items-center justify-between gap-4 rounded-[18px] border border-[color:var(--border-color)] bg-[var(--surface)] px-3 py-3">
+                    <span>
+                      <span className="block text-sm font-medium text-[var(--foreground)]">
+                        Primary accent color
+                      </span>
+                      <span className="mt-1 block font-mono text-[11px] uppercase tracking-[0.2em] text-[var(--muted)]">
+                        {accentColors.primary}
+                      </span>
+                    </span>
+                    <input
+                      type="color"
+                      value={accentColors.primary}
+                      onChange={(event) =>
+                        setPrimaryAccentColor(event.target.value)
+                      }
+                      className="h-11 w-14 cursor-pointer rounded-[14px] border border-[color:var(--border-color)] bg-transparent p-1"
+                      aria-label="Primary accent color"
+                    />
+                  </label>
+
+                  <label className="flex items-center justify-between gap-4 rounded-[18px] border border-[color:var(--border-color)] bg-[var(--surface)] px-3 py-3">
+                    <span>
+                      <span className="block text-sm font-medium text-[var(--foreground)]">
+                        Secondary accent color
+                      </span>
+                      <span className="mt-1 block font-mono text-[11px] uppercase tracking-[0.2em] text-[var(--muted)]">
+                        {accentColors.secondary}
+                      </span>
+                    </span>
+                    <input
+                      type="color"
+                      value={accentColors.secondary}
+                      onChange={(event) =>
+                        setSecondaryAccentColor(event.target.value)
+                      }
+                      className="h-11 w-14 cursor-pointer rounded-[14px] border border-[color:var(--border-color)] bg-transparent p-1"
+                      aria-label="Secondary accent color"
+                    />
+                  </label>
                 </div>
               </div>
             </Panel>

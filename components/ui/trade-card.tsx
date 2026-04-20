@@ -83,7 +83,7 @@ function TradeCover({
     >
       <div
         className={cx(
-          'overflow-hidden bg-[radial-gradient(circle_at_top,rgba(190,24,93,0.14),transparent_58%),linear-gradient(180deg,var(--surface-strong),var(--surface))]',
+          'overflow-hidden bg-[radial-gradient(circle_at_top,var(--accent-primary-glow),transparent_58%),linear-gradient(180deg,var(--surface-strong),var(--surface))]',
           compact ? 'aspect-[16/8.5]' : 'aspect-[16/9]',
         )}
       >
@@ -190,7 +190,7 @@ export default function TradeCard({
       className={cx(
         'group overflow-hidden rounded-[30px] border border-[color:var(--border-strong)] bg-[linear-gradient(180deg,var(--surface-strong),var(--surface))] p-4 shadow-[0_30px_68px_-42px_var(--shadow-color),inset_0_1px_0_rgba(255,255,255,0.08)] transition duration-300 lg:hover:-translate-y-1 lg:hover:border-[color:var(--accent-border-soft)] lg:hover:shadow-[0_34px_74px_-42px_var(--shadow-color)] sm:p-5',
         featured &&
-          'bg-[linear-gradient(180deg,var(--surface-raised),rgba(127,29,29,0.045))] shadow-[0_36px_82px_-42px_var(--shadow-color),inset_0_1px_0_rgba(255,255,255,0.1)]',
+          'bg-[linear-gradient(180deg,var(--surface-raised),var(--accent-primary-soft))] shadow-[0_36px_82px_-42px_var(--shadow-color),inset_0_1px_0_rgba(255,255,255,0.1)]',
         compact && 'p-4',
         className,
       )}
