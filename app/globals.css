@@ -308,6 +308,13 @@ body::after {
   background: var(--body-overlay);
 }
 
+html[data-one-journal-overlay="find-metrics"] .one-journal-topbar {
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-1rem);
+  visibility: hidden;
+}
+
 ::selection {
   background: var(--accent-soft-bg-strong);
   color: var(--foreground);

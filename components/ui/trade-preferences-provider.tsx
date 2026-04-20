@@ -3,9 +3,7 @@
 import {
   createContext,
   useContext,
-  useEffect,
   useMemo,
-  useState,
   useSyncExternalStore,
   type ReactNode,
 } from 'react';
@@ -29,18 +27,13 @@ type TradePreferencesContextValue = {
 const TradePreferencesContext = createContext<
   TradePreferencesContextValue | undefined
 >(undefined);
+const TRADE_PREFERENCES_CHANGE_EVENT = 'one-journal:trade-preferences-change';
 
 function subscribeToHydration() {
   return () => {};
 }
 
-function readStoredPreferences() {
-  if (typeof window === 'undefined') {
-    return DEFAULT_TRADE_FIELD_PREFERENCES;
-  }
-
-  const storedValue = window.localStorage.getItem(TRADE_PREFERENCES_STORAGE_KEY);
-
+function parseStoredPreferences(storedValue: string | null) {
   if (!storedValue) {
     return DEFAULT_TRADE_FIELD_PREFERENCES;
   }
@@ -52,73 +45,88 @@ function readStoredPreferences() {
   }
 }
 
+function getTradePreferencesSnapshot() {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+
+  return window.localStorage.getItem(TRADE_PREFERENCES_STORAGE_KEY);
+}
+
+function getServerTradePreferencesSnapshot() {
+  return null;
+}
+
+function subscribeToTradePreferences(onStoreChange: () => void) {
+  if (typeof window === 'undefined') {
+    return () => {};
+  }
+
+  function handleStorage(event: StorageEvent) {
+    if (event.key === TRADE_PREFERENCES_STORAGE_KEY) {
+      onStoreChange();
+    }
+  }
+
+  window.addEventListener('storage', handleStorage);
+  window.addEventListener(TRADE_PREFERENCES_CHANGE_EVENT, onStoreChange);
+
+  return () => {
+    window.removeEventListener('storage', handleStorage);
+    window.removeEventListener(TRADE_PREFERENCES_CHANGE_EVENT, onStoreChange);
+  };
+}
+
+function writeTradePreferences(preferences: TradeFieldPreferences) {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  window.localStorage.setItem(
+    TRADE_PREFERENCES_STORAGE_KEY,
+    JSON.stringify(preferences),
+  );
+  window.dispatchEvent(new Event(TRADE_PREFERENCES_CHANGE_EVENT));
+}
+
 export function TradePreferencesProvider({
   children,
 }: {
   children: ReactNode;
 }) {
-  const [preferences, setPreferences] =
-    useState<TradeFieldPreferences>(readStoredPreferences);
+  const preferencesSnapshot = useSyncExternalStore(
+    subscribeToTradePreferences,
+    getTradePreferencesSnapshot,
+    getServerTradePreferencesSnapshot,
+  );
+  const preferences = useMemo(
+    () => parseStoredPreferences(preferencesSnapshot),
+    [preferencesSnapshot],
+  );
   const ready = useSyncExternalStore(
     subscribeToHydration,
     () => true,
     () => false,
   );
 
-  useEffect(() => {
-    function handleStorage(event: StorageEvent) {
-      if (event.key !== TRADE_PREFERENCES_STORAGE_KEY) {
-        return;
-      }
-
-      if (!event.newValue) {
-        setPreferences(DEFAULT_TRADE_FIELD_PREFERENCES);
-        return;
-      }
-
-      try {
-        setPreferences(mergeTradeFieldPreferences(JSON.parse(event.newValue)));
-      } catch {
-        setPreferences(DEFAULT_TRADE_FIELD_PREFERENCES);
-      }
-    }
-
-    window.addEventListener('storage', handleStorage);
-
-    return () => {
-      window.removeEventListener('storage', handleStorage);
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!ready) {
-      return;
-    }
-
-    window.localStorage.setItem(
-      TRADE_PREFERENCES_STORAGE_KEY,
-      JSON.stringify(preferences),
-    );
-  }, [preferences, ready]);
-
   const value = useMemo<TradePreferencesContextValue>(
     () => ({
       preferences,
       ready,
       resetPreferences() {
-        setPreferences(DEFAULT_TRADE_FIELD_PREFERENCES);
+        writeTradePreferences(DEFAULT_TRADE_FIELD_PREFERENCES);
       },
       setFieldPreference(field, value) {
-        setPreferences((current) => ({
-          ...current,
+        writeTradePreferences({
+          ...preferences,
           [field]: value,
-        }));
+        });
       },
       toggleFieldPreference(field) {
-        setPreferences((current) => ({
-          ...current,
-          [field]: !current[field],
-        }));
+        writeTradePreferences({
+          ...preferences,
+          [field]: !preferences[field],
+        });
       },
     }),
     [preferences, ready],

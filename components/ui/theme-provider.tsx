@@ -3,7 +3,7 @@
 import {
   createContext,
   useContext,
-  useState,
+  useSyncExternalStore,
   type ReactNode,
 } from 'react';
 
@@ -23,7 +23,40 @@ type ThemeContextValue = {
 const THEME_STORAGE_KEY = 'oj-theme';
 const ACCENT_STORAGE_KEY = 'oj-accent-theme';
 const PNL_VISUAL_EMPHASIS_STORAGE_KEY = 'oj-pnl-visual-emphasis';
+const THEME_CHANGE_EVENT = 'one-journal:theme-change';
 const ThemeContext = createContext<ThemeContextValue | undefined>(undefined);
+
+function subscribeToThemePreference(onStoreChange: () => void) {
+  if (typeof window === 'undefined') {
+    return () => {};
+  }
+
+  function handleStorageChange(event: StorageEvent) {
+    if (
+      event.key === THEME_STORAGE_KEY ||
+      event.key === ACCENT_STORAGE_KEY ||
+      event.key === PNL_VISUAL_EMPHASIS_STORAGE_KEY
+    ) {
+      onStoreChange();
+    }
+  }
+
+  window.addEventListener('storage', handleStorageChange);
+  window.addEventListener(THEME_CHANGE_EVENT, onStoreChange);
+
+  return () => {
+    window.removeEventListener('storage', handleStorageChange);
+    window.removeEventListener(THEME_CHANGE_EVENT, onStoreChange);
+  };
+}
+
+function dispatchThemePreferenceChange() {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  window.dispatchEvent(new Event(THEME_CHANGE_EVENT));
+}
 
 function applyTheme(theme: Theme) {
   const root = document.documentElement;
@@ -63,6 +96,10 @@ function getResolvedTheme(): Theme {
     : 'light';
 }
 
+function getServerThemeSnapshot(): Theme {
+  return 'light';
+}
+
 function getResolvedAccentTheme(): AccentTheme {
   if (typeof window === 'undefined') {
     return 'red';
@@ -91,6 +128,10 @@ function getResolvedAccentTheme(): AccentTheme {
   return 'red';
 }
 
+function getServerAccentThemeSnapshot(): AccentTheme {
+  return 'red';
+}
+
 function getResolvedPnlVisualEmphasis() {
   if (typeof window === 'undefined') {
     return true;
@@ -113,42 +154,50 @@ function getResolvedPnlVisualEmphasis() {
   return true;
 }
 
+function getServerPnlVisualEmphasisSnapshot() {
+  return true;
+}
+
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>(() => getResolvedTheme());
-  const [accentTheme, setAccentThemeState] = useState<AccentTheme>(() =>
-    getResolvedAccentTheme(),
+  const theme = useSyncExternalStore(
+    subscribeToThemePreference,
+    getResolvedTheme,
+    getServerThemeSnapshot,
   );
-  const [pnlVisualEmphasis, setPnlVisualEmphasisState] = useState<boolean>(() =>
-    getResolvedPnlVisualEmphasis(),
+  const accentTheme = useSyncExternalStore(
+    subscribeToThemePreference,
+    getResolvedAccentTheme,
+    getServerAccentThemeSnapshot,
+  );
+  const pnlVisualEmphasis = useSyncExternalStore(
+    subscribeToThemePreference,
+    getResolvedPnlVisualEmphasis,
+    getServerPnlVisualEmphasisSnapshot,
   );
 
   function setTheme(nextTheme: Theme) {
-    setThemeState(nextTheme);
-
     if (typeof document !== 'undefined') {
       applyTheme(nextTheme);
     }
 
     if (typeof window !== 'undefined') {
       window.localStorage.setItem(THEME_STORAGE_KEY, nextTheme);
+      dispatchThemePreferenceChange();
     }
   }
 
   function setAccentTheme(nextAccentTheme: AccentTheme) {
-    setAccentThemeState(nextAccentTheme);
-
     if (typeof document !== 'undefined') {
       applyAccentTheme(nextAccentTheme);
     }
 
     if (typeof window !== 'undefined') {
       window.localStorage.setItem(ACCENT_STORAGE_KEY, nextAccentTheme);
+      dispatchThemePreferenceChange();
     }
   }
 
   function setPnlVisualEmphasis(enabled: boolean) {
-    setPnlVisualEmphasisState(enabled);
-
     if (typeof document !== 'undefined') {
       applyPnlVisualEmphasis(enabled);
     }
@@ -158,6 +207,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
         PNL_VISUAL_EMPHASIS_STORAGE_KEY,
         enabled ? 'on' : 'off',
       );
+      dispatchThemePreferenceChange();
     }
   }
 

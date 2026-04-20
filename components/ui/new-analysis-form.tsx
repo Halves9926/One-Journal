@@ -26,14 +26,17 @@ import {
 import type { AnalysisRow } from '@/lib/supabase';
 import {
   ANALYSIS_SELECT,
+  ANALYSIS_TAG_OPTIONS,
   createInitialAnalysisFormValues,
   formatAnalysisDate,
   mapAnalysisFormToInsert,
   mapAnalysisFormToUpdate,
   mapAnalysisToFormValues,
   normalizeAnalysis,
+  type AnalysisTag,
   type AnalysisFormInput,
 } from '@/lib/analyses';
+import { cx } from '@/lib/utils';
 
 type ToastState = {
   items: string[];
@@ -218,6 +221,15 @@ export default function NewAnalysisForm({
 
     setShouldPersistDraft(true);
     setToast(null);
+  }
+
+  function toggleTag(tag: AnalysisTag) {
+    updateValue(
+      'tags',
+      values.tags.includes(tag)
+        ? values.tags.filter((currentTag) => currentTag !== tag)
+        : [...values.tags, tag],
+    );
   }
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -617,6 +629,37 @@ export default function NewAnalysisForm({
                 </div>
               </Panel>
             </Reveal>
+
+            <Reveal delay={0.12}>
+              <Panel className="overflow-hidden">
+                <PanelHeader
+                  eyebrow="tags"
+                  title="Respect and execution tags"
+                  description="Mark whether the thesis was respected after execution or review."
+                />
+                <div className="flex flex-wrap gap-2 px-6 pb-6 sm:px-8 sm:pb-8">
+                  {ANALYSIS_TAG_OPTIONS.map((tag) => {
+                    const isActive = values.tags.includes(tag);
+
+                    return (
+                      <button
+                        key={tag}
+                        className={cx(
+                          'rounded-full border px-4 py-2 text-sm font-medium capitalize transition',
+                          isActive
+                            ? 'border-[color:var(--accent-border-soft)] bg-[var(--accent-soft-bg)] text-[var(--accent-text)] shadow-[0_14px_30px_-24px_var(--shadow-color)]'
+                            : 'border-[color:var(--border-color)] bg-[var(--surface)] text-[var(--muted-strong)] hover:border-[color:var(--border-strong)] hover:text-[var(--foreground)]',
+                        )}
+                        type="button"
+                        onClick={() => toggleTag(tag)}
+                      >
+                        {tag}
+                      </button>
+                    );
+                  })}
+                </div>
+              </Panel>
+            </Reveal>
           </div>
 
           <div className="space-y-6 xl:sticky xl:top-32 xl:self-start">
@@ -658,6 +701,25 @@ export default function NewAnalysisForm({
                     <p className="mt-2 text-sm leading-6 text-[var(--muted-strong)]">
                       {notePreview}
                     </p>
+                  </div>
+                  <div className="rounded-[22px] border border-[color:var(--border-color)] bg-[var(--surface-raised)] p-4 shadow-[0_14px_28px_-24px_var(--shadow-color)]">
+                    <p className="text-sm text-[var(--muted)]">Tags</p>
+                    {values.tags.length > 0 ? (
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {values.tags.map((tag) => (
+                          <span
+                            key={tag}
+                            className="rounded-full border border-[color:var(--accent-border-soft)] bg-[var(--accent-soft-bg)] px-3 py-1 text-xs capitalize text-[var(--accent-text)]"
+                          >
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="mt-2 text-sm text-[var(--muted-strong)]">
+                        No tags selected.
+                      </p>
+                    )}
                   </div>
                 </div>
               </Panel>

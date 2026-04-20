@@ -796,7 +796,7 @@ export function formatRatioMetric(value: number | null, digits = 2) {
   }
 
   if (!Number.isFinite(value)) {
-    return '∞';
+    return 'Infinity';
   }
 
   return formatCompactNumber(value, digits);
@@ -839,7 +839,7 @@ export function formatBreakdownSummary(item: AnalyticsBreakdownItem | null) {
     return '--';
   }
 
-  return `${item.label} • ${formatPnl(item.netPnl, 0)}`;
+  return `${item.label} / ${formatPnl(item.netPnl, 0)}`;
 }
 
 export function buildAnalyticsSnapshot(trades: AnalyticsTrade[]): AnalyticsSnapshot {

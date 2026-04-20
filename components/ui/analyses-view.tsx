@@ -250,6 +250,7 @@ export default function AnalysesView() {
                       index={index}
                       editHref={`/analyses/${analysis.id}/edit`}
                       onDelete={handleDeleteAnalysis}
+                      onShareUpdated={analysesState.refresh}
                     />
                   ))}
                 </div>

@@ -7,6 +7,20 @@ import { EMPTY_VALUE, formatTradeDate } from '@/lib/trades';
 
 export const ANALYSES_TABLE = 'analyses';
 
+export const ANALYSIS_TAG_OPTIONS = [
+  'respected',
+  'not respected',
+  'partially respected',
+  'invalidated',
+  'followed plan',
+  'broke plan',
+  'missed setup',
+  'late entry',
+  'emotional trade',
+] as const;
+
+export type AnalysisTag = (typeof ANALYSIS_TAG_OPTIONS)[number];
+
 export const ANALYSIS_SELECT = [
   'id',
   'user_id',
@@ -24,9 +38,56 @@ export const ANALYSIS_SELECT = [
   'timeframe',
   'notes',
   'screenshot_url',
+  'share_enabled',
+  'share_token',
+  'share_created_at',
+  'share_updated_at',
+  'tags',
   'created_at',
   'updated_at',
 ].join(',');
+
+export type PublicSharedAnalysisView = {
+  analysisDate: string | null;
+  authorDisplayName: string | null;
+  authorUsername: string | null;
+  bias: string | null;
+  confluences: string | null;
+  createdAt: string | null;
+  entryPlan: string | null;
+  invalidation: string | null;
+  keyLevels: string | null;
+  liquidityNotes: string | null;
+  marketContext: string | null;
+  notes: string | null;
+  screenshotUrl: string | null;
+  session: string | null;
+  shareUpdatedAt: string | null;
+  symbol: string | null;
+  tags: AnalysisTag[];
+  timeframe: string | null;
+};
+
+export type PublicSharedAnalysisRow = {
+  analysis_date?: string | null;
+  author_display_name?: string | null;
+  author_username?: string | null;
+  bias?: string | null;
+  confluences?: string | null;
+  created_at?: string | null;
+  entry_plan?: string | null;
+  invalidation?: string | null;
+  key_levels?: string | null;
+  liquidity_notes?: string | null;
+  market_context?: string | null;
+  notes?: string | null;
+  screenshot_url?: string | null;
+  session?: string | null;
+  share_updated_at?: string | null;
+  symbol?: string | null;
+  tags?: string[] | null;
+  timeframe?: string | null;
+};
 
 export type AnalysisView = {
   accountId: string | null;
@@ -43,7 +104,12 @@ export type AnalysisView = {
   notes: string | null;
   screenshotUrl: string | null;
   session: string | null;
+  shareCreatedAt: string | null;
+  shareEnabled: boolean;
+  shareToken: string | null;
+  shareUpdatedAt: string | null;
   symbol: string | null;
+  tags: AnalysisTag[];
   timeframe: string | null;
   updatedAt: string | null;
   userId: string | null;
@@ -63,6 +129,7 @@ export type AnalysisFormInput = {
   screenshot_url: string;
   session: string;
   symbol: string;
+  tags: AnalysisTag[];
   timeframe: string;
 };
 
@@ -73,6 +140,32 @@ function cleanText(value: unknown) {
 
   const trimmedValue = value.trim();
   return trimmedValue.length > 0 ? trimmedValue : null;
+}
+
+function isAnalysisTag(value: string): value is AnalysisTag {
+  return (ANALYSIS_TAG_OPTIONS as readonly string[]).includes(value);
+}
+
+export function normalizeAnalysisTags(value: unknown) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const tags: AnalysisTag[] = [];
+
+  for (const item of value) {
+    if (typeof item !== 'string') {
+      continue;
+    }
+
+    const normalizedTag = item.trim().toLowerCase();
+
+    if (isAnalysisTag(normalizedTag) && !tags.includes(normalizedTag)) {
+      tags.push(normalizedTag);
+    }
+  }
+
+  return tags;
 }
 
 function getTodayValue() {
@@ -97,6 +190,7 @@ export function createInitialAnalysisFormValues(accountId = ''): AnalysisFormInp
     screenshot_url: '',
     session: '',
     symbol: '',
+    tags: [],
     timeframe: '',
   };
 }
@@ -117,7 +211,12 @@ export function normalizeAnalysis(row: AnalysisRow, fallbackIndex = 0): Analysis
     notes: cleanText(row.notes),
     screenshotUrl: cleanText(row.screenshot_url),
     session: cleanText(row.session),
+    shareCreatedAt: cleanText(row.share_created_at),
+    shareEnabled: row.share_enabled === true,
+    shareToken: cleanText(row.share_token),
+    shareUpdatedAt: cleanText(row.share_updated_at),
     symbol: cleanText(row.symbol)?.toUpperCase() ?? null,
+    tags: normalizeAnalysisTags(row.tags),
     timeframe: cleanText(row.timeframe),
     updatedAt: cleanText(row.updated_at),
     userId: cleanText(row.user_id),
@@ -142,6 +241,7 @@ export function mapAnalysisToFormValues(
     screenshot_url: analysis.screenshotUrl ?? '',
     session: analysis.session ?? '',
     symbol: analysis.symbol ?? '',
+    tags: analysis.tags,
     timeframe: analysis.timeframe ?? '',
   };
 }
@@ -164,6 +264,7 @@ function mapAnalysisFormToPayload(
     screenshot_url: input.screenshot_url.trim() || null,
     session: input.session.trim() || null,
     symbol: input.symbol.trim() ? input.symbol.trim().toUpperCase() : null,
+    tags: normalizeAnalysisTags(input.tags),
     timeframe: input.timeframe.trim() || null,
     user_id: userId,
   };
@@ -202,6 +303,7 @@ export function getAnalysisSearchText(analysis: AnalysisView) {
     analysis.entryPlan ?? '',
     analysis.invalidation ?? '',
     analysis.notes ?? '',
+    analysis.tags.join(' '),
   ]
     .join(' ')
     .toLowerCase();
@@ -215,4 +317,60 @@ export function getAnalysisPreview(analysis: AnalysisView) {
     analysis.notes ??
     EMPTY_VALUE
   );
+}
+
+export function createAnalysisShareToken() {
+  const bytes = new Uint8Array(24);
+
+  if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+    crypto.getRandomValues(bytes);
+  } else {
+    for (let index = 0; index < bytes.length; index += 1) {
+      bytes[index] = Math.floor(Math.random() * 256);
+    }
+  }
+
+  return btoa(String.fromCharCode(...bytes))
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/g, '');
+}
+
+export function buildAnalysisSharePath(token: string) {
+  return `/share/analysis/${token}`;
+}
+
+export function buildAnalysisShareUrl(token: string) {
+  const path = buildAnalysisSharePath(token);
+
+  if (typeof window === 'undefined') {
+    return path;
+  }
+
+  return `${window.location.origin}${path}`;
+}
+
+export function normalizePublicSharedAnalysis(
+  row: PublicSharedAnalysisRow,
+): PublicSharedAnalysisView {
+  return {
+    analysisDate: cleanText(row.analysis_date),
+    authorDisplayName: cleanText(row.author_display_name),
+    authorUsername: cleanText(row.author_username),
+    bias: cleanText(row.bias),
+    confluences: cleanText(row.confluences),
+    createdAt: cleanText(row.created_at),
+    entryPlan: cleanText(row.entry_plan),
+    invalidation: cleanText(row.invalidation),
+    keyLevels: cleanText(row.key_levels),
+    liquidityNotes: cleanText(row.liquidity_notes),
+    marketContext: cleanText(row.market_context),
+    notes: cleanText(row.notes),
+    screenshotUrl: cleanText(row.screenshot_url),
+    session: cleanText(row.session),
+    shareUpdatedAt: cleanText(row.share_updated_at),
+    symbol: cleanText(row.symbol)?.toUpperCase() ?? null,
+    tags: normalizeAnalysisTags(row.tags),
+    timeframe: cleanText(row.timeframe),
+  };
 }

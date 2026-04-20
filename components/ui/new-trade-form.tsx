@@ -451,14 +451,6 @@ export default function NewTradeForm({
       await new Promise((resolve) => window.setTimeout(resolve, 180));
       router.replace('/dashboard');
     } catch (error) {
-      console.error('Trade save failed', {
-        error,
-        isEditMode,
-        payload: values,
-        tradeId,
-        userId: user.id,
-      });
-
       const resolvedError = getTradeSaveError(error);
 
       if (resolvedError.field) {

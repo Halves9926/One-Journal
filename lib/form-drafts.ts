@@ -42,6 +42,17 @@ export function readFormDraft<T extends Record<string, unknown>>(
 
         continue;
       }
+
+      if (Array.isArray(defaultValue)) {
+        if (
+          Array.isArray(candidateValue) &&
+          candidateValue.every((item) => typeof item === 'string')
+        ) {
+          nextValues[key] = candidateValue as T[keyof T];
+        }
+
+        continue;
+      }
     }
 
     return nextValues;

@@ -834,6 +834,7 @@ export default function DashboardView() {
                             compact
                             editHref={`/analyses/${entry.value.id}/edit`}
                             onDelete={handleDeleteAnalysis}
+                            onShareUpdated={analysesState.refresh}
                           />
                         )
                       ))}

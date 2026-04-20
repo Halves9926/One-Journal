@@ -2,25 +2,14 @@
 
 import { useMemo, useState } from 'react';
 
-import {
-  DistributionAnalyticsCard,
-  DrawdownCurveAnalyticsCard,
-  DurationScatterAnalyticsCard,
-  EquityCurveAnalyticsCard,
-  LongShortAnalyticsCard,
-  PnlByDayAnalyticsCard,
-  RecentTrendAnalyticsCard,
-  SessionPerformanceAnalyticsCard,
-  SymbolWinRateAnalyticsCard,
-  WeekdayPerformanceAnalyticsCard,
-} from '@/components/ui/analytics-charts';
 import { useAccounts } from '@/components/ui/accounts-provider';
+import { AnalyticsLayoutWorkspace } from '@/components/ui/analytics-layout-workspace';
 import AuthRequired from '@/components/ui/auth-required';
 import { useAuth } from '@/components/ui/auth-provider';
 import { Button, ButtonLink } from '@/components/ui/button';
-import { InputField, MessageBanner, SelectField } from '@/components/ui/form-fields';
+import { MessageBanner } from '@/components/ui/form-fields';
 import PageShell from '@/components/ui/page-shell';
-import { MetricCard, Panel, PanelHeader } from '@/components/ui/panel';
+import { Panel, PanelHeader } from '@/components/ui/panel';
 import { Reveal } from '@/components/ui/reveal';
 import { useUserTrades } from '@/components/ui/use-user-trades';
 import {
@@ -29,46 +18,66 @@ import {
   describeAnalyticsRange,
   enrichTradesForAnalytics,
   filterAnalyticsTrades,
-  formatBreakdownSummary,
-  formatHoldingTime,
-  formatRatioMetric,
   getAnalyticsEmptyMessage,
 } from '@/lib/analytics';
-import {
-  formatCompactNumber,
-  formatCurrency,
-  formatPnl,
-  getPnlCardClassName,
-  getPnlTextClassName,
-} from '@/lib/trades';
 import { cx } from '@/lib/utils';
 
-function AnalyticsMiniMetric({
-  label,
-  value,
-  caption,
-  valueClassName,
-}: {
-  caption?: string;
-  label: string;
-  value: string;
-  valueClassName?: string;
-}) {
+type AnalyticsFilterKey =
+  | 'account'
+  | 'dateFrom'
+  | 'dateTo'
+  | 'direction'
+  | 'session'
+  | 'strategy'
+  | 'symbol';
+
+const analyticsFilterOrder: AnalyticsFilterKey[] = [
+  'account',
+  'dateFrom',
+  'dateTo',
+  'symbol',
+  'session',
+  'direction',
+  'strategy',
+];
+
+const analyticsFilterLabels: Record<AnalyticsFilterKey, string> = {
+  account: 'Account',
+  dateFrom: 'Date from',
+  dateTo: 'Date to',
+  direction: 'Direction',
+  session: 'Session',
+  strategy: 'Strategy',
+  symbol: 'Symbol',
+};
+
+function AddFilterIcon({ className }: { className?: string }) {
   return (
-    <div className="rounded-[24px] border border-[color:var(--border-color)] bg-[linear-gradient(180deg,var(--surface-raised),var(--surface))] px-4 py-4 shadow-[0_18px_38px_-30px_var(--shadow-color)]">
-      <p className="text-xs uppercase tracking-[0.24em] text-[var(--muted)]">{label}</p>
-      <p
-        className={cx(
-          'mt-3 text-2xl font-semibold tracking-tight text-[var(--foreground)]',
-          valueClassName,
-        )}
-      >
-        {value}
-      </p>
-      {caption ? (
-        <p className="mt-2 text-sm leading-6 text-[var(--muted)]">{caption}</p>
-      ) : null}
-    </div>
+    <svg
+      aria-hidden="true"
+      className={className}
+      fill="none"
+      viewBox="0 0 20 20"
+      stroke="currentColor"
+      strokeWidth="1.8"
+    >
+      <path d="M10 4v12M4 10h12" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function FilterCloseIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      aria-hidden="true"
+      className={className}
+      fill="none"
+      viewBox="0 0 20 20"
+      stroke="currentColor"
+      strokeWidth="1.8"
+    >
+      <path d="m5 5 10 10M15 5 5 15" strokeLinecap="round" />
+    </svg>
   );
 }
 
@@ -112,9 +121,11 @@ export default function AnalyticsView() {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [direction, setDirection] = useState('all');
+  const [filterMenuOpen, setFilterMenuOpen] = useState(false);
   const [session, setSession] = useState('all');
   const [strategy, setStrategy] = useState('all');
   const [symbol, setSymbol] = useState('all');
+  const [visibleFilterKeys, setVisibleFilterKeys] = useState<AnalyticsFilterKey[]>([]);
 
   const analyticsTrades = useMemo(
     () => enrichTradesForAnalytics(tradesState.items),
@@ -195,15 +206,257 @@ export default function AnalyticsView() {
       : selectedAccount?.type ?? activeAccount?.type ?? 'Account-aware analytics';
   const emptyMessage = getAnalyticsEmptyMessage(analytics.totalTrades);
   const limitedSample = analytics.totalTrades > 0 && analytics.totalTrades < 5;
+  const activeFilterKeys = useMemo(() => {
+    const keys: AnalyticsFilterKey[] = [];
+
+    if (accountScope !== 'active') {
+      keys.push('account');
+    }
+
+    if (dateFrom) {
+      keys.push('dateFrom');
+    }
+
+    if (dateTo) {
+      keys.push('dateTo');
+    }
+
+    if (resolvedSymbol !== 'all') {
+      keys.push('symbol');
+    }
+
+    if (resolvedSession !== 'all') {
+      keys.push('session');
+    }
+
+    if (resolvedDirection !== 'all') {
+      keys.push('direction');
+    }
+
+    if (resolvedStrategy !== 'all') {
+      keys.push('strategy');
+    }
+
+    return keys;
+  }, [
+    accountScope,
+    dateFrom,
+    dateTo,
+    resolvedDirection,
+    resolvedSession,
+    resolvedStrategy,
+    resolvedSymbol,
+  ]);
+  const renderedFilterKeys = useMemo(() => {
+    const visibleKeys = new Set<AnalyticsFilterKey>([
+      ...visibleFilterKeys,
+      ...activeFilterKeys,
+    ]);
+
+    return analyticsFilterOrder.filter((filterKey) => visibleKeys.has(filterKey));
+  }, [activeFilterKeys, visibleFilterKeys]);
+  const hasActiveFilters = activeFilterKeys.length > 0;
+  const accountSelectValue =
+    accountScope === 'active' ||
+    accountScope === 'all' ||
+    accounts.some((account) => account.id === accountScope)
+      ? accountScope
+      : 'all';
+  const availableFilterKeys = analyticsFilterOrder.filter(
+    (filterKey) => !renderedFilterKeys.includes(filterKey),
+  );
 
   function resetFilters() {
     setAccountScope('active');
     setDateFrom('');
     setDateTo('');
     setDirection('all');
+    setFilterMenuOpen(false);
     setSession('all');
     setStrategy('all');
     setSymbol('all');
+    setVisibleFilterKeys([]);
+  }
+
+  function addVisibleFilter(filterKey: AnalyticsFilterKey) {
+    setVisibleFilterKeys((currentKeys) =>
+      currentKeys.includes(filterKey) ? currentKeys : [...currentKeys, filterKey],
+    );
+    setFilterMenuOpen(false);
+  }
+
+  function resetFilter(filterKey: AnalyticsFilterKey) {
+    switch (filterKey) {
+      case 'account':
+        setAccountScope('active');
+        break;
+      case 'dateFrom':
+        setDateFrom('');
+        break;
+      case 'dateTo':
+        setDateTo('');
+        break;
+      case 'direction':
+        setDirection('all');
+        break;
+      case 'session':
+        setSession('all');
+        break;
+      case 'strategy':
+        setStrategy('all');
+        break;
+      case 'symbol':
+        setSymbol('all');
+        break;
+    }
+
+    setVisibleFilterKeys((currentKeys) =>
+      currentKeys.filter((currentKey) => currentKey !== filterKey),
+    );
+  }
+
+  function renderFilterControl(filterKey: AnalyticsFilterKey) {
+    const closeButton = (
+      <button
+        aria-label={`Remove ${analyticsFilterLabels[filterKey]} filter`}
+        className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[var(--muted)] transition duration-150 hover:bg-[var(--surface-raised)] hover:text-[var(--foreground)]"
+        type="button"
+        onClick={() => resetFilter(filterKey)}
+      >
+        <FilterCloseIcon className="h-3.5 w-3.5" />
+      </button>
+    );
+    const chipClassName =
+      'flex min-h-11 max-w-full items-center gap-2 rounded-full border border-[color:var(--border-color)] bg-[var(--surface)] px-3 py-1.5 shadow-[0_14px_32px_-30px_var(--shadow-color)]';
+    const labelClassName =
+      'shrink-0 font-mono text-[10px] uppercase tracking-[0.2em] text-[var(--muted)]';
+    const controlClassName =
+      'min-w-0 bg-transparent text-sm font-medium text-[var(--foreground)] outline-none placeholder:text-[var(--muted)] focus:text-[var(--foreground)]';
+
+    switch (filterKey) {
+      case 'account':
+        return (
+          <div key={filterKey} className={cx(chipClassName, 'w-full sm:w-auto')}>
+            <span className={labelClassName}>Account</span>
+            <select
+              className={cx(controlClassName, 'max-w-full flex-1 sm:w-[170px]')}
+              value={accountSelectValue}
+              onChange={(event) => setAccountScope(event.target.value || 'active')}
+            >
+              <option value="active">Active account</option>
+              <option value="all">All accounts</option>
+              {accounts.map((account) => (
+                <option key={account.id} value={account.id}>
+                  {account.name}
+                </option>
+              ))}
+            </select>
+            {closeButton}
+          </div>
+        );
+      case 'dateFrom':
+        return (
+          <div key={filterKey} className={cx(chipClassName, 'w-full sm:w-auto')}>
+            <span className={labelClassName}>From</span>
+            <input
+              className={cx(controlClassName, 'min-w-[135px] flex-1 sm:w-[140px]')}
+              type="date"
+              value={dateFrom}
+              onChange={(event) => setDateFrom(event.target.value)}
+            />
+            {closeButton}
+          </div>
+        );
+      case 'dateTo':
+        return (
+          <div key={filterKey} className={cx(chipClassName, 'w-full sm:w-auto')}>
+            <span className={labelClassName}>To</span>
+            <input
+              className={cx(controlClassName, 'min-w-[135px] flex-1 sm:w-[140px]')}
+              type="date"
+              value={dateTo}
+              onChange={(event) => setDateTo(event.target.value)}
+            />
+            {closeButton}
+          </div>
+        );
+      case 'symbol':
+        return (
+          <div key={filterKey} className={cx(chipClassName, 'w-full sm:w-auto')}>
+            <span className={labelClassName}>Symbol</span>
+            <select
+              className={cx(controlClassName, 'max-w-full flex-1 sm:w-[140px]')}
+              value={resolvedSymbol}
+              onChange={(event) => setSymbol(event.target.value)}
+            >
+              <option value="all">All symbols</option>
+              {filterOptions.symbols.map((currentSymbol) => (
+                <option key={currentSymbol} value={currentSymbol}>
+                  {currentSymbol}
+                </option>
+              ))}
+            </select>
+            {closeButton}
+          </div>
+        );
+      case 'session':
+        return (
+          <div key={filterKey} className={cx(chipClassName, 'w-full sm:w-auto')}>
+            <span className={labelClassName}>Session</span>
+            <select
+              className={cx(controlClassName, 'max-w-full flex-1 sm:w-[150px]')}
+              value={resolvedSession}
+              onChange={(event) => setSession(event.target.value)}
+            >
+              <option value="all">All sessions</option>
+              {filterOptions.sessions.map((currentSession) => (
+                <option key={currentSession} value={currentSession}>
+                  {currentSession}
+                </option>
+              ))}
+            </select>
+            {closeButton}
+          </div>
+        );
+      case 'direction':
+        return (
+          <div key={filterKey} className={cx(chipClassName, 'w-full sm:w-auto')}>
+            <span className={labelClassName}>Direction</span>
+            <select
+              className={cx(controlClassName, 'max-w-full flex-1 sm:w-[145px]')}
+              value={resolvedDirection}
+              onChange={(event) => setDirection(event.target.value)}
+            >
+              <option value="all">All directions</option>
+              {filterOptions.directions.map((currentDirection) => (
+                <option key={currentDirection} value={currentDirection}>
+                  {currentDirection}
+                </option>
+              ))}
+            </select>
+            {closeButton}
+          </div>
+        );
+      case 'strategy':
+        return (
+          <div key={filterKey} className={cx(chipClassName, 'w-full sm:w-auto')}>
+            <span className={labelClassName}>Strategy</span>
+            <select
+              className={cx(controlClassName, 'max-w-full flex-1 sm:w-[155px]')}
+              value={resolvedStrategy}
+              onChange={(event) => setStrategy(event.target.value)}
+            >
+              <option value="all">All strategies</option>
+              {filterOptions.strategies.map((currentStrategy) => (
+                <option key={currentStrategy} value={currentStrategy}>
+                  {currentStrategy}
+                </option>
+              ))}
+            </select>
+            {closeButton}
+          </div>
+        );
+    }
   }
 
   if (authLoading || !supabase || accountsLoading) {
@@ -345,296 +598,95 @@ export default function AnalyticsView() {
         ) : null}
 
         <Reveal delay={0.04}>
-          <Panel className="overflow-hidden">
-            <PanelHeader
-              eyebrow="filters"
-              title="Refine the dataset"
-              description="Account, date, symbol, session, direction and strategy all update the analytics workspace in real time."
-              action={
-                <Button type="button" variant="secondary" size="md" onClick={resetFilters}>
-                  Reset filters
-                </Button>
-              }
-            />
-            <div className="grid gap-4 px-6 pb-6 sm:grid-cols-2 xl:grid-cols-4 sm:px-8 sm:pb-8">
-              <SelectField
-                label="Account"
-                value={accountScope}
-                onChange={(event) => setAccountScope(event.target.value || 'all')}
-              >
-                <option value="active">Active account</option>
-                <option value="all">All accounts</option>
-                {accounts.map((account) => (
-                  <option key={account.id} value={account.id}>
-                    {account.name}
-                  </option>
-                ))}
-              </SelectField>
+          <Panel className="overflow-visible">
+            <div className="px-6 py-5 sm:px-8">
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="relative">
+                  <Button
+                    aria-expanded={filterMenuOpen}
+                    aria-haspopup="menu"
+                    size="md"
+                    type="button"
+                    variant="secondary"
+                    onClick={() => setFilterMenuOpen((currentValue) => !currentValue)}
+                  >
+                    <AddFilterIcon className="h-4 w-4" />
+                    Add filter
+                  </Button>
+                  {filterMenuOpen ? (
+                    <div
+                      className="absolute left-0 top-[calc(100%+0.65rem)] z-30 w-[min(20rem,calc(100vw-3rem))] overflow-hidden rounded-[24px] border border-[color:var(--border-strong)] bg-[var(--surface-raised)] p-2 shadow-[0_26px_70px_-38px_var(--shadow-color)]"
+                      role="menu"
+                    >
+                      {availableFilterKeys.length > 0 ? (
+                        availableFilterKeys.map((filterKey) => (
+                          <button
+                            key={filterKey}
+                            className="flex w-full items-center justify-between gap-3 rounded-[18px] px-3 py-3 text-left text-sm font-medium text-[var(--foreground)] transition duration-150 hover:bg-[var(--surface)]"
+                            role="menuitem"
+                            type="button"
+                            onClick={() => addVisibleFilter(filterKey)}
+                          >
+                            {analyticsFilterLabels[filterKey]}
+                            <AddFilterIcon className="h-3.5 w-3.5 text-[var(--muted)]" />
+                          </button>
+                        ))
+                      ) : (
+                        <div className="px-3 py-3 text-sm text-[var(--muted)]">
+                          All filters are visible.
+                        </div>
+                      )}
+                    </div>
+                  ) : null}
+                </div>
 
-              <InputField
-                label="Date from"
-                type="date"
-                value={dateFrom}
-                onChange={(event) => setDateFrom(event.target.value)}
-              />
+                {renderedFilterKeys.map((filterKey) => renderFilterControl(filterKey))}
 
-              <InputField
-                label="Date to"
-                type="date"
-                value={dateTo}
-                onChange={(event) => setDateTo(event.target.value)}
-              />
+                {hasActiveFilters ? (
+                  <Button size="md" type="button" variant="ghost" onClick={resetFilters}>
+                    Reset
+                  </Button>
+                ) : null}
 
-              <SelectField
-                label="Symbol"
-                value={resolvedSymbol}
-                onChange={(event) => setSymbol(event.target.value)}
-              >
-                <option value="all">All symbols</option>
-                {filterOptions.symbols.map((symbol) => (
-                  <option key={symbol} value={symbol}>
-                    {symbol}
-                  </option>
-                ))}
-              </SelectField>
-
-              <SelectField
-                label="Session"
-                value={resolvedSession}
-                onChange={(event) => setSession(event.target.value)}
-              >
-                <option value="all">All sessions</option>
-                {filterOptions.sessions.map((session) => (
-                  <option key={session} value={session}>
-                    {session}
-                  </option>
-                ))}
-              </SelectField>
-
-              <SelectField
-                label="Direction"
-                value={resolvedDirection}
-                onChange={(event) => setDirection(event.target.value)}
-              >
-                <option value="all">All directions</option>
-                {filterOptions.directions.map((direction) => (
-                  <option key={direction} value={direction}>
-                    {direction}
-                  </option>
-                ))}
-              </SelectField>
-
-              <SelectField
-                label="Strategy"
-                value={resolvedStrategy}
-                onChange={(event) => setStrategy(event.target.value)}
-              >
-                <option value="all">All strategies</option>
-                {filterOptions.strategies.map((strategy) => (
-                  <option key={strategy} value={strategy}>
-                    {strategy}
-                  </option>
-                ))}
-              </SelectField>
-
-              <div className="rounded-[26px] border border-[color:var(--border-color)] bg-[linear-gradient(180deg,var(--surface-raised),var(--surface))] px-5 py-5 shadow-[0_18px_42px_-34px_var(--shadow-color)]">
-                <p className="text-xs uppercase tracking-[0.24em] text-[var(--muted)]">
-                  Live scope
-                </p>
-                <p className="mt-3 text-2xl font-semibold tracking-tight text-[var(--foreground)]">
-                  {analytics.totalTrades}
-                </p>
-                <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
-                  Filtered trades powering metrics, charts and insights.
-                </p>
+                <span className="rounded-full border border-[color:var(--border-color)] bg-[var(--surface)] px-3 py-2 text-xs text-[var(--muted-strong)]">
+                  {analytics.totalTrades} matched
+                </span>
               </div>
             </div>
           </Panel>
         </Reveal>
 
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        {analytics.totalTrades === 0 ? (
           <Reveal delay={0.06}>
-            <MetricCard
-              label="Total trades"
-              value={String(analytics.totalTrades)}
-              caption="sample size inside current filters"
-              tone="neutral"
-            />
-          </Reveal>
-          <Reveal delay={0.08}>
-            <MetricCard
-              label="Win rate"
-              value={
-                analytics.summary.winRate === null
-                  ? '--'
-                  : `${formatCompactNumber(analytics.summary.winRate, 0)}%`
-              }
-              caption={`${analytics.summary.wins} wins / ${analytics.summary.losses} losses`}
-              tone="success"
-            />
-          </Reveal>
-          <Reveal delay={0.1}>
-            <MetricCard
-              label="Net PnL"
-              value={formatPnl(analytics.summary.netPnl, 0)}
-              caption="aggregate result"
-              tone={analytics.summary.netPnl < 0 ? 'danger' : 'accent'}
-              className={getPnlCardClassName(analytics.summary.netPnl)}
-              valueClassName={getPnlTextClassName(analytics.summary.netPnl)}
-            />
-          </Reveal>
-          <Reveal delay={0.12}>
-            <MetricCard
-              label="Average RR"
-              value={formatRatioMetric(analytics.summary.avgRr, 2)}
-              caption="risk to reward captured"
-              tone="neutral"
-            />
-          </Reveal>
-          <Reveal delay={0.14}>
-            <MetricCard
-              label="Profit factor"
-              value={formatRatioMetric(analytics.profitFactor, 2)}
-              caption="gross wins vs gross losses"
-              tone="neutral"
-            />
-          </Reveal>
-          <Reveal delay={0.16}>
-            <MetricCard
-              label="Expectancy"
-              value={formatPnl(analytics.expectancy, 0)}
-              caption="average outcome per trade"
-              tone={((analytics.expectancy ?? 0) < 0) ? 'danger' : 'accent'}
-              className={getPnlCardClassName(analytics.expectancy)}
-              valueClassName={getPnlTextClassName(analytics.expectancy)}
-            />
-          </Reveal>
-        </div>
-
-        <div className="grid gap-4 xl:grid-cols-[1.2fr_1fr_1fr]">
-          <Reveal delay={0.18}>
-            <Panel className="overflow-hidden p-6 sm:p-7">
-              <div>
-                <p className="font-mono text-[11px] uppercase tracking-[0.28em] text-[var(--muted)]">
-                  trade quality
-                </p>
-                <h2 className="mt-3 text-2xl font-semibold tracking-tight text-[var(--foreground)]">
-                  Outcomes and edge quality
-                </h2>
-              </div>
-              <div className="mt-5 grid gap-3 sm:grid-cols-2">
-                <AnalyticsMiniMetric
-                  label="Average win"
-                  value={formatPnl(analytics.summary.avgWin, 0)}
-                  valueClassName={getPnlTextClassName(analytics.summary.avgWin)}
-                />
-                <AnalyticsMiniMetric
-                  label="Average loss"
-                  value={formatPnl(analytics.summary.avgLoss, 0)}
-                  valueClassName={getPnlTextClassName(analytics.summary.avgLoss)}
-                />
-                <AnalyticsMiniMetric
-                  label="Best trade"
-                  value={formatPnl(analytics.summary.bestTrade, 0)}
-                  valueClassName={getPnlTextClassName(analytics.summary.bestTrade)}
-                />
-                <AnalyticsMiniMetric
-                  label="Worst trade"
-                  value={formatPnl(analytics.summary.worstTrade, 0)}
-                  valueClassName={getPnlTextClassName(analytics.summary.worstTrade)}
-                />
-                <AnalyticsMiniMetric
-                  label="Breakeven"
-                  value={String(analytics.breakevenCount)}
-                  caption="flat outcomes"
-                />
-                <AnalyticsMiniMetric
-                  label="Risk average"
-                  value={formatRatioMetric(analytics.riskAverage, 2)}
-                  caption="average risk field value"
-                />
-              </div>
+            <Panel className="overflow-hidden">
+              <PanelHeader
+                eyebrow="empty"
+                title="No analytics in this scope yet"
+                description={emptyMessage ?? 'No trades available for the current filter combination.'}
+                action={
+                  <div className="flex flex-col gap-3 sm:flex-row">
+                    <ButtonLink href="/trades/new" size="lg" variant="primary">
+                      Add Trade
+                    </ButtonLink>
+                    <Button type="button" size="lg" variant="secondary" onClick={resetFilters}>
+                      Reset filters
+                    </Button>
+                  </div>
+                }
+              />
             </Panel>
           </Reveal>
+        ) : null}
 
-          <Reveal delay={0.2}>
-            <Panel className="overflow-hidden p-6 sm:p-7">
-              <div>
-                <p className="font-mono text-[11px] uppercase tracking-[0.28em] text-[var(--muted)]">
-                  risk
-                </p>
-                <h2 className="mt-3 text-2xl font-semibold tracking-tight text-[var(--foreground)]">
-                  Drawdown and streaks
-                </h2>
-              </div>
-              <div className="mt-5 grid gap-3">
-                <AnalyticsMiniMetric
-                  label="Max drawdown"
-                  value={formatCurrency(analytics.maxDrawdown, 0)}
-                />
-                <AnalyticsMiniMetric
-                  label="Current drawdown"
-                  value={formatCurrency(analytics.currentDrawdown, 0)}
-                />
-                <AnalyticsMiniMetric
-                  label="Longest win streak"
-                  value={String(analytics.longestWinStreak)}
-                  caption="consecutive wins"
-                />
-                <AnalyticsMiniMetric
-                  label="Longest loss streak"
-                  value={String(analytics.longestLossStreak)}
-                  caption="consecutive losses"
-                />
-                <AnalyticsMiniMetric
-                  label="Average holding"
-                  value={formatHoldingTime(analytics.averageHoldingMinutes)}
-                  caption={`${analytics.holdingTradesCount} timed trades`}
-                />
-              </div>
-            </Panel>
-          </Reveal>
-
-          <Reveal delay={0.22}>
-            <Panel className="overflow-hidden p-6 sm:p-7">
-              <div>
-                <p className="font-mono text-[11px] uppercase tracking-[0.28em] text-[var(--muted)]">
-                  edges
-                </p>
-                <h2 className="mt-3 text-2xl font-semibold tracking-tight text-[var(--foreground)]">
-                  Best and worst pockets
-                </h2>
-              </div>
-              <div className="mt-5 grid gap-3">
-                <AnalyticsMiniMetric
-                  label="Best day"
-                  value={analytics.mostProfitableDay?.label ?? '--'}
-                  caption={formatBreakdownSummary(analytics.mostProfitableDay)}
-                />
-                <AnalyticsMiniMetric
-                  label="Worst day"
-                  value={analytics.worstDay?.label ?? '--'}
-                  caption={formatBreakdownSummary(analytics.worstDay)}
-                />
-                <AnalyticsMiniMetric
-                  label="Best session"
-                  value={analytics.mostProfitableSession?.label ?? '--'}
-                  caption={formatBreakdownSummary(analytics.mostProfitableSession)}
-                />
-                <AnalyticsMiniMetric
-                  label="Best symbol"
-                  value={analytics.bestSymbol?.label ?? '--'}
-                  caption={formatBreakdownSummary(analytics.bestSymbol)}
-                />
-                <AnalyticsMiniMetric
-                  label="Worst symbol"
-                  value={analytics.worstSymbol?.label ?? '--'}
-                  caption={formatBreakdownSummary(analytics.worstSymbol)}
-                />
-              </div>
-            </Panel>
-          </Reveal>
-        </div>
+        <Reveal delay={0.08}>
+          <AnalyticsLayoutWorkspace
+            analytics={analytics}
+            filters={filters}
+            scopeLabel={scopeLabel}
+            totalTradesAvailable={tradesState.items.length}
+            userId={user.id}
+          />
+        </Reveal>
 
         <Reveal delay={0.24}>
           <Panel className="overflow-hidden">
@@ -663,116 +715,6 @@ export default function AnalyticsView() {
           </Panel>
         </Reveal>
 
-        {analytics.totalTrades === 0 ? (
-          <Reveal delay={0.26}>
-            <Panel className="overflow-hidden">
-              <PanelHeader
-                eyebrow="empty"
-                title="No analytics in this scope yet"
-                description={emptyMessage ?? 'No trades available for the current filter combination.'}
-                action={
-                  <div className="flex flex-col gap-3 sm:flex-row">
-                    <ButtonLink href="/trades/new" size="lg" variant="primary">
-                      Add Trade
-                    </ButtonLink>
-                    <Button type="button" size="lg" variant="secondary" onClick={resetFilters}>
-                      Reset filters
-                    </Button>
-                  </div>
-                }
-              />
-            </Panel>
-          </Reveal>
-        ) : (
-          <div className="grid gap-4 xl:grid-cols-12">
-            <div className="xl:col-span-8">
-              <Reveal delay={0.26}>
-                <EquityCurveAnalyticsCard
-                  currentDrawdown={analytics.currentDrawdown}
-                  maxDrawdown={analytics.maxDrawdown}
-                  points={analytics.equityCurve}
-                />
-              </Reveal>
-            </div>
-            <div className="xl:col-span-4">
-              <Reveal delay={0.28}>
-                <DrawdownCurveAnalyticsCard
-                  currentDrawdown={analytics.currentDrawdown}
-                  maxDrawdown={analytics.maxDrawdown}
-                  points={analytics.drawdownCurve}
-                />
-              </Reveal>
-            </div>
-
-            <div className="xl:col-span-7">
-              <Reveal delay={0.3}>
-                <PnlByDayAnalyticsCard points={analytics.pnlByDay} />
-              </Reveal>
-            </div>
-            <div className="xl:col-span-5">
-              <Reveal delay={0.32}>
-                <RecentTrendAnalyticsCard points={analytics.recentTrend} />
-              </Reveal>
-            </div>
-
-            <div className="xl:col-span-6">
-              <Reveal delay={0.34}>
-                <SessionPerformanceAnalyticsCard items={analytics.pnlBySession} />
-              </Reveal>
-            </div>
-            <div className="xl:col-span-6">
-              <Reveal delay={0.36}>
-                <WeekdayPerformanceAnalyticsCard items={analytics.weekdayPerformance} />
-              </Reveal>
-            </div>
-
-            <div className="xl:col-span-6">
-              <Reveal delay={0.38}>
-                <SymbolWinRateAnalyticsCard items={analytics.winRateBySymbol} />
-              </Reveal>
-            </div>
-            <div className="xl:col-span-6">
-              <Reveal delay={0.4}>
-                <LongShortAnalyticsCard
-                  longStats={analytics.directionPerformance.long}
-                  shortStats={analytics.directionPerformance.short}
-                />
-              </Reveal>
-            </div>
-
-            <div className="xl:col-span-6">
-              <Reveal delay={0.42}>
-                <DistributionAnalyticsCard
-                  eyebrow="rr"
-                  title="RR distribution"
-                  caption="Trade count grouped by risk-reward buckets."
-                  items={analytics.rrDistribution}
-                  mode="rr"
-                />
-              </Reveal>
-            </div>
-            <div className="xl:col-span-6">
-              <Reveal delay={0.44}>
-                <DistributionAnalyticsCard
-                  eyebrow="distribution"
-                  title="PnL distribution"
-                  caption="Outcome dispersion across the filtered trade set."
-                  items={analytics.pnlDistribution}
-                  mode="pnl"
-                />
-              </Reveal>
-            </div>
-
-            <div className="xl:col-span-12">
-              <Reveal delay={0.46}>
-                <DurationScatterAnalyticsCard
-                  averageHoldingMinutes={analytics.averageHoldingMinutes}
-                  points={analytics.tradeDurationVsPnl}
-                />
-              </Reveal>
-            </div>
-          </div>
-        )}
       </div>
     </PageShell>
   );

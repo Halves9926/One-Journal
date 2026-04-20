@@ -79,6 +79,11 @@ export type AnalysisRow = {
   timeframe?: string | null;
   notes?: string | null;
   screenshot_url?: string | null;
+  share_enabled?: boolean | null;
+  share_token?: string | null;
+  share_created_at?: string | null;
+  share_updated_at?: string | null;
+  tags?: string[] | null;
   created_at?: string | null;
   updated_at?: string | null;
   [key: string]: unknown;
@@ -89,6 +94,24 @@ export type AnalysisInsert = Partial<Omit<AnalysisRow, 'id'>> & {
 };
 
 export type AnalysisUpdate = Partial<Omit<AnalysisInsert, 'user_id'>> & {
+  user_id?: string;
+};
+
+export type ProfileRow = {
+  user_id?: string | null;
+  username?: string | null;
+  display_name?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+  [key: string]: unknown;
+};
+
+export type ProfileInsert = Partial<Omit<ProfileRow, 'created_at' | 'updated_at'>> & {
+  user_id: string;
+  username: string;
+};
+
+export type ProfileUpdate = Partial<Omit<ProfileInsert, 'user_id'>> & {
   user_id?: string;
 };
 

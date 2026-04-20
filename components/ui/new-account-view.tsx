@@ -227,12 +227,6 @@ export default function NewAccountView({
     setIsSubmitting(false);
 
     if (result.error) {
-      console.error('Account save failed', {
-        accountId,
-        error: result.error,
-        isEditMode,
-        values,
-      });
       setToast({
         title: isEditMode ? 'Account save failed' : 'Account creation failed',
         message: result.error,

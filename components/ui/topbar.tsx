@@ -19,6 +19,7 @@ const navigationItems = [
   { href: '/accounts', label: 'Accounts' },
   { href: '/analyses', label: 'Analyses' },
   { href: '/trades/new', label: 'New Trade' },
+  { href: '/profile', label: 'Profile' },
   { href: '/settings', label: 'Settings' },
 ];
 
@@ -33,6 +34,7 @@ export default function Topbar() {
       item.href === '/accounts' ||
       item.href === '/analyses' ||
       item.href === '/trades/new' ||
+      item.href === '/profile' ||
       item.href === '/settings';
 
     return !isProtected || Boolean(user);
@@ -66,10 +68,14 @@ export default function Topbar() {
     };
   }, []);
 
+  if (pathname.startsWith('/share/')) {
+    return null;
+  }
+
   return (
     <div
       ref={topbarRef}
-      className="pointer-events-none fixed inset-x-0 top-0 z-40 px-3 pt-3 sm:px-5"
+      className="one-journal-topbar pointer-events-none fixed inset-x-0 top-0 z-40 px-3 pt-3 sm:px-5"
     >
       <div className="mx-auto flex max-w-7xl justify-center">
         <motion.header
