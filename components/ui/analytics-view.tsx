@@ -1,6 +1,7 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 
 import { useAccounts } from '@/components/ui/accounts-provider';
 import { AnalyticsLayoutWorkspace } from '@/components/ui/analytics-layout-workspace';
@@ -11,7 +12,9 @@ import { MessageBanner } from '@/components/ui/form-fields';
 import PageShell from '@/components/ui/page-shell';
 import { Panel, PanelHeader } from '@/components/ui/panel';
 import { Reveal } from '@/components/ui/reveal';
+import TradeCard from '@/components/ui/trade-card';
 import { useUserTrades } from '@/components/ui/use-user-trades';
+import { scopeRecordsToAccount } from '@/lib/account-scope';
 import {
   buildAnalyticsFilterOptions,
   buildAnalyticsSnapshot,
@@ -19,6 +22,7 @@ import {
   enrichTradesForAnalytics,
   filterAnalyticsTrades,
   getAnalyticsEmptyMessage,
+  type AnalyticsTrade,
 } from '@/lib/analytics';
 import { cx } from '@/lib/utils';
 
@@ -105,6 +109,169 @@ function buildAccountLabel(accountName: string | null) {
   return accountName ?? 'All accounts';
 }
 
+function AddFilterMenu({
+  availableFilterKeys,
+  onAdd,
+  onClose,
+  open,
+}: {
+  availableFilterKeys: AnalyticsFilterKey[];
+  onAdd: (filterKey: AnalyticsFilterKey) => void;
+  onClose: () => void;
+  open: boolean;
+}) {
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        onClose();
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [onClose, open]);
+
+  if (!open || typeof document === 'undefined') {
+    return null;
+  }
+
+  return createPortal(
+    <div className="fixed inset-0 z-[1000]">
+      <button
+        aria-label="Close filters menu"
+        className="absolute inset-0 cursor-default bg-transparent"
+        type="button"
+        onClick={onClose}
+      />
+      <div
+        className="absolute left-4 top-[calc(var(--topbar-offset,8rem)+1rem)] w-[min(20rem,calc(100vw-2rem))] overflow-hidden rounded-[24px] border border-[color:var(--border-strong)] bg-[var(--surface-raised)] p-2 shadow-[0_26px_70px_-38px_var(--shadow-color)] sm:left-8"
+        role="menu"
+      >
+        {availableFilterKeys.length > 0 ? (
+          availableFilterKeys.map((filterKey) => (
+            <button
+              key={filterKey}
+              className="flex w-full items-center justify-between gap-3 rounded-[18px] px-3 py-3 text-left text-sm font-medium text-[var(--foreground)] transition duration-150 hover:bg-[var(--surface)]"
+              role="menuitem"
+              type="button"
+              onClick={() => onAdd(filterKey)}
+            >
+              {analyticsFilterLabels[filterKey]}
+              <AddFilterIcon className="h-3.5 w-3.5 text-[var(--muted)]" />
+            </button>
+          ))
+        ) : (
+          <div className="px-3 py-3 text-sm text-[var(--muted)]">
+            All filters are visible.
+          </div>
+        )}
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
+function AllMatchedTradesDrawer({
+  onClose,
+  open,
+  trades,
+}: {
+  onClose: () => void;
+  open: boolean;
+  trades: AnalyticsTrade[];
+}) {
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    const previousOverflow = document.body.style.overflow;
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        onClose();
+      }
+    }
+
+    document.body.style.overflow = 'hidden';
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [onClose, open]);
+
+  if (!open || typeof document === 'undefined') {
+    return null;
+  }
+
+  return createPortal(
+    <div className="fixed inset-0 z-[1000] flex items-end justify-center overflow-hidden px-3 py-4 sm:items-center sm:px-6">
+      <button
+        aria-label="Close all matched trades"
+        className="absolute inset-0 bg-black/45 backdrop-blur-sm"
+        type="button"
+        onClick={onClose}
+      />
+      <div
+        aria-modal="true"
+        className="relative z-10 flex max-h-[calc(100vh-2rem)] w-full max-w-6xl flex-col overflow-hidden rounded-[32px] border border-[color:var(--border-strong)] bg-[linear-gradient(180deg,var(--surface-raised),var(--surface))] shadow-[0_34px_90px_-36px_rgba(0,0,0,0.48)]"
+        role="dialog"
+      >
+        <div className="flex items-start justify-between gap-4 border-b border-[color:var(--border-color)] px-5 py-5 sm:px-6">
+          <div>
+            <p className="font-mono text-[11px] uppercase tracking-[0.32em] text-[var(--accent-text)]">
+              Filtered results
+            </p>
+            <h2 className="mt-2 text-2xl font-semibold tracking-tight text-[var(--foreground)]">
+              All matched trades
+            </h2>
+            <p className="mt-2 text-sm text-[var(--muted)]">
+              Showing {trades.length} matched trade{trades.length === 1 ? '' : 's'}.
+            </p>
+          </div>
+          <button
+            aria-label="Close"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-[color:var(--border-color)] bg-[var(--surface)] text-[var(--muted-strong)] transition hover:border-[color:var(--border-strong)] hover:text-[var(--foreground)]"
+            type="button"
+            onClick={onClose}
+          >
+            <FilterCloseIcon className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
+          {trades.length > 0 ? (
+            <div className="grid gap-4">
+              {trades.map((trade, index) => (
+                <TradeCard
+                  key={`analytics-all-trade-${trade.id}`}
+                  trade={trade}
+                  index={index}
+                  compact
+                  editHref={`/trades/${trade.id}/edit`}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="rounded-[26px] border border-dashed border-[color:var(--border-color)] bg-[var(--surface)] px-5 py-6 text-sm text-[var(--muted)]">
+              No trades match the current filters.
+            </div>
+          )}
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
 export default function AnalyticsView() {
   const { loading: authLoading, supabase, user } = useAuth();
   const {
@@ -117,7 +284,7 @@ export default function AnalyticsView() {
     enabled: Boolean(user),
     limit: null,
   });
-  const [accountScope, setAccountScope] = useState<'active' | 'all' | string>('active');
+  const [accountScope, setAccountScope] = useState<'active' | 'all' | string>('all');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [direction, setDirection] = useState('all');
@@ -125,6 +292,8 @@ export default function AnalyticsView() {
   const [session, setSession] = useState('all');
   const [strategy, setStrategy] = useState('all');
   const [symbol, setSymbol] = useState('all');
+  const [matchedTradesDrawerOpen, setMatchedTradesDrawerOpen] = useState(false);
+  const [matchedTradesVisibleCount, setMatchedTradesVisibleCount] = useState(3);
   const [visibleFilterKeys, setVisibleFilterKeys] = useState<AnalyticsFilterKey[]>([]);
 
   const analyticsTrades = useMemo(
@@ -137,13 +306,23 @@ export default function AnalyticsView() {
       : accountScope === 'all'
         ? null
         : accountScope;
-  const accountScopedTrades = useMemo(
+  const accountScopeResult = useMemo(
     () =>
       resolvedAccountId
-        ? analyticsTrades.filter((trade) => trade.accountId === resolvedAccountId)
-        : analyticsTrades,
+        ? scopeRecordsToAccount(analyticsTrades, resolvedAccountId, {
+            fallbackToAllWhenEmpty: true,
+            includeUnassigned: true,
+          })
+        : {
+            items: analyticsTrades,
+            usedFallback: false,
+          },
     [analyticsTrades, resolvedAccountId],
   );
+  const accountScopedTrades = accountScopeResult.items;
+  const effectiveAccountFilterId = accountScopeResult.usedFallback
+    ? null
+    : resolvedAccountId;
   const filterOptions = useMemo(
     () => buildAnalyticsFilterOptions(accountScopedTrades),
     [accountScopedTrades],
@@ -164,7 +343,7 @@ export default function AnalyticsView() {
     symbol === 'all' || filterOptions.symbols.includes(symbol) ? symbol : 'all';
   const filters = useMemo(
     () => ({
-      accountId: resolvedAccountId,
+      accountId: effectiveAccountFilterId,
       dateFrom,
       dateTo,
       direction: resolvedDirection,
@@ -175,7 +354,7 @@ export default function AnalyticsView() {
     [
       dateFrom,
       dateTo,
-      resolvedAccountId,
+      effectiveAccountFilterId,
       resolvedDirection,
       resolvedSession,
       resolvedStrategy,
@@ -195,6 +374,7 @@ export default function AnalyticsView() {
     () => buildAnalyticsSnapshot(filteredTrades),
     [filteredTrades],
   );
+  const visibleFilteredTrades = filteredTrades.slice(0, matchedTradesVisibleCount);
   const selectedAccount = accounts.find((account) => account.id === resolvedAccountId) ?? null;
   const scopeLabel =
     accountScope === 'all'
@@ -266,8 +446,12 @@ export default function AnalyticsView() {
     (filterKey) => !renderedFilterKeys.includes(filterKey),
   );
 
+  useEffect(() => {
+    setMatchedTradesVisibleCount(3);
+  }, [filters]);
+
   function resetFilters() {
-    setAccountScope('active');
+    setAccountScope('all');
     setDateFrom('');
     setDateTo('');
     setDirection('all');
@@ -557,7 +741,7 @@ export default function AnalyticsView() {
                   {analytics.totalTrades}
                 </p>
                 <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
-                  {tradesState.items.length} trades available across the journal.
+                  {tradesState.items.length} trades in the current journal view.
                 </p>
               </div>
               <div className="rounded-[26px] border border-[color:var(--border-color)] bg-[linear-gradient(180deg,var(--surface-raised),var(--surface))] px-5 py-5 shadow-[0_24px_48px_-34px_var(--shadow-color)]">
@@ -613,31 +797,6 @@ export default function AnalyticsView() {
                     <AddFilterIcon className="h-4 w-4" />
                     Add filter
                   </Button>
-                  {filterMenuOpen ? (
-                    <div
-                      className="absolute left-0 top-[calc(100%+0.65rem)] z-30 w-[min(20rem,calc(100vw-3rem))] overflow-hidden rounded-[24px] border border-[color:var(--border-strong)] bg-[var(--surface-raised)] p-2 shadow-[0_26px_70px_-38px_var(--shadow-color)]"
-                      role="menu"
-                    >
-                      {availableFilterKeys.length > 0 ? (
-                        availableFilterKeys.map((filterKey) => (
-                          <button
-                            key={filterKey}
-                            className="flex w-full items-center justify-between gap-3 rounded-[18px] px-3 py-3 text-left text-sm font-medium text-[var(--foreground)] transition duration-150 hover:bg-[var(--surface)]"
-                            role="menuitem"
-                            type="button"
-                            onClick={() => addVisibleFilter(filterKey)}
-                          >
-                            {analyticsFilterLabels[filterKey]}
-                            <AddFilterIcon className="h-3.5 w-3.5 text-[var(--muted)]" />
-                          </button>
-                        ))
-                      ) : (
-                        <div className="px-3 py-3 text-sm text-[var(--muted)]">
-                          All filters are visible.
-                        </div>
-                      )}
-                    </div>
-                  ) : null}
                 </div>
 
                 {renderedFilterKeys.map((filterKey) => renderFilterControl(filterKey))}
@@ -655,6 +814,97 @@ export default function AnalyticsView() {
             </div>
           </Panel>
         </Reveal>
+
+        <AddFilterMenu
+          availableFilterKeys={availableFilterKeys}
+          onAdd={addVisibleFilter}
+          onClose={() => setFilterMenuOpen(false)}
+          open={filterMenuOpen}
+        />
+
+        <Reveal delay={0.05}>
+          <Panel className="overflow-hidden">
+            <PanelHeader
+              eyebrow="trades"
+              title="Matched trades"
+              description={`Showing ${Math.min(visibleFilteredTrades.length, filteredTrades.length)} of ${filteredTrades.length} matched trade${filteredTrades.length === 1 ? '' : 's'}.`}
+              action={
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <Button
+                    disabled={filteredTrades.length === 0}
+                    size="lg"
+                    type="button"
+                    variant="secondary"
+                    onClick={() => setMatchedTradesDrawerOpen(true)}
+                  >
+                    See all trades
+                  </Button>
+                  <ButtonLink href="/trades/new" size="lg" variant="secondary">
+                    Add Trade
+                  </ButtonLink>
+                </div>
+              }
+            />
+            <div className="px-6 pb-6 pt-2 sm:px-8 sm:pb-8">
+              {tradesState.loading ? (
+                <div className="rounded-[24px] border border-[color:var(--border-color)] bg-[var(--surface)] px-4 py-5 text-sm text-[var(--muted)]">
+                  Loading trades...
+                </div>
+              ) : null}
+
+              {!tradesState.loading && !tradesState.error && visibleFilteredTrades.length === 0 ? (
+                <div className="rounded-[26px] border border-dashed border-[color:var(--border-color)] bg-[var(--surface)] px-5 py-6 text-sm leading-7 text-[var(--muted)]">
+                  No trades match the current analytics filters.
+                </div>
+              ) : null}
+
+              {!tradesState.loading && !tradesState.error && visibleFilteredTrades.length > 0 ? (
+                <>
+                  <div className="grid gap-4">
+                    {visibleFilteredTrades.map((trade, index) => (
+                      <TradeCard
+                        key={`analytics-trade-${trade.id}`}
+                        trade={trade}
+                        index={index}
+                        compact
+                        editHref={`/trades/${trade.id}/edit`}
+                        variant="stacked"
+                      />
+                    ))}
+                  </div>
+                  {visibleFilteredTrades.length < filteredTrades.length ? (
+                    <div className="mt-5 flex flex-col gap-2 sm:flex-row">
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        onClick={() =>
+                          setMatchedTradesVisibleCount((current) =>
+                            Math.min(current + 8, filteredTrades.length),
+                          )
+                        }
+                      >
+                        See more trades
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        onClick={() => setMatchedTradesDrawerOpen(true)}
+                      >
+                        See all trades
+                      </Button>
+                    </div>
+                  ) : null}
+                </>
+              ) : null}
+            </div>
+          </Panel>
+        </Reveal>
+
+        <AllMatchedTradesDrawer
+          onClose={() => setMatchedTradesDrawerOpen(false)}
+          open={matchedTradesDrawerOpen}
+          trades={filteredTrades}
+        />
 
         {analytics.totalTrades === 0 ? (
           <Reveal delay={0.06}>

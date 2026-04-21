@@ -73,9 +73,9 @@ function ChartTooltip({
         </p>
       ) : null}
       <div className="mt-2 space-y-1.5">
-        {payload.map((entry) => (
+        {payload.map((entry, index) => (
           <div
-            key={`${entry.name}-${entry.color}`}
+            key={`${entry.name ?? 'item'}-${entry.color ?? 'none'}-${index}`}
             className="flex items-center justify-between gap-4 text-sm"
           >
             <span className="flex items-center gap-2 text-[var(--muted-strong)]">
@@ -133,6 +133,9 @@ function buildPerformanceData(trades: TradeView[]) {
     .slice(0, 12)
     .reverse()
     .map((trade, index) => ({
+      chartKey: trade.id
+        ? `${trade.id}-${index}`
+        : `${trade.date ?? 'undated'}-${trade.pnl ?? 0}-${index}`,
       label: trade.date
         ? new Date(trade.date).toLocaleDateString('en-GB', {
             day: '2-digit',
@@ -368,7 +371,7 @@ export function PnlBarsCard({ trades }: { trades: TradeView[] }) {
               <Bar dataKey="pnl" radius={[12, 12, 12, 12]} maxBarSize={26}>
                 {data.map((entry) => (
                   <Cell
-                    key={`${entry.label}-${entry.pnl}`}
+                    key={entry.chartKey}
                     fill={entry.pnl < 0 ? chartColors.negative : chartColors.positive}
                   />
                 ))}
@@ -397,7 +400,7 @@ export function WinLossCard({
   const outcomeData = [
     { fill: chartColors.positive, label: 'Wins', value: wins },
     { fill: chartColors.negative, label: 'Losses', value: losses },
-    { fill: chartColors.neutral, label: 'Flat', value: breakeven },
+    { fill: chartColors.neutral, label: 'Breakevens', value: breakeven },
   ].filter((entry) => entry.value > 0);
   const total = wins + losses + breakeven;
   const hasOutcomes = total > 0;
@@ -408,7 +411,7 @@ export function WinLossCard({
   const statCards = [
     { fill: chartColors.positive, label: 'Wins', value: wins },
     { fill: chartColors.negative, label: 'Losses', value: losses },
-    { fill: chartColors.neutral, label: 'Flat', value: breakeven },
+    { fill: chartColors.neutral, label: 'BE', value: breakeven },
   ];
 
   return (
@@ -460,8 +463,8 @@ export function WinLossCard({
                   stroke="var(--surface-strong)"
                   strokeWidth={6}
                 >
-                  {chartData.map((entry) => (
-                    <Cell key={entry.label} fill={entry.fill} />
+                  {chartData.map((entry, index) => (
+                    <Cell key={`${entry.label}-${index}`} fill={entry.fill} />
                   ))}
                 </Pie>
                 {hasOutcomes ? (
@@ -482,22 +485,22 @@ export function WinLossCard({
             </div>
           </div>
 
-          <div className="mt-6 grid w-full grid-cols-3 gap-3">
+          <div className="mt-6 grid w-full grid-cols-1 gap-3 sm:grid-cols-3">
             {statCards.map((item) => (
               <div
                 key={item.label}
-                className="rounded-[22px] border border-[color:var(--border-color)] bg-[linear-gradient(180deg,var(--surface-raised),var(--surface))] px-3 py-3 text-center shadow-[0_18px_36px_-30px_var(--shadow-color)]"
+                className="min-w-0 rounded-[22px] border border-[color:var(--border-color)] bg-[linear-gradient(180deg,var(--surface-raised),var(--surface))] px-3 py-3 text-center shadow-[0_18px_36px_-30px_var(--shadow-color)]"
               >
-                <div className="flex items-center justify-center gap-2">
+                <div className="flex min-w-0 items-center justify-center gap-2">
                   <span
-                    className="inline-flex h-2.5 w-2.5 rounded-full"
+                    className="inline-flex h-2.5 w-2.5 shrink-0 rounded-full"
                     style={{ backgroundColor: item.fill }}
                   />
-                  <p className="text-[11px] uppercase tracking-[0.24em] text-[var(--muted)]">
+                  <p className="min-w-0 break-words text-[10px] uppercase tracking-[0.18em] text-[var(--muted)] sm:text-[11px] sm:tracking-[0.24em]">
                     {item.label}
                   </p>
                 </div>
-                <p className="mt-2.5 text-2xl font-semibold tracking-tight text-[var(--foreground)]">
+                <p className="mt-2.5 break-words text-2xl font-semibold tracking-tight text-[var(--foreground)]">
                   {item.value}
                 </p>
               </div>

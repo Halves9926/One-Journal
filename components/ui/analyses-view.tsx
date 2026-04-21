@@ -1,18 +1,178 @@
 'use client';
 
-import { useDeferredValue, useMemo, useState } from 'react';
+import { useDeferredValue, useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 
 import AnalysisCard from '@/components/ui/analysis-card';
 import { useAccounts } from '@/components/ui/accounts-provider';
 import AuthRequired from '@/components/ui/auth-required';
 import { useAuth } from '@/components/ui/auth-provider';
-import { ButtonLink } from '@/components/ui/button';
+import { Button, ButtonLink } from '@/components/ui/button';
 import { MessageBanner } from '@/components/ui/form-fields';
+import {
+  getListViewModeLabel,
+  useListViewPreferences,
+} from '@/components/ui/list-view-preferences';
 import PageShell from '@/components/ui/page-shell';
 import { MetricCard, Panel, PanelHeader } from '@/components/ui/panel';
 import { Reveal } from '@/components/ui/reveal';
 import { useUserAnalyses } from '@/components/ui/use-user-analyses';
 import { getAnalysisSearchText } from '@/lib/analyses';
+import { cx } from '@/lib/utils';
+
+function SearchIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      aria-hidden="true"
+      className={className}
+      fill="none"
+      viewBox="0 0 20 20"
+      stroke="currentColor"
+      strokeWidth="1.8"
+    >
+      <path
+        d="m14.2 14.2 3.05 3.05M8.75 15.5a6.75 6.75 0 1 1 0-13.5 6.75 6.75 0 0 1 0 13.5Z"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function CloseIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      aria-hidden="true"
+      className={className}
+      fill="none"
+      viewBox="0 0 20 20"
+      stroke="currentColor"
+      strokeWidth="1.8"
+    >
+      <path d="m5 5 10 10M15 5 5 15" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function AnalysisSearchDrawer({
+  matchesCount,
+  onClose,
+  onReset,
+  onSearchChange,
+  open,
+  searchValue,
+}: {
+  matchesCount: number;
+  onClose: () => void;
+  onReset: () => void;
+  onSearchChange: (value: string) => void;
+  open: boolean;
+  searchValue: string;
+}) {
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    const previousOverflow = document.body.style.overflow;
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        onClose();
+      }
+    }
+
+    document.body.style.overflow = 'hidden';
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [onClose, open]);
+
+  if (!open || typeof document === 'undefined') {
+    return null;
+  }
+
+  return createPortal(
+    <div className="fixed inset-0 z-[90] flex items-end justify-center overflow-x-hidden px-3 py-4 sm:items-center sm:px-6">
+      <button
+        aria-label="Close analysis search"
+        className="absolute inset-0 bg-black/45 backdrop-blur-sm"
+        type="button"
+        onClick={onClose}
+      />
+      <div
+        aria-modal="true"
+        className="relative z-10 w-full max-w-2xl overflow-hidden rounded-[30px] border border-[color:var(--border-strong)] bg-[linear-gradient(180deg,var(--surface-raised),var(--surface))] shadow-[0_34px_90px_-36px_rgba(0,0,0,0.48)]"
+        role="dialog"
+      >
+        <div className="border-b border-[color:var(--border-color)] px-5 py-5 sm:px-6">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="font-mono text-[11px] uppercase tracking-[0.32em] text-[var(--accent-text)]">
+                Search
+              </p>
+              <h2 className="mt-2 text-2xl font-semibold tracking-tight text-[var(--foreground)]">
+                Find analyses
+              </h2>
+              <p className="mt-2 text-sm text-[var(--muted)]">
+                Symbol, date, session, bias, confluences, levels and notes.
+              </p>
+            </div>
+            <button
+              aria-label="Close"
+              className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-[color:var(--border-color)] bg-[var(--surface)] text-[var(--muted-strong)] transition hover:border-[color:var(--border-strong)] hover:text-[var(--foreground)]"
+              type="button"
+              onClick={onClose}
+            >
+              <CloseIcon className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+
+        <div className="px-5 py-5 sm:px-6">
+          <label className="block">
+            <span className="sr-only">Search analyses</span>
+            <div className="relative">
+              <SearchIcon className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted)]" />
+              <input
+                autoFocus
+                className="min-h-12 w-full rounded-full border border-[color:var(--border-color)] bg-[var(--surface)] py-3 pl-11 pr-4 text-sm text-[var(--foreground)] outline-none transition placeholder:text-[var(--muted)] focus:border-[color:var(--accent-border-strong)] focus:ring-2 focus:ring-[color:var(--accent-focus-ring)]"
+                placeholder="Search symbol, bias, session, confluences, notes..."
+                type="search"
+                value={searchValue}
+                onChange={(event) => onSearchChange(event.target.value)}
+              />
+            </div>
+          </label>
+
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+            <span className="rounded-full border border-[color:var(--border-color)] bg-[var(--surface)] px-3 py-1.5 text-sm text-[var(--muted-strong)]">
+              {matchesCount} match{matchesCount === 1 ? '' : 'es'}
+            </span>
+            <div className="flex gap-2">
+              <Button
+                disabled={!searchValue.trim()}
+                size="sm"
+                type="button"
+                variant="secondary"
+                onClick={onReset}
+              >
+                Reset
+              </Button>
+              <Button size="sm" type="button" variant="primary" onClick={onClose}>
+                Done
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+}
 
 export default function AnalysesView() {
   const { loading: authLoading, supabase, user } = useAuth();
@@ -27,8 +187,11 @@ export default function AnalysesView() {
     enabled: Boolean(user && activeAccount),
     limit: null,
   });
+  const { preferences } = useListViewPreferences();
   const [searchValue, setSearchValue] = useState('');
+  const [searchOpen, setSearchOpen] = useState(false);
   const deferredSearchValue = useDeferredValue(searchValue.trim().toLowerCase());
+  const analysisListMode = preferences.analyses;
   const filteredAnalyses = useMemo(() => {
     if (!deferredSearchValue) {
       return analysesState.items;
@@ -125,6 +288,15 @@ export default function AnalysesView() {
               description="Thesis logs, market context and execution plans for the active account."
               action={
                 <div className="flex flex-col gap-3 sm:flex-row">
+                  <Button
+                    size="lg"
+                    type="button"
+                    variant="secondary"
+                    onClick={() => setSearchOpen(true)}
+                  >
+                    <SearchIcon className="h-4 w-4" />
+                    Search
+                  </Button>
                   <ButtonLink href="/analyses/new" size="lg" variant="primary">
                     New Analysis
                   </ButtonLink>
@@ -136,6 +308,26 @@ export default function AnalysesView() {
             />
           </Panel>
         </Reveal>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="rounded-full border border-[color:var(--border-color)] bg-[var(--surface-raised)] px-3 py-1.5 text-sm text-[var(--muted-strong)]">
+            View: {getListViewModeLabel(analysisListMode)}
+          </span>
+          {searchValue.trim() ? (
+            <>
+              <span className="rounded-full border border-[color:var(--accent-border-soft)] bg-[var(--accent-soft-bg)] px-3 py-1.5 text-sm text-[var(--accent-text)]">
+                Search: {searchValue.trim()}
+              </span>
+              <button
+                className="rounded-full border border-[color:var(--border-color)] bg-[var(--surface)] px-3 py-1.5 text-sm text-[var(--muted-strong)] transition hover:border-[color:var(--border-strong)] hover:text-[var(--foreground)]"
+                type="button"
+                onClick={() => setSearchValue('')}
+              >
+                Reset
+              </button>
+            </>
+          ) : null}
+        </div>
 
         {accountsError ? <MessageBanner message={accountsError} tone="error" /> : null}
         {analysesState.error ? (
@@ -183,30 +375,6 @@ export default function AnalysesView() {
         <Reveal delay={0.1}>
           <Panel className="overflow-hidden">
             <PanelHeader
-              eyebrow="search"
-              title="Find analyses"
-              description="Search symbol, date, session, bias, context, confluences, levels or notes."
-            />
-            <div className="px-6 pb-6 sm:px-8 sm:pb-8">
-              <div className="rounded-[26px] border border-[color:var(--border-color)] bg-[linear-gradient(180deg,var(--surface-raised),var(--surface))] p-4 shadow-[0_18px_42px_-34px_var(--shadow-color)]">
-                <label className="block">
-                  <span className="sr-only">Search analyses</span>
-                  <input
-                    type="search"
-                    value={searchValue}
-                    onChange={(event) => setSearchValue(event.target.value)}
-                    placeholder="Search symbol, bias, session, confluences, levels..."
-                    className="w-full rounded-[20px] border border-[color:var(--border-color)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--foreground)] outline-none transition focus:border-[color:var(--accent-border-strong)] focus:ring-2 focus:ring-[color:var(--accent-focus-ring)]"
-                  />
-                </label>
-              </div>
-            </div>
-          </Panel>
-        </Reveal>
-
-        <Reveal delay={0.14}>
-          <Panel className="overflow-hidden">
-            <PanelHeader
               eyebrow="list"
               title="Journal analyses"
               description={
@@ -242,15 +410,26 @@ export default function AnalysesView() {
               {!analysesState.loading &&
               !analysesState.error &&
               filteredAnalyses.length > 0 ? (
-                <div className="grid gap-4 xl:grid-cols-2">
+                <div
+                  className={cx(
+                    'grid gap-4',
+                    analysisListMode === 'stacked'
+                      ? 'grid-cols-1'
+                      : analysisListMode === 'compact'
+                        ? 'grid-cols-1'
+                        : 'xl:grid-cols-2',
+                  )}
+                >
                   {filteredAnalyses.map((analysis, index) => (
                     <AnalysisCard
                       key={analysis.id}
                       analysis={analysis}
                       index={index}
+                      compact={analysisListMode === 'compact'}
                       editHref={`/analyses/${analysis.id}/edit`}
                       onDelete={handleDeleteAnalysis}
                       onShareUpdated={analysesState.refresh}
+                      variant={analysisListMode === 'stacked' ? 'stacked' : undefined}
                     />
                   ))}
                 </div>
@@ -258,6 +437,15 @@ export default function AnalysesView() {
             </div>
           </Panel>
         </Reveal>
+
+        <AnalysisSearchDrawer
+          matchesCount={filteredAnalyses.length}
+          onClose={() => setSearchOpen(false)}
+          onReset={() => setSearchValue('')}
+          onSearchChange={setSearchValue}
+          open={searchOpen}
+          searchValue={searchValue}
+        />
       </div>
     </PageShell>
   );

@@ -21,6 +21,7 @@ export const DEFAULT_ACCENT_COLORS: AccentColors = {
 
 type ThemeContextValue = {
   accentColors: AccentColors;
+  previewAccentColors: (colors: Partial<AccentColors>) => void;
   pnlVisualEmphasis: boolean;
   resetAccentColors: () => void;
   setAccentColors: (colors: Partial<AccentColors>) => void;
@@ -400,6 +401,17 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     persistAccentColors(normalizedColors);
   }
 
+  function previewAccentColors(nextColors: Partial<AccentColors>) {
+    if (typeof document === 'undefined') {
+      return;
+    }
+
+    applyAccentColors({
+      ...accentColors,
+      ...nextColors,
+    });
+  }
+
   function resetAccentColors() {
     if (typeof document !== 'undefined') {
       applyAccentColors(DEFAULT_ACCENT_COLORS);
@@ -424,6 +436,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   const value: ThemeContextValue = {
     accentColors,
+    previewAccentColors,
     pnlVisualEmphasis,
     resetAccentColors,
     setAccentColors,

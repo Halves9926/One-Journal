@@ -1,4 +1,5 @@
 import type { AccountInsert, AccountRow, AccountUpdate } from '@/lib/supabase';
+import { scopeRecordsToAccount, type AccountScopeOptions } from '@/lib/account-scope';
 import {
   buildTradeSummary,
   type TradeSummary,
@@ -337,8 +338,12 @@ export function mapAccountFormToUpdate(
   };
 }
 
-export function getTradesForAccount(trades: TradeView[], accountId: string) {
-  return trades.filter((trade) => trade.accountId === accountId);
+export function getTradesForAccount(
+  trades: TradeView[],
+  accountId: string,
+  options?: AccountScopeOptions,
+) {
+  return scopeRecordsToAccount(trades, accountId, options).items;
 }
 
 export function getPhaseTrades(account: AccountView, trades: TradeView[]) {

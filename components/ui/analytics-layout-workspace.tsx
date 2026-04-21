@@ -39,16 +39,22 @@ import { Button } from '@/components/ui/button';
 import {
   ANALYTICS_METRIC_IDS,
   DEFAULT_ANALYTICS_METRIC_IDS,
+  DEFAULT_ANALYTICS_METRIC_VARIANTS,
   analyticsMetricRegistry,
   getAnalyticsMetricById,
   getAnalyticsMetricGridClassName,
   getAnalyticsMetricShellClassName,
+  getAnalyticsMetricVariant,
   isAnalyticsMetricId,
   normalizeAnalyticsMetricIds,
+  normalizeAnalyticsMetricVariants,
   type AnalyticsMetricDefinition,
   type AnalyticsMetricId,
+  type AnalyticsMetricVariant,
+  type AnalyticsMetricVariantMap,
 } from '@/components/ui/analytics-metrics';
 import { Panel, PanelHeader } from '@/components/ui/panel';
+import { useWidgetPreferences } from '@/components/ui/widget-preferences';
 import {
   buildAnalyticsLayoutStorageKey,
   parseAnalyticsLayoutPreference,
@@ -275,21 +281,39 @@ function TrashIcon({ className }: { className?: string }) {
   );
 }
 
+function getMetricVariantLabel(
+  metric: AnalyticsMetricDefinition,
+  variant: AnalyticsMetricVariant | null,
+) {
+  if (!variant) {
+    return null;
+  }
+
+  return metric.visualOptions?.find((option) => option.id === variant)?.label ?? variant;
+}
+
 function MetricFinderModal({
   activeMetricIds,
   allMetricsActive,
+  metricVariants,
   onAdd,
   onAddAll,
   onClose,
   onRemove,
+  onVariantChange,
   open,
 }: {
   activeMetricIds: AnalyticsMetricId[];
   allMetricsActive: boolean;
-  onAdd: (metricId: AnalyticsMetricId) => void;
+  metricVariants: AnalyticsMetricVariantMap;
+  onAdd: (metricId: AnalyticsMetricId, variant?: AnalyticsMetricVariant) => void;
   onAddAll: () => void;
   onClose: () => void;
   onRemove: (metricId: AnalyticsMetricId) => void;
+  onVariantChange: (
+    metricId: AnalyticsMetricId,
+    variant: AnalyticsMetricVariant,
+  ) => void;
   open: boolean;
 }) {
   const searchId = useId();
@@ -424,6 +448,7 @@ function MetricFinderModal({
             <div className="grid gap-3 md:grid-cols-2">
               {filteredMetrics.map((metric) => {
                 const isActive = activeMetricIdSet.has(metric.id);
+                const activeVariant = getAnalyticsMetricVariant(metric, metricVariants);
 
                 return (
                   <article
@@ -446,6 +471,11 @@ function MetricFinderModal({
                           {isActive ? (
                             <span className="rounded-full border border-[color:var(--accent-border-soft)] bg-[var(--accent-soft-bg)] px-3 py-1 text-[11px] text-[var(--accent-text)]">
                               Active
+                            </span>
+                          ) : null}
+                          {activeVariant ? (
+                            <span className="rounded-full border border-[color:var(--border-color)] bg-[var(--surface)] px-3 py-1 text-[11px] text-[var(--muted-strong)]">
+                              {getMetricVariantLabel(metric, activeVariant)}
                             </span>
                           ) : null}
                         </div>
@@ -472,7 +502,37 @@ function MetricFinderModal({
                     ) : null}
 
                     <div className="mt-4 flex flex-wrap gap-2">
-                      {isActive ? (
+                      {metric.visualOptions && metric.visualOptions.length > 0 ? (
+                        metric.visualOptions.map((option) => {
+                          const isSelected = activeVariant === option.id;
+
+                          return (
+                            <Button
+                              key={option.id}
+                              size="sm"
+                              type="button"
+                              variant={
+                                isActive && isSelected ? 'primary' : 'secondary'
+                              }
+                              onClick={() => {
+                                if (isActive) {
+                                  onVariantChange(metric.id, option.id);
+                                  return;
+                                }
+
+                                onAdd(metric.id, option.id);
+                              }}
+                            >
+                              {isActive && isSelected ? (
+                                <CheckIcon className="h-4 w-4" />
+                              ) : (
+                                <PlusIcon className="h-4 w-4" />
+                              )}
+                              {isActive ? option.label : `Add ${option.label}`}
+                            </Button>
+                          );
+                        })
+                      ) : isActive ? (
                         <Button
                           size="sm"
                           type="button"
@@ -493,6 +553,17 @@ function MetricFinderModal({
                           Add
                         </Button>
                       )}
+                      {isActive && metric.visualOptions ? (
+                        <Button
+                          size="sm"
+                          type="button"
+                          variant="secondary"
+                          onClick={() => onRemove(metric.id)}
+                        >
+                          <TrashIcon className="h-4 w-4" />
+                          Remove
+                        </Button>
+                      ) : null}
                     </div>
                   </article>
                 );
@@ -516,18 +587,22 @@ function SortableAnalyticsWidget({
   children,
   editing,
   metric,
+  metricVariants,
   onMoveDown,
   onMoveUp,
   onRemove,
+  onVariantChange,
 }: {
   canMoveDown: boolean;
   canMoveUp: boolean;
   children: ReactNode;
   editing: boolean;
   metric: AnalyticsMetricDefinition;
+  metricVariants: AnalyticsMetricVariantMap;
   onMoveDown: () => void;
   onMoveUp: () => void;
   onRemove: () => void;
+  onVariantChange: (variant: AnalyticsMetricVariant) => void;
 }) {
   const {
     attributes,
@@ -557,6 +632,7 @@ function SortableAnalyticsWidget({
     zIndex: isDragging ? 1 : undefined,
   };
   const handleProps = editing ? { ...attributes, ...(listeners ?? {}) } : {};
+  const activeVariant = getAnalyticsMetricVariant(metric, metricVariants);
 
   return (
     <div
@@ -593,6 +669,30 @@ function SortableAnalyticsWidget({
           >
             <TrashIcon className="h-4 w-4" />
           </button>
+          {metric.visualOptions && metric.visualOptions.length > 0 ? (
+            <div className="absolute left-4 right-16 top-[4.25rem] z-20 flex flex-wrap gap-1.5">
+              {metric.visualOptions.map((option) => (
+                <button
+                  key={option.id}
+                  className={cx(
+                    'rounded-full border px-3 py-1.5 text-[11px] font-medium transition',
+                    activeVariant === option.id
+                      ? 'border-[color:var(--accent-border-soft)] bg-[var(--accent-soft-bg)] text-[var(--accent-text)]'
+                      : 'border-[color:var(--border-color)] bg-[var(--surface-raised)] text-[var(--muted-strong)] hover:border-[color:var(--border-strong)] hover:text-[var(--foreground)]',
+                  )}
+                  type="button"
+                  onClick={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    onVariantChange(option.id);
+                  }}
+                  onPointerDown={(event) => event.stopPropagation()}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          ) : null}
         </>
       ) : null}
       <div
@@ -650,6 +750,7 @@ export function AnalyticsLayoutWorkspace({
   const [editing, setEditing] = useState(false);
   const [activeMetricId, setActiveMetricId] = useState<AnalyticsMetricId | null>(null);
   const [activeDragRect, setActiveDragRect] = useState<DragOverlayRect | null>(null);
+  const { preferences: widgetPreferences } = useWidgetPreferences();
   const storageKey = useMemo(
     () =>
       buildAnalyticsLayoutStorageKey({
@@ -670,6 +771,20 @@ export function AnalyticsLayoutWorkspace({
       ? normalizeAnalyticsMetricIds(preference.metricIds)
       : DEFAULT_ANALYTICS_METRIC_IDS;
   }, [layoutSnapshot]);
+  const metricVariants = useMemo(() => {
+    const preference = parseAnalyticsLayoutPreference(layoutSnapshot);
+    const defaultVariants = {
+      ...DEFAULT_ANALYTICS_METRIC_VARIANTS,
+      'win-rate': widgetPreferences.defaultWinRateVariant,
+    };
+
+    return preference
+      ? {
+          ...defaultVariants,
+          ...normalizeAnalyticsMetricVariants(preference.metricVariants),
+        }
+      : defaultVariants;
+  }, [layoutSnapshot, widgetPreferences.defaultWinRateVariant]);
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
@@ -690,10 +805,11 @@ export function AnalyticsLayoutWorkspace({
     () => ({
       analytics,
       filters,
+      metricVariants,
       scopeLabel,
       totalTradesAvailable,
     }),
-    [analytics, filters, scopeLabel, totalTradesAvailable],
+    [analytics, filters, metricVariants, scopeLabel, totalTradesAvailable],
   );
   const selectedMetrics = useMemo(
     () =>
@@ -709,21 +825,52 @@ export function AnalyticsLayoutWorkspace({
       metricIds.length === DEFAULT_ANALYTICS_METRIC_IDS.length &&
       metricIds.every(
         (metricId, index) => metricId === DEFAULT_ANALYTICS_METRIC_IDS[index],
-      ),
-    [metricIds],
+      ) &&
+      (metricVariants['net-pnl'] ?? 'compact') === 'compact' &&
+      (metricVariants['win-rate'] ?? 'radial') ===
+        widgetPreferences.defaultWinRateVariant,
+    [metricIds, metricVariants, widgetPreferences.defaultWinRateVariant],
   );
 
-  function saveMetricIds(nextMetricIds: AnalyticsMetricId[]) {
-    writeAnalyticsLayoutPreference(storageKey, nextMetricIds);
+  function saveLayout(
+    nextMetricIds: AnalyticsMetricId[],
+    nextMetricVariants: AnalyticsMetricVariantMap = metricVariants,
+  ) {
+    const activeMetricIdSet = new Set(nextMetricIds);
+    const prunedMetricVariants = Object.fromEntries(
+      Object.entries(nextMetricVariants).filter(
+        (entry): entry is [AnalyticsMetricId, AnalyticsMetricVariant] =>
+          activeMetricIdSet.has(entry[0] as AnalyticsMetricId) &&
+          typeof entry[1] === 'string',
+      ),
+    );
+
+    writeAnalyticsLayoutPreference(
+      storageKey,
+      nextMetricIds,
+      prunedMetricVariants,
+    );
     dispatchAnalyticsLayoutChange();
   }
 
-  function addMetric(metricId: AnalyticsMetricId) {
+  function addMetric(metricId: AnalyticsMetricId, variant?: AnalyticsMetricVariant) {
     if (metricIds.includes(metricId)) {
+      if (variant) {
+        updateMetricVariant(metricId, variant);
+      }
       return;
     }
 
-    saveMetricIds([...metricIds, metricId]);
+    saveLayout([...metricIds, metricId], {
+      ...metricVariants,
+      ...(metricId === 'win-rate'
+        ? { [metricId]: variant ?? widgetPreferences.defaultWinRateVariant }
+        : metricId === 'net-pnl'
+          ? { [metricId]: variant ?? 'compact' }
+        : variant
+          ? { [metricId]: variant }
+          : {}),
+    });
   }
 
   function addAllMetrics() {
@@ -731,7 +878,7 @@ export function AnalyticsLayoutWorkspace({
       return;
     }
 
-    saveMetricIds([...ANALYTICS_METRIC_IDS]);
+    saveLayout([...ANALYTICS_METRIC_IDS]);
   }
 
   function removeMetric(metricId: AnalyticsMetricId) {
@@ -743,11 +890,14 @@ export function AnalyticsLayoutWorkspace({
       setEditing(false);
     }
 
-    saveMetricIds(nextMetricIds);
+    saveLayout(nextMetricIds);
   }
 
   function restoreDefaultMetrics() {
-    saveMetricIds(DEFAULT_ANALYTICS_METRIC_IDS);
+    saveLayout(DEFAULT_ANALYTICS_METRIC_IDS, {
+      ...DEFAULT_ANALYTICS_METRIC_VARIANTS,
+      'win-rate': widgetPreferences.defaultWinRateVariant,
+    });
   }
 
   function moveMetric(metricId: AnalyticsMetricId, direction: 'down' | 'up') {
@@ -762,7 +912,17 @@ export function AnalyticsLayoutWorkspace({
       return;
     }
 
-    saveMetricIds(arrayMove(metricIds, currentIndex, targetIndex));
+    saveLayout(arrayMove(metricIds, currentIndex, targetIndex));
+  }
+
+  function updateMetricVariant(
+    metricId: AnalyticsMetricId,
+    variant: AnalyticsMetricVariant,
+  ) {
+    saveLayout(metricIds, {
+      ...metricVariants,
+      [metricId]: variant,
+    });
   }
 
   function handleDragStart(event: DragStartEvent) {
@@ -812,7 +972,7 @@ export function AnalyticsLayoutWorkspace({
       return;
     }
 
-    saveMetricIds(arrayMove(metricIds, oldIndex, newIndex));
+    saveLayout(arrayMove(metricIds, oldIndex, newIndex));
     clearActiveDragState();
   }
 
@@ -939,9 +1099,13 @@ export function AnalyticsLayoutWorkspace({
                   canMoveUp={index > 0}
                   editing={editing}
                   metric={metric}
+                  metricVariants={metricVariants}
                   onMoveDown={() => moveMetric(metric.id, 'down')}
                   onMoveUp={() => moveMetric(metric.id, 'up')}
                   onRemove={() => removeMetric(metric.id)}
+                  onVariantChange={(variant) =>
+                    updateMetricVariant(metric.id, variant)
+                  }
                 >
                   {metric.render(renderContext)}
                 </SortableAnalyticsWidget>
@@ -972,10 +1136,12 @@ export function AnalyticsLayoutWorkspace({
       <MetricFinderModal
         activeMetricIds={metricIds}
         allMetricsActive={allMetricsActive}
+        metricVariants={metricVariants}
         onAdd={addMetric}
         onAddAll={addAllMetrics}
         onClose={() => setFinderOpen(false)}
         onRemove={removeMetric}
+        onVariantChange={updateMetricVariant}
         open={finderOpen}
       />
     </div>

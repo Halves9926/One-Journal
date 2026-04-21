@@ -10,6 +10,7 @@ import AuthRequired from '@/components/ui/auth-required';
 import { useAuth } from '@/components/ui/auth-provider';
 import { Button, ButtonLink } from '@/components/ui/button';
 import { MessageBanner } from '@/components/ui/form-fields';
+import { useListViewPreferences } from '@/components/ui/list-view-preferences';
 import PageShell from '@/components/ui/page-shell';
 import {
   EquityCurveCard,
@@ -22,6 +23,7 @@ import { Reveal } from '@/components/ui/reveal';
 import TradeCard from '@/components/ui/trade-card';
 import { useUserAnalyses } from '@/components/ui/use-user-analyses';
 import { useUserTrades } from '@/components/ui/use-user-trades';
+import WinRateWidget from '@/components/ui/win-rate-widget';
 import { getAnalysisSearchText, type AnalysisView } from '@/lib/analyses';
 import {
   buildAccountMetrics,
@@ -57,7 +59,7 @@ function getStreakLabel(
     return `${streak} trade loss streak`;
   }
 
-  return `${streak} flat trades`;
+  return `${streak} breakeven trades`;
 }
 
 function renderDistributionWidth(value: number, total: number) {
@@ -121,6 +123,7 @@ export default function DashboardView() {
   const [logoutError, setLogoutError] = useState<string | null>(null);
   const [feedScope, setFeedScope] = useState<FeedScope>('all');
   const [feedSearchValue, setFeedSearchValue] = useState('');
+  const { preferences: listViewPreferences } = useListViewPreferences();
   const deferredFeedSearchValue = useDeferredValue(feedSearchValue.trim().toLowerCase());
   const tradesState = useUserTrades({
     accountId: activeAccount?.id ?? null,
@@ -167,15 +170,6 @@ export default function DashboardView() {
           tone: summary.netPnl < 0 ? ('danger' as const) : ('accent' as const),
           value: formatPnl(summary.netPnl),
           valueClassName: getPnlTextClassName(summary.netPnl),
-        },
-        {
-          caption: `${summary.wins} wins / ${summary.losses} losses`,
-          className: '',
-          label: 'Win rate',
-          tone: 'success' as const,
-          value:
-            summary.winRate === null ? 'No trades yet' : `${Math.round(summary.winRate)}%`,
-          valueClassName: '',
         },
         {
           caption: 'risk to reward captured',
@@ -319,6 +313,13 @@ export default function DashboardView() {
       }),
     [deferredFeedSearchValue, feedScope, journalFeed],
   );
+  const feedUsesStacked =
+    listViewPreferences.trades === 'stacked' ||
+    listViewPreferences.analyses === 'stacked';
+  const feedUsesCompact =
+    listViewPreferences.trades === 'compact' ||
+    listViewPreferences.analyses === 'compact';
+  const visibleTrades = tradesState.items.slice(0, 6);
 
   async function handleLogout() {
     if (!supabase) {
@@ -584,7 +585,7 @@ export default function DashboardView() {
         </Reveal>
 
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {metricCards.map((card, index) => (
+          {metricCards.slice(0, 2).map((card, index) => (
             <Reveal key={card.label} delay={index * 0.04}>
               <MetricCard
                 label={card.label}
@@ -596,7 +597,72 @@ export default function DashboardView() {
               />
             </Reveal>
           ))}
+          <Reveal delay={0.08}>
+            <WinRateWidget
+              breakeven={summary.breakeven}
+              caption={`${summary.totalTrades} trades`}
+              losses={summary.losses}
+              variant="radial"
+              wins={summary.wins}
+            />
+          </Reveal>
+          {metricCards.slice(2).map((card, index) => (
+            <Reveal key={card.label} delay={(index + 3) * 0.04}>
+              <MetricCard
+                label={card.label}
+                value={card.value}
+                tone={card.tone}
+                caption={card.caption}
+                className={card.className}
+                valueClassName={card.valueClassName}
+              />
+            </Reveal>
+          ))}
         </div>
+
+        <Reveal delay={0.1}>
+          <Panel className="overflow-hidden">
+            <PanelHeader
+              eyebrow="trades"
+              title="Visible trades"
+              description={`${tradesState.items.length} trades loaded for this account. Recent executions are shown here directly.`}
+              action={
+                <ButtonLink href="/trades/new" variant="secondary">
+                  Add Trade
+                </ButtonLink>
+              }
+            />
+            <div className="px-6 pb-6 pt-2 sm:px-8 sm:pb-8">
+              {tradesState.loading ? (
+                <div className="rounded-[24px] border border-[color:var(--border-color)] bg-[var(--surface)] px-4 py-5 text-sm text-[var(--muted)]">
+                  Loading trades...
+                </div>
+              ) : null}
+
+              {!tradesState.loading && !tradesState.error && visibleTrades.length === 0 ? (
+                <div className="rounded-[26px] border border-dashed border-[color:var(--border-color)] bg-[var(--surface)] px-5 py-6 text-sm leading-7 text-[var(--muted)]">
+                  No trades are visible in this account scope.
+                </div>
+              ) : null}
+
+              {!tradesState.loading && !tradesState.error && visibleTrades.length > 0 ? (
+                <div className="grid gap-4">
+                  {visibleTrades.map((trade, index) => (
+                    <TradeCard
+                      key={`visible-trade-${trade.id}`}
+                      trade={trade}
+                      index={index}
+                      compact
+                      editHref={`/trades/${trade.id}/edit`}
+                      onDelete={handleDeleteTrade}
+                      variant="stacked"
+                    />
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          </Panel>
+        </Reveal>
 
         <div className="grid gap-6 xl:grid-cols-[minmax(0,1.42fr)_360px]">
           <div className="grid gap-6">
@@ -815,26 +881,43 @@ export default function DashboardView() {
                   !tradesState.error &&
                   !analysesState.error &&
                   filteredJournalFeed.length > 0 ? (
-                    <div className="grid gap-4 xl:grid-cols-2">
+                    <div
+                      className={cx(
+                        'grid gap-4',
+                        feedUsesStacked || feedUsesCompact
+                          ? 'grid-cols-1'
+                          : 'xl:grid-cols-2',
+                      )}
+                    >
                       {filteredJournalFeed.map((entry, index) => (
                         entry.kind === 'trade' ? (
                           <TradeCard
                             key={`trade-${entry.id}`}
                             trade={entry.value}
                             index={index}
-                            compact
+                            compact={listViewPreferences.trades !== 'cards'}
                             editHref={`/trades/${entry.value.id}/edit`}
                             onDelete={handleDeleteTrade}
+                            variant={
+                              listViewPreferences.trades === 'stacked'
+                                ? 'stacked'
+                                : undefined
+                            }
                           />
                         ) : (
                           <AnalysisCard
                             key={`analysis-${entry.id}`}
                             analysis={entry.value}
                             index={index}
-                            compact
+                            compact={listViewPreferences.analyses !== 'cards'}
                             editHref={`/analyses/${entry.value.id}/edit`}
                             onDelete={handleDeleteAnalysis}
                             onShareUpdated={analysesState.refresh}
+                            variant={
+                              listViewPreferences.analyses === 'stacked'
+                                ? 'stacked'
+                                : undefined
+                            }
                           />
                         )
                       ))}

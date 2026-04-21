@@ -7,6 +7,7 @@ import {
   type TradeSummary,
   type TradeView,
 } from '@/lib/trades';
+import { matchesAccountScope } from '@/lib/account-scope';
 
 const WEEKDAY_ORDER = [
   'Monday',
@@ -746,7 +747,12 @@ export function filterAnalyticsTrades(
   const normalizedStrategy = cleanText(filters.strategy);
 
   return trades.filter((trade) => {
-    if (filters.accountId && trade.accountId !== filters.accountId) {
+    if (
+      filters.accountId &&
+      !matchesAccountScope(trade.accountId, filters.accountId, {
+        includeUnassigned: true,
+      })
+    ) {
       return false;
     }
 
@@ -792,11 +798,11 @@ export function filterAnalyticsTrades(
 
 export function formatRatioMetric(value: number | null, digits = 2) {
   if (value === null) {
-    return '--';
+    return 'No data';
   }
 
   if (!Number.isFinite(value)) {
-    return 'Infinity';
+    return 'Perfect';
   }
 
   return formatCompactNumber(value, digits);
@@ -804,7 +810,7 @@ export function formatRatioMetric(value: number | null, digits = 2) {
 
 export function formatHoldingTime(value: number | null) {
   if (value === null) {
-    return '--';
+    return 'No time';
   }
 
   const totalMinutes = Math.max(Math.round(value), 0);
@@ -824,7 +830,7 @@ export function formatHoldingTime(value: number | null) {
 
 export function formatHoldingAxisValue(value: number | null) {
   if (value === null) {
-    return '--';
+    return '';
   }
 
   if (value >= 60) {
@@ -836,7 +842,7 @@ export function formatHoldingAxisValue(value: number | null) {
 
 export function formatBreakdownSummary(item: AnalyticsBreakdownItem | null) {
   if (!item) {
-    return '--';
+    return 'No data';
   }
 
   return `${item.label} / ${formatPnl(item.netPnl, 0)}`;

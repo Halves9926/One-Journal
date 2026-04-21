@@ -27,6 +27,8 @@ type SaveState = {
   tone: 'error' | 'success' | 'neutral';
 } | null;
 
+const PROFILE_CHANGE_EVENT = 'one-journal:profile-change';
+
 export default function ProfileView() {
   const { loading, supabase, user } = useAuth();
   const [profile, setProfile] = useState<ProfileView | null>(null);
@@ -174,6 +176,7 @@ export default function ProfileView() {
       message: 'Profile saved.',
       tone: 'success',
     });
+    window.dispatchEvent(new Event(PROFILE_CHANGE_EVENT));
     setIsSaving(false);
   }
 

@@ -24,6 +24,7 @@ type AnalysisCardProps = {
   index?: number;
   onDelete?: (analysisId: string) => Promise<{ error: string | null }>;
   onShareUpdated?: () => void;
+  variant?: 'stacked';
 };
 
 function getBiasToneClassName(bias: string | null) {
@@ -59,16 +60,43 @@ function getPreviewText(value: string | null, limit: number) {
 }
 
 function AnalysisCover({
+  className,
+  placeholder = false,
   screenshotUrl,
   symbol,
 }: {
+  className?: string;
+  placeholder?: boolean;
   screenshotUrl: string | null;
   symbol: string;
 }) {
   const [imageFailed, setImageFailed] = useState(false);
 
-  if (!screenshotUrl || imageFailed) {
+  if ((!screenshotUrl || imageFailed) && !placeholder) {
     return null;
+  }
+
+  if (!screenshotUrl || imageFailed) {
+    return (
+      <div
+        className={cx(
+          'relative grid min-h-[210px] overflow-hidden rounded-[26px] border border-dashed border-[color:var(--border-color)] bg-[radial-gradient(circle_at_22%_18%,var(--accent-primary-glow),transparent_42%),linear-gradient(135deg,var(--surface-raised),var(--surface))] shadow-[0_22px_48px_-34px_var(--shadow-color)]',
+          className,
+        )}
+      >
+        <div className="absolute inset-x-0 top-0 h-px bg-[linear-gradient(90deg,transparent,var(--accent-border-soft),transparent)]" />
+        <div className="grid place-items-center p-6 text-center">
+          <div>
+            <p className="font-mono text-[11px] uppercase tracking-[0.28em] text-[var(--accent-text)]">
+              {symbol}
+            </p>
+            <p className="mt-3 text-sm leading-6 text-[var(--muted)]">
+              No screenshot attached. Thesis preview remains visible below.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -76,9 +104,12 @@ function AnalysisCover({
       href={screenshotUrl}
       target="_blank"
       rel="noreferrer"
-      className="group/cover relative block overflow-hidden rounded-[24px] border border-[color:var(--border-color)] bg-[var(--surface)] shadow-[0_22px_48px_-34px_var(--shadow-color)] transition duration-300 lg:hover:border-[color:var(--border-strong)]"
+      className={cx(
+        'group/cover relative block overflow-hidden rounded-[24px] border border-[color:var(--border-color)] bg-[var(--surface)] shadow-[0_22px_48px_-34px_var(--shadow-color)] transition duration-300 lg:hover:border-[color:var(--border-strong)]',
+        className,
+      )}
     >
-      <div className="aspect-[16/9] overflow-hidden bg-[radial-gradient(circle_at_top,var(--accent-primary-glow),transparent_54%),linear-gradient(180deg,var(--surface-strong),var(--surface))]">
+      <div className="aspect-[16/10] min-h-[210px] overflow-hidden bg-[radial-gradient(circle_at_top,var(--accent-primary-glow),transparent_54%),linear-gradient(180deg,var(--surface-strong),var(--surface))]">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={screenshotUrl}
@@ -103,6 +134,7 @@ export default function AnalysisCard({
   index = 0,
   onDelete,
   onShareUpdated,
+  variant,
 }: AnalysisCardProps) {
   const { supabase, user } = useAuth();
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
@@ -261,6 +293,387 @@ export default function AnalysisCard({
     } catch {
       setShareError('Copy failed. Select and copy the link manually.');
     }
+  }
+
+  if (compact && variant !== 'stacked') {
+    return (
+      <motion.article
+        initial={{ opacity: 0, y: 8 }}
+        transition={{
+          delay: index * 0.02,
+          duration: 0.26,
+          ease: [0.22, 1, 0.36, 1],
+        }}
+        viewport={{ once: true, amount: 0.2 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        className={cx(
+          'group rounded-[20px] border border-[color:var(--border-color)] bg-[linear-gradient(180deg,var(--surface-raised),var(--surface))] px-3 py-2.5 shadow-[0_14px_30px_-28px_var(--shadow-color)] transition hover:border-[color:var(--accent-border-soft)] sm:px-4',
+          className,
+        )}
+      >
+        <div className="grid min-w-0 gap-2 md:grid-cols-[minmax(130px,0.95fr)_minmax(120px,0.75fr)_minmax(120px,1fr)_auto] md:items-center">
+          <div className="min-w-0">
+            <div className="flex min-w-0 items-center gap-2">
+              <span className="truncate text-base font-semibold tracking-tight text-[var(--foreground)]">
+                {symbolLabel}
+              </span>
+              {analysis.bias ? (
+                <span
+                  className={cx(
+                    'shrink-0 rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-[0.18em]',
+                    getBiasToneClassName(analysis.bias),
+                  )}
+                >
+                  {analysis.bias}
+                </span>
+              ) : null}
+            </div>
+            <p className="mt-1 truncate text-xs text-[var(--muted)]">
+              {formatAnalysisDate(analysis.analysisDate)}
+              {analysis.timeframe ? ` / ${analysis.timeframe}` : ''}
+              {analysis.session ? ` / ${analysis.session}` : ''}
+            </p>
+          </div>
+
+          <div className="flex flex-wrap gap-1.5">
+            {analysis.tags.slice(0, 2).map((tag) => (
+              <span
+                key={tag}
+                className="max-w-[8rem] truncate rounded-full border border-[color:var(--border-color)] bg-[var(--surface)] px-2 py-1 text-xs capitalize text-[var(--muted-strong)]"
+              >
+                {tag}
+              </span>
+            ))}
+            {shareEnabled ? (
+              <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-1 text-xs text-emerald-700 dark:text-emerald-300">
+                Shared
+              </span>
+            ) : null}
+          </div>
+
+          <p className="truncate text-sm text-[var(--muted-strong)]">
+            {getPreviewText(getAnalysisPreview(analysis), 96) ?? 'No preview yet'}
+          </p>
+
+          {editHref || onDelete || canManageSharing ? (
+            <div className="flex items-center gap-2 md:justify-end">
+              {canManageSharing ? (
+                <button
+                  className="inline-flex min-h-8 items-center rounded-full border border-[color:var(--border-color)] bg-[var(--surface)] px-3 text-xs font-medium text-[var(--muted-strong)] transition hover:border-[color:var(--border-strong)] hover:text-[var(--foreground)]"
+                  type="button"
+                  onClick={() => {
+                    setShareError(null);
+                    setShareMessage(null);
+                    setIsSharePanelOpen((current) => !current);
+                  }}
+                >
+                  Share
+                </button>
+              ) : null}
+              {editHref ? (
+                <Link
+                  className="inline-flex min-h-8 items-center rounded-full border border-[color:var(--border-color)] bg-[var(--surface)] px-3 text-xs font-medium text-[var(--muted-strong)] transition hover:border-[color:var(--border-strong)] hover:text-[var(--foreground)]"
+                  href={editHref}
+                >
+                  Edit
+                </Link>
+              ) : null}
+              {onDelete ? (
+                <button
+                  aria-label="Delete analysis"
+                  className="inline-flex min-h-8 items-center rounded-full border border-[color:color-mix(in_srgb,var(--danger)_20%,transparent)] bg-[color:color-mix(in_srgb,var(--danger)_10%,transparent)] px-3 text-xs font-medium text-[var(--danger)] transition hover:border-[color:color-mix(in_srgb,var(--danger)_34%,transparent)]"
+                  type="button"
+                  onClick={() => {
+                    setActionError(null);
+                    setIsDeleteConfirmOpen((current) => !current);
+                  }}
+                >
+                  Delete
+                </button>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+
+        {canManageSharing && isSharePanelOpen ? (
+          <div className="mt-2 rounded-[18px] border border-[color:var(--accent-border-soft)] bg-[linear-gradient(180deg,var(--accent-soft-bg),var(--surface))] px-3 py-3">
+            <p className="break-all text-sm leading-6 text-[var(--muted-strong)]">
+              {shareEnabled && sharePath ? sharePath : 'Enable sharing to create a public read-only link.'}
+            </p>
+          </div>
+        ) : null}
+
+        {onDelete && (isDeleteConfirmOpen || actionError) ? (
+          <div className="mt-2 rounded-[18px] border border-[color:color-mix(in_srgb,var(--danger)_20%,transparent)] bg-[linear-gradient(180deg,color-mix(in_srgb,var(--danger)_8%,transparent),var(--surface))] px-3 py-3">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-sm font-medium text-[var(--foreground)]">
+                  Delete this analysis?
+                </p>
+                {actionError ? (
+                  <p className="mt-1 text-sm text-[var(--danger)]">{actionError}</p>
+                ) : null}
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  className="inline-flex min-h-9 items-center rounded-full border border-[color:var(--border-color)] bg-[var(--surface-raised)] px-3 text-xs font-medium text-[var(--muted-strong)] transition hover:border-[color:var(--border-strong)] hover:text-[var(--foreground)]"
+                  type="button"
+                  onClick={() => {
+                    setIsDeleteConfirmOpen(false);
+                    setActionError(null);
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="inline-flex min-h-9 items-center rounded-full border border-[color:color-mix(in_srgb,var(--danger)_28%,transparent)] bg-[linear-gradient(135deg,var(--danger),color-mix(in_srgb,var(--danger)_72%,black))] px-3 text-xs font-medium text-white transition disabled:cursor-not-allowed disabled:opacity-60"
+                  disabled={isDeleting}
+                  type="button"
+                  onClick={() => {
+                    void handleDelete();
+                  }}
+                >
+                  {isDeleting ? 'Deleting...' : 'Delete'}
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+      </motion.article>
+    );
+  }
+
+  if (variant === 'stacked') {
+    return (
+      <motion.article
+        initial={{ opacity: 0, y: 10 }}
+        transition={{
+          delay: index * 0.03,
+          duration: 0.32,
+          ease: [0.22, 1, 0.36, 1],
+        }}
+        viewport={{ once: true, amount: 0.2 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        className={cx(
+          'group relative overflow-hidden rounded-[28px] border border-[color:var(--border-color)] bg-[linear-gradient(180deg,var(--surface-raised),var(--surface))] p-4 pl-8 shadow-[0_22px_48px_-36px_var(--shadow-color),inset_0_1px_0_rgba(255,255,255,0.08)] transition duration-300 hover:border-[color:var(--accent-border-soft)] sm:p-5 sm:pl-10',
+          className,
+        )}
+      >
+        <span className="absolute bottom-5 left-4 top-5 w-px bg-[linear-gradient(180deg,var(--accent-border-soft),var(--border-color),transparent)] sm:left-5" />
+        <span className="absolute left-[0.68rem] top-6 h-3 w-3 rounded-full border-2 border-[var(--surface)] bg-[var(--chart-accent)] sm:left-[0.93rem]" />
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(220px,320px)] lg:items-stretch">
+          <div className="min-w-0">
+            <p className="mb-3 font-mono text-[11px] uppercase tracking-[0.28em] text-[var(--muted)]">
+              {formatAnalysisDate(analysis.analysisDate)}
+              {analysis.timeframe ? ` / ${analysis.timeframe}` : ''}
+              {analysis.session ? ` / ${analysis.session}` : ''}
+            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="rounded-full border border-[color:var(--accent-border-soft)] bg-[var(--accent-soft-bg)] px-3 py-1 font-mono text-[11px] uppercase tracking-[0.22em] text-[var(--accent-text)]">
+                {symbolLabel}
+              </span>
+              {analysis.bias ? (
+                <span
+                  className={cx(
+                    'rounded-full border px-3 py-1 text-[11px] uppercase tracking-[0.22em]',
+                    getBiasToneClassName(analysis.bias),
+                  )}
+                >
+                  {analysis.bias}
+                </span>
+              ) : null}
+              {analysis.session ? (
+                <span className="rounded-full border border-[color:var(--border-color)] bg-[var(--surface)] px-3 py-1 text-[11px] uppercase tracking-[0.22em] text-[var(--muted-strong)]">
+                  {analysis.session}
+                </span>
+              ) : null}
+              {shareEnabled ? (
+                <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-[11px] uppercase tracking-[0.22em] text-emerald-700 dark:text-emerald-300">
+                  Shared
+                </span>
+              ) : null}
+            </div>
+
+            {analysis.tags.length > 0 ? (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {analysis.tags.slice(0, 5).map((tag) => (
+                  <span
+                    key={tag}
+                    className="rounded-full border border-[color:var(--border-color)] bg-[var(--surface)] px-3 py-1 text-xs capitalize text-[var(--muted-strong)]"
+                  >
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            ) : null}
+
+            <p className="mt-4 max-h-12 overflow-hidden text-sm leading-6 text-[var(--muted-strong)]">
+              {getPreviewText(getAnalysisPreview(analysis), 220) ??
+                'No analysis notes yet.'}
+            </p>
+
+            <div className="mt-5 flex flex-wrap items-center gap-2">
+              {canManageSharing ? (
+                <button
+                  className={cx(
+                    'inline-flex min-h-9 items-center rounded-full border px-3 text-xs font-medium transition',
+                    shareEnabled
+                      ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-700 hover:border-emerald-500/34 dark:text-emerald-300'
+                      : 'border-[color:var(--border-color)] bg-[var(--surface)] text-[var(--muted-strong)] hover:border-[color:var(--border-strong)] hover:text-[var(--foreground)]',
+                  )}
+                  type="button"
+                  onClick={() => {
+                    setShareError(null);
+                    setShareMessage(null);
+                    setIsSharePanelOpen((current) => !current);
+                  }}
+                >
+                  Share
+                </button>
+              ) : null}
+              {editHref ? (
+                <Link
+                  className="inline-flex min-h-9 items-center rounded-full border border-[color:var(--border-color)] bg-[var(--surface)] px-3 text-xs font-medium text-[var(--muted-strong)] transition hover:border-[color:var(--border-strong)] hover:text-[var(--foreground)]"
+                  href={editHref}
+                >
+                  Edit
+                </Link>
+              ) : null}
+              {onDelete ? (
+                <button
+                  aria-label="Delete analysis"
+                  className="inline-flex min-h-9 items-center rounded-full border border-[color:color-mix(in_srgb,var(--danger)_20%,transparent)] bg-[color:color-mix(in_srgb,var(--danger)_10%,transparent)] px-3 text-xs font-medium text-[var(--danger)] transition hover:border-[color:color-mix(in_srgb,var(--danger)_34%,transparent)]"
+                  type="button"
+                  onClick={() => {
+                    setActionError(null);
+                    setIsDeleteConfirmOpen((current) => !current);
+                  }}
+                >
+                  Delete
+                </button>
+              ) : null}
+            </div>
+          </div>
+
+          {analysis.screenshotUrl ? (
+            <a
+              className="relative min-h-[170px] overflow-hidden rounded-[22px] border border-[color:var(--border-color)] bg-[var(--surface)]"
+              href={analysis.screenshotUrl}
+              rel="noreferrer"
+              target="_blank"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                alt={`${symbolLabel} analysis screenshot`}
+                className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.02]"
+                loading="lazy"
+                src={analysis.screenshotUrl}
+              />
+              <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-[linear-gradient(180deg,transparent,rgba(10,12,16,0.78))] px-4 py-3 text-sm text-white">
+                Screenshot
+              </div>
+            </a>
+          ) : (
+            <div className="grid min-h-[150px] place-items-center rounded-[22px] border border-dashed border-[color:var(--border-color)] bg-[radial-gradient(circle_at_top,var(--accent-primary-glow),transparent_62%),var(--surface)] px-4 text-center text-sm text-[var(--muted)]">
+              No screenshot
+            </div>
+          )}
+        </div>
+
+        {canManageSharing && isSharePanelOpen ? (
+          <div className="mt-4 rounded-[24px] border border-[color:var(--accent-border-soft)] bg-[linear-gradient(180deg,var(--accent-soft-bg),var(--surface))] px-4 py-4">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+              <div className="min-w-0">
+                <p className="font-mono text-[11px] uppercase tracking-[0.24em] text-[var(--accent-text)]">
+                  {shareEnabled ? 'Public link active' : 'Private analysis'}
+                </p>
+                <p className="mt-2 break-all text-sm leading-6 text-[var(--muted-strong)]">
+                  {shareEnabled && sharePath ? sharePath : 'Enable sharing to create a public read-only link.'}
+                </p>
+                {shareError ? (
+                  <p className="mt-2 text-sm text-[var(--danger)]">{shareError}</p>
+                ) : shareMessage ? (
+                  <p className="mt-2 text-sm text-[var(--success)]">{shareMessage}</p>
+                ) : null}
+              </div>
+              <div className="flex flex-col gap-2 sm:flex-row lg:shrink-0">
+                {shareEnabled ? (
+                  <>
+                    <button
+                      className="inline-flex min-h-10 items-center justify-center rounded-full border border-[color:var(--border-color)] bg-[var(--surface-raised)] px-4 text-sm font-medium text-[var(--muted-strong)] transition hover:border-[color:var(--border-strong)] hover:text-[var(--foreground)]"
+                      type="button"
+                      onClick={() => {
+                        void handleCopyShareLink();
+                      }}
+                    >
+                      Copy link
+                    </button>
+                    <button
+                      className="inline-flex min-h-10 items-center justify-center rounded-full border border-rose-500/20 bg-rose-500/10 px-4 text-sm font-medium text-rose-700 transition hover:border-rose-500/34 hover:bg-rose-500/16 disabled:cursor-not-allowed disabled:opacity-60 dark:text-rose-300"
+                      disabled={isSharing}
+                      type="button"
+                      onClick={() => {
+                        void handleDisableSharing();
+                      }}
+                    >
+                      {isSharing ? 'Updating...' : 'Disable'}
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    className="inline-flex min-h-10 items-center justify-center rounded-full border border-[color:var(--accent-border-soft)] bg-[linear-gradient(135deg,var(--accent-gradient-start),var(--accent-gradient-mid)_60%,var(--accent-gradient-end))] px-4 text-sm font-medium text-[var(--accent-button-text)] shadow-[0_18px_38px_-24px_var(--accent-button-shadow)] transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
+                    disabled={isSharing}
+                    type="button"
+                    onClick={() => {
+                      void handleEnableSharing();
+                    }}
+                  >
+                    {isSharing ? 'Creating...' : 'Enable link'}
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {onDelete && (isDeleteConfirmOpen || actionError) ? (
+          <div className="mt-4 rounded-[22px] border border-[color:color-mix(in_srgb,var(--danger)_20%,transparent)] bg-[linear-gradient(180deg,color-mix(in_srgb,var(--danger)_8%,transparent),var(--surface))] px-4 py-3.5">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-sm font-medium text-[var(--foreground)]">
+                  Delete this analysis?
+                </p>
+                {actionError ? (
+                  <p className="mt-2 text-sm text-[var(--danger)]">{actionError}</p>
+                ) : null}
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  className="inline-flex min-h-10 items-center rounded-full border border-[color:var(--border-color)] bg-[var(--surface-raised)] px-4 text-sm font-medium text-[var(--muted-strong)] transition hover:border-[color:var(--border-strong)] hover:text-[var(--foreground)]"
+                  type="button"
+                  onClick={() => {
+                    setIsDeleteConfirmOpen(false);
+                    setActionError(null);
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="inline-flex min-h-10 items-center rounded-full border border-[color:color-mix(in_srgb,var(--danger)_28%,transparent)] bg-[linear-gradient(135deg,var(--danger),color-mix(in_srgb,var(--danger)_72%,black))] px-4 text-sm font-medium text-white shadow-[0_20px_42px_-28px_color-mix(in_srgb,var(--danger)_40%,transparent)] transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
+                  disabled={isDeleting}
+                  type="button"
+                  onClick={() => {
+                    void handleDelete();
+                  }}
+                >
+                  {isDeleting ? 'Deleting...' : 'Delete'}
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+      </motion.article>
+    );
   }
 
   return (
@@ -448,6 +861,13 @@ export default function AnalysisCard({
           <AnalysisCover
             screenshotUrl={analysis.screenshotUrl}
             symbol={symbolLabel}
+            placeholder
+          />
+        ) : !compact ? (
+          <AnalysisCover
+            screenshotUrl={analysis.screenshotUrl}
+            symbol={symbolLabel}
+            placeholder
           />
         ) : null}
 

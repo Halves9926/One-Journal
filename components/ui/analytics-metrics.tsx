@@ -13,7 +13,10 @@ import {
   SessionPerformanceAnalyticsCard,
   WeekdayPerformanceAnalyticsCard,
 } from '@/components/ui/analytics-charts';
-import { MetricCard, Panel } from '@/components/ui/panel';
+import { Panel } from '@/components/ui/panel';
+import WinRateWidget, {
+  type WinRateWidgetVariant,
+} from '@/components/ui/win-rate-widget';
 import {
   formatBreakdownSummary,
   formatRatioMetric,
@@ -74,21 +77,40 @@ export type AnalyticsMetricCategory =
 
 export type AnalyticsWidgetSize = 'compact' | 'medium' | 'wide' | 'full';
 
+export const NET_PNL_WIDGET_VARIANTS = ['compact', 'visual'] as const;
+
+export type NetPnlWidgetVariant = (typeof NET_PNL_WIDGET_VARIANTS)[number];
+
+export type AnalyticsMetricVariant = WinRateWidgetVariant | NetPnlWidgetVariant;
+
 export type AnalyticsMetricRenderContext = {
   analytics: AnalyticsSnapshot;
   filters: AnalyticsFilters;
+  metricVariants: AnalyticsMetricVariantMap;
   scopeLabel: string;
   totalTradesAvailable: number;
 };
 
+export type AnalyticsMetricVisualOption = {
+  description: string;
+  id: AnalyticsMetricVariant;
+  label: string;
+};
+
+export type AnalyticsMetricVariantMap = Partial<
+  Record<AnalyticsMetricId, AnalyticsMetricVariant>
+>;
+
 export type AnalyticsMetricDefinition = {
   category: AnalyticsMetricCategory;
+  defaultVariant?: AnalyticsMetricVariant;
   description: string;
   id: AnalyticsMetricId;
   name: string;
   render: (context: AnalyticsMetricRenderContext) => ReactNode;
   requiredData?: string[];
   size: AnalyticsWidgetSize;
+  visualOptions?: AnalyticsMetricVisualOption[];
 };
 
 export const DEFAULT_ANALYTICS_METRIC_IDS: AnalyticsMetricId[] = [
@@ -101,6 +123,11 @@ export const DEFAULT_ANALYTICS_METRIC_IDS: AnalyticsMetricId[] = [
   'worst-session',
   'recent-performance',
 ];
+
+export const DEFAULT_ANALYTICS_METRIC_VARIANTS = {
+  'net-pnl': 'compact',
+  'win-rate': 'radial',
+} satisfies AnalyticsMetricVariantMap;
 
 const analyticsMetricIdSet = new Set<string>(ANALYTICS_METRIC_IDS);
 
@@ -133,14 +160,172 @@ function SummaryWidget({
   value: string;
   valueClassName?: string;
 }) {
+  const toneClassNames = {
+    accent:
+      'border-[color:var(--accent-border-soft)] bg-[radial-gradient(circle_at_top_right,var(--accent-primary-glow),transparent_48%),linear-gradient(180deg,var(--surface-raised),var(--surface))]',
+    danger:
+      'border-[color:color-mix(in_srgb,var(--danger)_24%,transparent)] bg-[radial-gradient(circle_at_top_right,color-mix(in_srgb,var(--danger)_14%,transparent),transparent_48%),linear-gradient(180deg,var(--surface-raised),var(--surface))]',
+    neutral:
+      'border-[color:var(--border-color)] bg-[linear-gradient(180deg,var(--surface-raised),var(--surface))]',
+    success:
+      'border-[color:var(--pnl-positive-border)] bg-[radial-gradient(circle_at_top_right,color-mix(in_srgb,var(--chart-positive)_14%,transparent),transparent_48%),linear-gradient(180deg,var(--surface-raised),var(--surface))]',
+  } satisfies Record<NonNullable<typeof tone>, string>;
+  const barClassNames = {
+    accent:
+      'bg-[linear-gradient(90deg,var(--accent-gradient-start),var(--accent-gradient-mid),var(--accent-gradient-end))]',
+    danger:
+      'bg-[linear-gradient(90deg,var(--chart-negative),color-mix(in_srgb,var(--chart-negative)_56%,var(--surface-raised)))]',
+    neutral:
+      'bg-[linear-gradient(90deg,var(--chart-neutral),color-mix(in_srgb,var(--chart-neutral)_52%,var(--surface-raised)))]',
+    success:
+      'bg-[linear-gradient(90deg,var(--chart-positive),color-mix(in_srgb,var(--chart-positive)_56%,var(--surface-raised)))]',
+  } satisfies Record<NonNullable<typeof tone>, string>;
+
   return (
-    <MetricCard
-      caption={caption}
-      className={cx('h-full', className)}
-      label={label}
+    <article
+      className={cx(
+        'relative isolate flex h-full min-h-[164px] flex-col overflow-hidden rounded-[28px] border p-5 shadow-[0_24px_48px_-34px_var(--shadow-color),inset_0_1px_0_rgba(255,255,255,0.06)] transition duration-300 hover:-translate-y-1 hover:border-[color:var(--accent-border-soft)] hover:shadow-[0_28px_54px_-34px_var(--shadow-color)]',
+        toneClassNames[tone],
+        className,
+      )}
+    >
+      <div className="pointer-events-none absolute inset-x-[-18%] top-[-42%] -z-10 h-44 rounded-full bg-[radial-gradient(circle,var(--accent-panel-glow),transparent_64%)] blur-2xl" />
+      <div className="flex items-start justify-between gap-3">
+        <p className="text-sm text-[var(--muted)]">{label}</p>
+        <span
+          className={cx(
+            'mt-1 h-2.5 w-2.5 shrink-0 rounded-full shadow-[0_0_22px_currentColor]',
+            tone === 'success'
+              ? 'text-[var(--chart-positive)]'
+              : tone === 'danger'
+                ? 'text-[var(--chart-negative)]'
+                : tone === 'accent'
+                  ? 'text-[var(--accent-solid)]'
+                  : 'text-[var(--chart-neutral)]',
+          )}
+        />
+      </div>
+      <p
+        className={cx(
+          'mt-3 text-3xl font-semibold tracking-tight text-[var(--foreground)]',
+          valueClassName,
+        )}
+      >
+        {value}
+      </p>
+      {caption ? (
+        <p className="mt-2 text-sm leading-6 text-[var(--muted)]">{caption}</p>
+      ) : null}
+      <div className="mt-auto pt-5">
+        <div className="h-2 overflow-hidden rounded-full bg-[var(--surface-soft)]">
+          <div className={cx('h-full w-2/3 rounded-full', barClassNames[tone])} />
+        </div>
+      </div>
+    </article>
+  );
+}
+
+function NetPnlWidget({
+  analytics,
+  variant,
+}: {
+  analytics: AnalyticsSnapshot;
+  variant: NetPnlWidgetVariant;
+}) {
+  const netPnl = analytics.summary.netPnl;
+  const recentPoints = analytics.equityCurve.slice(-8);
+  const maxMagnitude = Math.max(
+    1,
+    ...recentPoints.map((point) => Math.abs(point.pnl)),
+  );
+  const tone = netPnl < 0 ? 'danger' : netPnl > 0 ? 'success' : 'accent';
+  const recentPnl =
+    recentPoints.length > 0
+      ? recentPoints.reduce((total, point) => total + point.pnl, 0)
+      : null;
+
+  if (variant === 'visual') {
+    return (
+      <article
+        className={cx(
+          'relative isolate flex h-full min-h-[190px] flex-col overflow-hidden rounded-[28px] border p-5 shadow-[0_24px_48px_-34px_var(--shadow-color),inset_0_1px_0_rgba(255,255,255,0.06)] transition duration-300 hover:-translate-y-1 hover:border-[color:var(--accent-border-soft)]',
+          netPnl < 0
+            ? 'border-[color:var(--pnl-negative-border)] bg-[radial-gradient(circle_at_top_right,var(--pnl-negative-surface),transparent_48%),linear-gradient(180deg,var(--surface-raised),var(--surface))]'
+            : 'border-[color:var(--pnl-positive-border)] bg-[radial-gradient(circle_at_top_right,var(--pnl-positive-surface),transparent_48%),linear-gradient(180deg,var(--surface-raised),var(--surface))]',
+        )}
+      >
+        <div className="pointer-events-none absolute inset-x-[-18%] top-[-44%] -z-10 h-44 rounded-full bg-[radial-gradient(circle,var(--accent-panel-glow),transparent_64%)] blur-2xl" />
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="font-mono text-[10px] uppercase tracking-[0.28em] text-[var(--muted)]">
+              Net PnL
+            </p>
+            <p
+              className={cx(
+                'mt-3 text-4xl font-semibold leading-none tracking-[-0.06em]',
+                getPnlTextClassName(netPnl),
+              )}
+            >
+              {formatPnl(netPnl, 0)}
+            </p>
+          </div>
+          <span className="rounded-full border border-[color:var(--border-color)] bg-[var(--surface)] px-3 py-1.5 text-xs text-[var(--muted-strong)]">
+            {analytics.totalTrades} trades
+          </span>
+        </div>
+
+        <div className="relative mt-6 h-20">
+          <div className="pointer-events-none absolute inset-x-0 top-1/2 h-px bg-[linear-gradient(90deg,transparent,var(--border-strong),transparent)]" />
+          {recentPoints.length > 0 ? (
+            <div className="grid h-full grid-cols-8 items-center gap-2">
+              {recentPoints.map((point, index) => {
+                const height = point.pnl === 0
+                  ? 12
+                  : Math.max((Math.abs(point.pnl) / maxMagnitude) * 46, 14);
+
+                return (
+                  <span
+                    key={`${point.tradeId}-${index}`}
+                    className={cx(
+                      'relative h-full rounded-full',
+                      point.pnl > 0
+                        ? 'bg-[linear-gradient(180deg,var(--chart-positive),color-mix(in_srgb,var(--chart-positive)_54%,white))]'
+                        : point.pnl < 0
+                          ? 'bg-[linear-gradient(180deg,var(--chart-negative),color-mix(in_srgb,var(--chart-negative)_54%,white))]'
+                          : 'bg-[var(--chart-neutral)]',
+                    )}
+                    style={{
+                      alignSelf: point.pnl >= 0 ? 'end' : 'start',
+                      height: `${height}%`,
+                      opacity: point.pnl === 0 ? 0.45 : 1,
+                    }}
+                    title={`${point.label}: ${formatPnl(point.pnl)}`}
+                  />
+                );
+              })}
+            </div>
+          ) : (
+            <div className="grid h-full place-items-center rounded-[22px] border border-dashed border-[color:var(--border-color)] bg-[var(--surface)] text-sm text-[var(--muted)]">
+              No outcomes yet
+            </div>
+          )}
+        </div>
+
+        <p className="mt-4 text-sm leading-6 text-[var(--muted)]">
+          {recentPnl === null ? 'Waiting for executions.' : `Recent flow ${formatPnl(recentPnl, 0)}.`}
+        </p>
+      </article>
+    );
+  }
+
+  return (
+    <SummaryWidget
+      caption={`${analytics.totalTrades} matched trades`}
+      className={getPnlCardClassName(netPnl)}
+      label="Net PnL"
       tone={tone}
-      value={value}
-      valueClassName={valueClassName}
+      value={formatPnl(netPnl, 0)}
+      valueClassName={getPnlTextClassName(netPnl)}
     />
   );
 }
@@ -165,7 +350,7 @@ function BreakdownWidget({
         {title}
       </h3>
       <p className="mt-5 truncate text-3xl font-semibold tracking-tight text-[var(--foreground)]">
-        {item?.label ?? '--'}
+        {item?.label ?? 'No data'}
       </p>
       <p className="mt-3 text-sm leading-6 text-[var(--muted)]">
         {item ? formatBreakdownSummary(item) : emptyCaption}
@@ -176,10 +361,10 @@ function BreakdownWidget({
             {item.count} trades
           </span>
           <span className="rounded-2xl border border-[color:var(--border-color)] bg-[var(--surface)] px-3 py-2">
-            {item.winRate === null ? '--' : `${formatCompactNumber(item.winRate, 0)}%`}
+            {item.winRate === null ? 'No rate' : `${formatCompactNumber(item.winRate, 0)}%`}
           </span>
           <span className="rounded-2xl border border-[color:var(--border-color)] bg-[var(--surface)] px-3 py-2">
-            RR {formatRatioMetric(item.avgRr, 1)}
+            RR {item.avgRr === null ? 'No RR' : formatRatioMetric(item.avgRr, 1)}
           </span>
         </div>
       ) : null}
@@ -187,42 +372,71 @@ function BreakdownWidget({
   );
 }
 
+function formatMetricRatio(
+  value: number | null,
+  digits = 2,
+  fallback = 'No data',
+) {
+  return value === null ? fallback : formatRatioMetric(value, digits);
+}
+
 export const analyticsMetricRegistry = [
   {
     category: 'Core',
+    defaultVariant: 'compact',
     description: 'Aggregate result across the current filters.',
     id: 'net-pnl',
     name: 'Net PnL',
     requiredData: ['PnL'],
     size: 'compact',
-    render: ({ analytics }) => (
-      <SummaryWidget
-        caption="aggregate result"
-        className={getPnlCardClassName(analytics.summary.netPnl)}
-        label="Net PnL"
-        tone={analytics.summary.netPnl < 0 ? 'danger' : 'accent'}
-        value={formatPnl(analytics.summary.netPnl, 0)}
-        valueClassName={getPnlTextClassName(analytics.summary.netPnl)}
+    visualOptions: [
+      {
+        description: 'Small value-first card for dense layouts.',
+        id: 'compact',
+        label: 'Compact',
+      },
+      {
+        description: 'Mini visual pulse with recent PnL flow.',
+        id: 'visual',
+        label: 'Visual',
+      },
+    ],
+    render: ({ analytics, metricVariants }) => (
+      <NetPnlWidget
+        analytics={analytics}
+        variant={
+          metricVariants['net-pnl'] === 'visual' ? 'visual' : 'compact'
+        }
       />
     ),
   },
   {
     category: 'Core',
     description: 'Winning trades as a percentage of the sample.',
+    defaultVariant: 'radial',
     id: 'win-rate',
     name: 'Win Rate',
     requiredData: ['PnL'],
-    size: 'compact',
-    render: ({ analytics }) => (
-      <SummaryWidget
-        caption={`${analytics.summary.wins} wins / ${analytics.summary.losses} losses`}
-        label="Win rate"
-        tone="success"
-        value={
-          analytics.summary.winRate === null
-            ? '--'
-            : `${formatCompactNumber(analytics.summary.winRate, 0)}%`
-        }
+    size: 'medium',
+    visualOptions: [
+      {
+        description: 'Large radial gauge with outcome breakdown.',
+        id: 'radial',
+        label: 'Radial',
+      },
+      {
+        description: 'Smaller horizontal card for dense layouts.',
+        id: 'compact',
+        label: 'Compact',
+      },
+    ],
+    render: ({ analytics, metricVariants }) => (
+      <WinRateWidget
+        breakeven={analytics.summary.breakeven}
+        caption={`${analytics.summary.totalTrades} tracked outcome${analytics.summary.totalTrades === 1 ? '' : 's'}`}
+        losses={analytics.summary.losses}
+        variant={metricVariants['win-rate'] ?? 'radial'}
+        wins={analytics.summary.wins}
       />
     ),
   },
@@ -234,7 +448,7 @@ export const analyticsMetricRegistry = [
     size: 'compact',
     render: ({ analytics, totalTradesAvailable }) => (
       <SummaryWidget
-        caption={`${totalTradesAvailable} trades available across the journal`}
+        caption={`${totalTradesAvailable} trades in the current journal view`}
         label="Total trades"
         value={String(analytics.totalTrades)}
       />
@@ -251,7 +465,7 @@ export const analyticsMetricRegistry = [
       <SummaryWidget
         caption="risk to reward captured"
         label="Average RR"
-        value={formatRatioMetric(analytics.summary.avgRr, 2)}
+        value={formatMetricRatio(analytics.summary.avgRr, 2, 'No RR')}
       />
     ),
   },
@@ -266,7 +480,16 @@ export const analyticsMetricRegistry = [
       <SummaryWidget
         caption="gross wins vs gross losses"
         label="Profit factor"
-        value={formatRatioMetric(analytics.profitFactor, 2)}
+        tone={
+          analytics.profitFactor !== null && analytics.profitFactor >= 1
+            ? 'accent'
+            : 'neutral'
+        }
+        value={
+          analytics.profitFactor === Number.POSITIVE_INFINITY
+            ? 'Perfect'
+            : formatMetricRatio(analytics.profitFactor, 2)
+        }
       />
     ),
   },
@@ -283,7 +506,7 @@ export const analyticsMetricRegistry = [
         className={getPnlCardClassName(analytics.expectancy)}
         label="Expectancy"
         tone={(analytics.expectancy ?? 0) < 0 ? 'danger' : 'accent'}
-        value={formatPnl(analytics.expectancy, 0)}
+        value={analytics.expectancy === null ? 'No data' : formatPnl(analytics.expectancy, 0)}
         valueClassName={getPnlTextClassName(analytics.expectancy)}
       />
     ),
@@ -301,7 +524,7 @@ export const analyticsMetricRegistry = [
         className={getPnlCardClassName(analytics.summary.avgWin)}
         label="Average win"
         tone="success"
-        value={formatPnl(analytics.summary.avgWin, 0)}
+        value={analytics.summary.avgWin === null ? 'No wins' : formatPnl(analytics.summary.avgWin, 0)}
         valueClassName={getPnlTextClassName(analytics.summary.avgWin)}
       />
     ),
@@ -319,7 +542,7 @@ export const analyticsMetricRegistry = [
         className={getPnlCardClassName(analytics.summary.avgLoss)}
         label="Average loss"
         tone="danger"
-        value={formatPnl(analytics.summary.avgLoss, 0)}
+        value={analytics.summary.avgLoss === null ? 'No losses' : formatPnl(analytics.summary.avgLoss, 0)}
         valueClassName={getPnlTextClassName(analytics.summary.avgLoss)}
       />
     ),
@@ -337,7 +560,7 @@ export const analyticsMetricRegistry = [
         className={getPnlCardClassName(analytics.summary.bestTrade)}
         label="Best trade"
         tone="success"
-        value={formatPnl(analytics.summary.bestTrade, 0)}
+        value={analytics.summary.bestTrade === null ? 'No trade' : formatPnl(analytics.summary.bestTrade, 0)}
         valueClassName={getPnlTextClassName(analytics.summary.bestTrade)}
       />
     ),
@@ -355,7 +578,7 @@ export const analyticsMetricRegistry = [
         className={getPnlCardClassName(analytics.summary.worstTrade)}
         label="Worst trade"
         tone="danger"
-        value={formatPnl(analytics.summary.worstTrade, 0)}
+        value={analytics.summary.worstTrade === null ? 'No trade' : formatPnl(analytics.summary.worstTrade, 0)}
         valueClassName={getPnlTextClassName(analytics.summary.worstTrade)}
       />
     ),
@@ -372,7 +595,7 @@ export const analyticsMetricRegistry = [
         caption="largest equity pullback"
         label="Max drawdown"
         tone="danger"
-        value={formatCurrency(analytics.maxDrawdown, 0)}
+        value={analytics.maxDrawdown === null ? 'No trades' : formatCurrency(analytics.maxDrawdown, 0)}
       />
     ),
   },
@@ -388,7 +611,7 @@ export const analyticsMetricRegistry = [
         caption="latest equity pullback"
         label="Current drawdown"
         tone={(analytics.currentDrawdown ?? 0) > 0 ? 'danger' : 'neutral'}
-        value={formatCurrency(analytics.currentDrawdown, 0)}
+        value={analytics.currentDrawdown === null ? 'No trades' : formatCurrency(analytics.currentDrawdown, 0)}
       />
     ),
   },
@@ -622,7 +845,7 @@ export const analyticsMetricRegistry = [
       <SummaryWidget
         caption="average risk field value"
         label="Risk average"
-        value={formatRatioMetric(analytics.riskAverage, 2)}
+        value={formatMetricRatio(analytics.riskAverage, 2, 'No risk')}
       />
     ),
   },
@@ -671,4 +894,46 @@ export function normalizeAnalyticsMetricIds(values: string[]) {
   }
 
   return metricIds;
+}
+
+export function isAnalyticsMetricVariant(
+  metric: AnalyticsMetricDefinition,
+  value: string,
+): value is AnalyticsMetricVariant {
+  return Boolean(
+    metric.visualOptions?.some((option) => option.id === value),
+  );
+}
+
+export function normalizeAnalyticsMetricVariants(
+  values: Record<string, string> | null | undefined,
+) {
+  const metricVariants: AnalyticsMetricVariantMap = {};
+
+  if (!values) {
+    return metricVariants;
+  }
+
+  for (const metric of analyticsMetricRegistry) {
+    if (!metric.visualOptions || metric.visualOptions.length === 0) {
+      continue;
+    }
+
+    const value = values[metric.id];
+
+    if (!value || !isAnalyticsMetricVariant(metric, value)) {
+      continue;
+    }
+
+    metricVariants[metric.id] = value;
+  }
+
+  return metricVariants;
+}
+
+export function getAnalyticsMetricVariant(
+  metric: AnalyticsMetricDefinition,
+  metricVariants: AnalyticsMetricVariantMap,
+) {
+  return metricVariants[metric.id] ?? metric.defaultVariant ?? null;
 }

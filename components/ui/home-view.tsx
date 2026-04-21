@@ -7,11 +7,12 @@ import { useAccounts } from '@/components/ui/accounts-provider';
 import { useAuth } from '@/components/ui/auth-provider';
 import { ButtonLink } from '@/components/ui/button';
 import { MessageBanner } from '@/components/ui/form-fields';
+import { HomeLayoutWorkspace } from '@/components/ui/home-layout-workspace';
+import { useListViewPreferences } from '@/components/ui/list-view-preferences';
 import PageShell from '@/components/ui/page-shell';
 import { EquitySparkline } from '@/components/ui/trade-charts';
-import { MetricCard, Panel, PanelHeader } from '@/components/ui/panel';
+import { Panel, PanelHeader } from '@/components/ui/panel';
 import { Reveal } from '@/components/ui/reveal';
-import TradeCard from '@/components/ui/trade-card';
 import { useUserTrades } from '@/components/ui/use-user-trades';
 import {
   buildAccountMetrics as getAccountMetrics,
@@ -19,7 +20,6 @@ import {
 } from '@/lib/accounts';
 import {
   buildTradeSummary,
-  formatCompactNumber,
   formatCurrency,
   formatPnl,
   formatPercentValue,
@@ -47,7 +47,7 @@ function getStreakLabel(
     return `${streak} trade loss streak`;
   }
 
-  return `${streak} flat trades`;
+  return `${streak} breakeven trades`;
 }
 
 function getAccountContextLabel() {
@@ -135,6 +135,7 @@ export default function HomeView() {
     enabled: Boolean(user && activeAccount),
     limit: 24,
   });
+  const { preferences: listViewPreferences } = useListViewPreferences();
   const accountMetrics = useMemo(
     () =>
       activeAccount ? getAccountMetrics(activeAccount, tradesState.items) : null,
@@ -142,6 +143,7 @@ export default function HomeView() {
   );
   const summary = accountMetrics?.summary ?? buildTradeSummary([]);
   const recentTrades = tradesState.items.slice(0, 4);
+  const tradeListMode = listViewPreferences.trades;
   const displayEquity =
     activeAccount && accountMetrics
       ? isPropAccount(activeAccount) &&
@@ -187,57 +189,6 @@ export default function HomeView() {
         )
       : Math.max(0, Math.min(summary.winRate ?? 0, 100))
     : 0;
-  const overviewCards = activeAccount
-    ? [
-        {
-          caption: 'for the active account',
-          className: '',
-          label: 'Total trades',
-          tone: 'neutral' as const,
-          value: String(summary.totalTrades),
-          valueClassName: '',
-        },
-        {
-          caption: `${summary.wins} wins / ${summary.losses} losses`,
-          className: '',
-          label: 'Win rate',
-          tone: 'success' as const,
-          value:
-            summary.winRate === null ? 'No trades yet' : `${Math.round(summary.winRate)}%`,
-          valueClassName: '',
-        },
-        {
-          caption: 'net performance on this account',
-          className: getPnlCardClassName(summary.netPnl),
-          label: 'Net PnL',
-          tone: summary.netPnl < 0 ? ('danger' as const) : ('accent' as const),
-          value: formatPnl(summary.netPnl),
-          valueClassName: getPnlTextClassName(summary.netPnl),
-        },
-        {
-          caption: 'average risk-to-reward captured',
-          className: '',
-          label: 'Average RR',
-          tone: 'neutral' as const,
-          value:
-            summary.avgRr === null
-              ? 'Not enough history'
-              : formatCompactNumber(summary.avgRr),
-          valueClassName: '',
-        },
-        {
-          caption: summary.lastTrade?.date
-            ? formatTradeDate(summary.lastTrade.date)
-            : 'No trades yet',
-          className: '',
-          label: 'Last trade',
-          tone: 'accent' as const,
-          value: summary.lastTrade?.symbol || 'Waiting for first trade',
-          valueClassName: '',
-        },
-      ]
-    : [];
-
   async function handleDeleteTrade(tradeId: string) {
     if (!supabase || !user) {
       return { error: 'Supabase client unavailable.' };
@@ -517,7 +468,7 @@ export default function HomeView() {
                           <span>{overviewStatusMeta}</span>
                           <span>
                             {summary.riskAverage === null
-                              ? 'Risk --'
+                              ? 'Risk not tracked'
                               : `Risk ${formatPercentValue(summary.riskAverage)}`}
                           </span>
                         </div>
@@ -626,79 +577,18 @@ export default function HomeView() {
 
         {accountsError ? <MessageBanner message={accountsError} tone="error" /> : null}
 
-        {activeAccount ? (
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-            {overviewCards.map((card, index) => (
-              <Reveal key={card.label} delay={index * 0.04}>
-                <MetricCard
-                  label={card.label}
-                  value={card.value}
-                  tone={card.tone}
-                  caption={card.caption}
-                  className={card.className}
-                  valueClassName={card.valueClassName}
-                />
-              </Reveal>
-            ))}
-          </div>
-        ) : null}
-
         <Reveal delay={0.08}>
-          <Panel className="overflow-hidden">
-            <PanelHeader
-              eyebrow="recent trades"
-              title={`${activeAccount.name} recap`}
-              description="Featured previews first, compact cards after. Screenshots stay embedded when available."
-              action={
-                <div className="flex flex-col gap-3 sm:flex-row">
-                  <ButtonLink href="/dashboard" variant="secondary">
-                    Full Dashboard
-                  </ButtonLink>
-                  <ButtonLink href="/accounts" variant="ghost">
-                    Manage Accounts
-                  </ButtonLink>
-                </div>
-              }
-            />
-
-            <div className="px-6 pb-6 pt-2 sm:px-8 sm:pb-8">
-              {tradesState.loading ? (
-                <div className="rounded-[24px] border border-[color:var(--border-color)] bg-[var(--surface)] px-4 py-5 text-sm text-[var(--muted)]">
-                  Loading recent trades...
-                </div>
-              ) : null}
-
-              {tradesState.error ? (
-                <MessageBanner
-                  message={`Trades query error: ${tradesState.error}`}
-                  tone="error"
-                />
-              ) : null}
-
-              {!tradesState.loading && !tradesState.error && recentTrades.length === 0 ? (
-                <div className="rounded-[26px] border border-dashed border-[color:var(--border-color)] bg-[var(--surface)] px-5 py-6 text-sm leading-7 text-[var(--muted)]">
-                  No trades yet for this account. Save the first execution and home becomes a real account recap.
-                </div>
-              ) : null}
-
-              {!tradesState.loading && !tradesState.error && recentTrades.length > 0 ? (
-                <div className="grid gap-4 xl:grid-cols-2">
-                  {recentTrades.map((trade, index) => (
-                    <TradeCard
-                      key={trade.id}
-                      trade={trade}
-                      index={index}
-                      featured={index === 0}
-                      compact={index > 0}
-                      editHref={`/trades/${trade.id}/edit`}
-                      onDelete={handleDeleteTrade}
-                      className={index === 0 ? 'xl:col-span-2' : ''}
-                    />
-                  ))}
-                </div>
-              ) : null}
-            </div>
-          </Panel>
+          <HomeLayoutWorkspace
+            accountId={activeAccount.id}
+            activeAccountName={activeAccount.name}
+            onDeleteTrade={handleDeleteTrade}
+            recentTrades={recentTrades}
+            summary={summary}
+            tradeListMode={tradeListMode}
+            tradesError={tradesState.error}
+            tradesLoading={tradesState.loading}
+            userId={user.id}
+          />
         </Reveal>
       </div>
     </PageShell>

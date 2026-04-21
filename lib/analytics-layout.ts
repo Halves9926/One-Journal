@@ -3,6 +3,7 @@ export const ANALYTICS_LAYOUT_VERSION = 1;
 
 export type AnalyticsLayoutPreference = {
   metricIds: string[];
+  metricVariants: Record<string, string>;
   updatedAt: string;
   version: typeof ANALYTICS_LAYOUT_VERSION;
 };
@@ -40,6 +41,17 @@ export function parseAnalyticsLayoutPreference(value: string | null) {
       metricIds: parsedValue.metricIds.filter(
         (metricId): metricId is string => typeof metricId === 'string',
       ),
+      metricVariants:
+        parsedValue.metricVariants &&
+        typeof parsedValue.metricVariants === 'object' &&
+        !Array.isArray(parsedValue.metricVariants)
+          ? Object.fromEntries(
+              Object.entries(parsedValue.metricVariants).filter(
+                (entry): entry is [string, string] =>
+                  typeof entry[0] === 'string' && typeof entry[1] === 'string',
+              ),
+            )
+          : {},
       updatedAt:
         typeof parsedValue.updatedAt === 'string'
           ? parsedValue.updatedAt
@@ -62,6 +74,7 @@ export function readAnalyticsLayoutPreference(storageKey: string) {
 export function writeAnalyticsLayoutPreference(
   storageKey: string,
   metricIds: string[],
+  metricVariants: Record<string, string> = {},
 ) {
   if (typeof window === 'undefined') {
     return;
@@ -69,6 +82,7 @@ export function writeAnalyticsLayoutPreference(
 
   const preference: AnalyticsLayoutPreference = {
     metricIds,
+    metricVariants,
     updatedAt: new Date().toISOString(),
     version: ANALYTICS_LAYOUT_VERSION,
   };

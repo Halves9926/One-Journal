@@ -94,9 +94,9 @@ function AnalyticsTooltip({
         </p>
       ) : null}
       <div className="mt-2 space-y-1.5">
-        {payload.map((entry) => (
+        {payload.map((entry, index) => (
           <div
-            key={`${entry.name}-${entry.dataKey}-${entry.color}`}
+            key={`${entry.name ?? 'item'}-${entry.dataKey ?? 'value'}-${entry.color ?? 'none'}-${index}`}
             className="flex items-center justify-between gap-4 text-sm"
           >
             <span className="flex items-center gap-2 text-[var(--muted-strong)]">
@@ -319,9 +319,9 @@ export function PnlByDayAnalyticsCard({ points }: { points: PnlByDayPoint[] }) {
               }
             />
             <Bar dataKey="netPnl" name="PnL" radius={[12, 12, 12, 12]} maxBarSize={26}>
-              {points.map((point) => (
+              {points.map((point, index) => (
                 <Cell
-                  key={point.date}
+                  key={`${point.date}-${index}`}
                   fill={point.netPnl < 0 ? chartColors.negative : chartColors.positive}
                 />
               ))}
@@ -386,9 +386,9 @@ export function SessionPerformanceAnalyticsCard({
               }
             />
             <Bar dataKey="netPnl" name="Net PnL" radius={[12, 12, 12, 12]} maxBarSize={24}>
-              {items.map((item) => (
+              {items.map((item, index) => (
                 <Cell
-                  key={item.label}
+                  key={`${item.label}-${index}`}
                   fill={item.netPnl < 0 ? chartColors.negative : chartColors.positive}
                 />
               ))}
@@ -528,9 +528,9 @@ export function LongShortAnalyticsCard({
               }
             />
             <Bar yAxisId="left" dataKey="netPnl" name="Net PnL" radius={[12, 12, 12, 12]} maxBarSize={42}>
-              {data.map((item) => (
+              {data.map((item, index) => (
                 <Cell
-                  key={item.label}
+                  key={`${item.label}-${index}`}
                   fill={item.netPnl < 0 ? chartColors.negative : chartColors.positive}
                 />
               ))}
@@ -679,9 +679,9 @@ export function WeekdayPerformanceAnalyticsCard({
               }
             />
             <Bar dataKey="netPnl" name="Net PnL" radius={[12, 12, 12, 12]} maxBarSize={28}>
-              {items.map((item) => (
+              {items.map((item, index) => (
                 <Cell
-                  key={item.label}
+                  key={`${item.label}-${index}`}
                   fill={item.netPnl < 0 ? chartColors.negative : chartColors.positive}
                 />
               ))}
@@ -856,9 +856,9 @@ export function DurationScatterAnalyticsCard({
               }
             />
             <Scatter data={points} name="Trades" fill={chartColors.accent}>
-              {points.map((point) => (
+              {points.map((point, index) => (
                 <Cell
-                  key={point.tradeId}
+                  key={`${point.tradeId}-${index}`}
                   fill={point.pnl < 0 ? chartColors.negative : chartColors.positive}
                 />
               ))}

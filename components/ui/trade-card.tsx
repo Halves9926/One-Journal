@@ -13,6 +13,7 @@ import {
   getTradeTimeRangeLabel,
   getPnlBadgeClassName,
   getPnlTextClassName,
+  parseTradeNotes,
   type TradeView,
 } from '@/lib/trades';
 import { cx } from '@/lib/utils';
@@ -25,6 +26,7 @@ type TradeCardProps = {
   index?: number;
   onDelete?: (tradeId: string) => Promise<{ error: string | null }>;
   trade: TradeView;
+  variant?: 'stacked';
 };
 
 function getDirectionToneClassName(direction: string | null) {
@@ -57,18 +59,44 @@ function getNotesPreview(notes: string | null, compact: boolean) {
 function TradeCover({
   className,
   compact = false,
+  placeholder = false,
   screenshotUrl,
   symbol,
 }: {
   className?: string;
   compact?: boolean;
+  placeholder?: boolean;
   screenshotUrl: string | null;
   symbol: string;
 }) {
   const [imageFailed, setImageFailed] = useState(false);
 
-  if (!screenshotUrl || imageFailed) {
+  if ((!screenshotUrl || imageFailed) && !placeholder) {
     return null;
+  }
+
+  if (!screenshotUrl || imageFailed) {
+    return (
+      <div
+        className={cx(
+          'relative grid overflow-hidden rounded-[26px] border border-dashed border-[color:var(--border-color)] bg-[radial-gradient(circle_at_22%_18%,var(--accent-primary-glow),transparent_42%),linear-gradient(135deg,var(--surface-raised),var(--surface))] shadow-[0_22px_48px_-34px_var(--shadow-color)]',
+          compact ? 'min-h-[120px]' : 'min-h-[220px]',
+          className,
+        )}
+      >
+        <div className="absolute inset-x-0 top-0 h-px bg-[linear-gradient(90deg,transparent,var(--accent-border-soft),transparent)]" />
+        <div className="grid place-items-center p-6 text-center">
+          <div>
+            <p className="font-mono text-[11px] uppercase tracking-[0.28em] text-[var(--accent-text)]">
+              {symbol}
+            </p>
+            <p className="mt-3 text-sm leading-6 text-[var(--muted)]">
+              No screenshot attached. Trade details stay available below.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -84,7 +112,7 @@ function TradeCover({
       <div
         className={cx(
           'overflow-hidden bg-[radial-gradient(circle_at_top,var(--accent-primary-glow),transparent_58%),linear-gradient(180deg,var(--surface-strong),var(--surface))]',
-          compact ? 'aspect-[16/8.5]' : 'aspect-[16/9]',
+          compact ? 'aspect-[16/8.5]' : 'aspect-[16/10] min-h-[220px]',
         )}
       >
         {/* Native img keeps remote screenshots flexible without remotePatterns coupling. */}
@@ -112,6 +140,7 @@ export default function TradeCard({
   index = 0,
   onDelete,
   trade,
+  variant,
 }: TradeCardProps) {
   const hasScreenshot = Boolean(trade.screenshotUrl);
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
@@ -153,6 +182,7 @@ export default function TradeCard({
 
   const symbolLabel = trade.symbol || 'Saved trade';
   const notesPreview = getNotesPreview(trade.notes, compact);
+  const parsedNotes = parseTradeNotes(trade.notes);
   const tradeTimeRangeLabel = getTradeTimeRangeLabel(trade);
   const shouldShowInlineCover = !featured || !hasScreenshot;
   const hasActions = Boolean(editHref || onDelete);
@@ -175,6 +205,303 @@ export default function TradeCard({
 
     setIsDeleteConfirmOpen(false);
     setIsDeleting(false);
+  }
+
+  if (compact && variant !== 'stacked') {
+    return (
+      <motion.article
+        initial={{ opacity: 0, y: 8 }}
+        transition={{
+          delay: index * 0.02,
+          duration: 0.26,
+          ease: [0.22, 1, 0.36, 1],
+        }}
+        viewport={{ once: true, amount: 0.2 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        className={cx(
+          'group rounded-[20px] border border-[color:var(--border-color)] bg-[linear-gradient(180deg,var(--surface-raised),var(--surface))] px-3 py-2.5 shadow-[0_14px_30px_-28px_var(--shadow-color)] transition hover:border-[color:var(--accent-border-soft)] sm:px-4',
+          className,
+        )}
+      >
+        <div className="grid min-w-0 gap-2 md:grid-cols-[minmax(120px,0.95fr)_minmax(120px,0.8fr)_minmax(120px,0.72fr)_auto] md:items-center">
+          <div className="min-w-0">
+            <div className="flex min-w-0 items-center gap-2">
+              <span className="truncate text-base font-semibold tracking-tight text-[var(--foreground)]">
+                {symbolLabel}
+              </span>
+              {trade.bias ? (
+                <span
+                  className={cx(
+                    'shrink-0 rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-[0.18em]',
+                    getDirectionToneClassName(trade.bias),
+                  )}
+                >
+                  {trade.bias}
+                </span>
+              ) : null}
+            </div>
+            <p className="mt-1 truncate text-xs text-[var(--muted)]">
+              {formatTradeDate(trade.date)}
+              {tradeTimeRangeLabel ? ` / ${tradeTimeRangeLabel}` : ''}
+            </p>
+          </div>
+
+          <div className="flex flex-wrap gap-1.5 text-xs text-[var(--muted-strong)]">
+            {trade.rr !== null ? (
+              <span className="rounded-full border border-[color:var(--border-color)] bg-[var(--surface)] px-2 py-1">
+                RR {formatCompactNumber(trade.rr)}
+              </span>
+            ) : null}
+            {trade.riskPercent !== null ? (
+              <span className="rounded-full border border-[color:var(--border-color)] bg-[var(--surface)] px-2 py-1">
+                Risk {formatPercentValue(trade.riskPercent)}
+              </span>
+            ) : null}
+            {parsedNotes.mistake ? (
+              <span className="max-w-[12rem] truncate rounded-full border border-amber-500/20 bg-amber-500/10 px-2 py-1 text-amber-700 dark:text-amber-300">
+                {parsedNotes.mistake}
+              </span>
+            ) : null}
+          </div>
+
+          <p
+            className={cx(
+              'text-lg font-semibold tracking-tight md:text-right',
+              getPnlTextClassName(trade.pnl),
+            )}
+          >
+            {trade.pnl === null ? 'Open' : formatPnl(trade.pnl)}
+          </p>
+
+          {hasActions ? (
+            <div className="flex items-center gap-2 md:justify-end">
+              {editHref ? (
+                <Link
+                  className="inline-flex min-h-8 items-center rounded-full border border-[color:var(--border-color)] bg-[var(--surface)] px-3 text-xs font-medium text-[var(--muted-strong)] transition hover:border-[color:var(--border-strong)] hover:text-[var(--foreground)]"
+                  href={editHref}
+                >
+                  Edit
+                </Link>
+              ) : null}
+              {onDelete ? (
+                <button
+                  aria-label="Delete trade"
+                  className="inline-flex min-h-8 items-center rounded-full border border-[color:color-mix(in_srgb,var(--danger)_20%,transparent)] bg-[color:color-mix(in_srgb,var(--danger)_10%,transparent)] px-3 text-xs font-medium text-[var(--danger)] transition hover:border-[color:color-mix(in_srgb,var(--danger)_34%,transparent)]"
+                  type="button"
+                  onClick={() => {
+                    setActionError(null);
+                    setIsDeleteConfirmOpen((current) => !current);
+                  }}
+                >
+                  Delete
+                </button>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+
+        {onDelete && (isDeleteConfirmOpen || actionError) ? (
+          <div className="mt-2 rounded-[18px] border border-[color:color-mix(in_srgb,var(--danger)_20%,transparent)] bg-[linear-gradient(180deg,color-mix(in_srgb,var(--danger)_8%,transparent),var(--surface))] px-3 py-3">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-sm font-medium text-[var(--foreground)]">
+                  Delete this trade?
+                </p>
+                {actionError ? (
+                  <p className="mt-1 text-sm text-[var(--danger)]">{actionError}</p>
+                ) : null}
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  className="inline-flex min-h-9 items-center rounded-full border border-[color:var(--border-color)] bg-[var(--surface-raised)] px-3 text-xs font-medium text-[var(--muted-strong)] transition hover:border-[color:var(--border-strong)] hover:text-[var(--foreground)]"
+                  type="button"
+                  onClick={() => {
+                    setIsDeleteConfirmOpen(false);
+                    setActionError(null);
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="inline-flex min-h-9 items-center rounded-full border border-[color:color-mix(in_srgb,var(--danger)_28%,transparent)] bg-[linear-gradient(135deg,var(--danger),color-mix(in_srgb,var(--danger)_72%,black))] px-3 text-xs font-medium text-white transition disabled:cursor-not-allowed disabled:opacity-60"
+                  disabled={isDeleting}
+                  type="button"
+                  onClick={() => {
+                    void handleDelete();
+                  }}
+                >
+                  {isDeleting ? 'Deleting...' : 'Delete'}
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+      </motion.article>
+    );
+  }
+
+  if (variant === 'stacked') {
+    return (
+      <motion.article
+        initial={{ opacity: 0, y: 10 }}
+        transition={{
+          delay: index * 0.03,
+          duration: 0.32,
+          ease: [0.22, 1, 0.36, 1],
+        }}
+        viewport={{ once: true, amount: 0.2 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        className={cx(
+          'group relative overflow-hidden rounded-[28px] border border-[color:var(--border-color)] bg-[linear-gradient(180deg,var(--surface-raised),var(--surface))] p-4 pl-8 shadow-[0_22px_48px_-36px_var(--shadow-color),inset_0_1px_0_rgba(255,255,255,0.08)] transition duration-300 hover:border-[color:var(--accent-border-soft)] sm:p-5 sm:pl-10',
+          className,
+        )}
+      >
+        <span className="absolute bottom-5 left-4 top-5 w-px bg-[linear-gradient(180deg,var(--accent-border-soft),var(--border-color),transparent)] sm:left-5" />
+        <span
+          className={cx(
+            'absolute left-[0.68rem] top-6 h-3 w-3 rounded-full border-2 border-[var(--surface)] sm:left-[0.93rem]',
+            (trade.pnl ?? 0) > 0
+              ? 'bg-[var(--chart-positive)]'
+              : (trade.pnl ?? 0) < 0
+                ? 'bg-[var(--chart-negative)]'
+                : 'bg-[var(--chart-neutral)]',
+          )}
+        />
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(220px,320px)] lg:items-stretch">
+          <div className="min-w-0">
+            <p className="mb-3 font-mono text-[11px] uppercase tracking-[0.28em] text-[var(--muted)]">
+              {formatTradeDate(trade.date)}
+              {tradeTimeRangeLabel ? ` / ${tradeTimeRangeLabel}` : ''}
+            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="rounded-full border border-[color:var(--accent-border-soft)] bg-[var(--accent-soft-bg)] px-3 py-1 font-mono text-[11px] uppercase tracking-[0.22em] text-[var(--accent-text)]">
+                {symbolLabel}
+              </span>
+              {trade.bias ? (
+                <span
+                  className={cx(
+                    'rounded-full border px-3 py-1 text-[11px] uppercase tracking-[0.22em]',
+                    getDirectionToneClassName(trade.bias),
+                  )}
+                >
+                  {trade.bias}
+                </span>
+              ) : null}
+              <span
+                className={cx(
+                  'rounded-full border px-3 py-1 text-xs font-medium',
+                  getPnlBadgeClassName(trade.pnl),
+                )}
+              >
+                {trade.pnl === null ? 'PnL open' : formatPnl(trade.pnl)}
+              </span>
+            </div>
+
+            <div className="mt-4 flex flex-wrap gap-2 text-sm text-[var(--muted)]">
+              {trade.rr !== null ? <span>RR {formatCompactNumber(trade.rr)}</span> : null}
+              {trade.riskPercent !== null ? (
+                <span>Risk {formatPercentValue(trade.riskPercent)}</span>
+              ) : null}
+              {parsedNotes.strategy ? <span>Strategy {parsedNotes.strategy}</span> : null}
+              {parsedNotes.session ? <span>Session {parsedNotes.session}</span> : null}
+            </div>
+
+            {notesPreview ? (
+              <p className="mt-4 max-h-12 overflow-hidden text-sm leading-6 text-[var(--muted-strong)]">
+                {notesPreview}
+              </p>
+            ) : (
+              <p className="mt-4 text-sm text-[var(--muted)]">No notes yet.</p>
+            )}
+
+            <div className="mt-5 flex flex-wrap items-center gap-2">
+              {editHref ? (
+                <Link
+                  className="inline-flex min-h-9 items-center rounded-full border border-[color:var(--border-color)] bg-[var(--surface)] px-3 text-xs font-medium text-[var(--muted-strong)] transition hover:border-[color:var(--border-strong)] hover:text-[var(--foreground)]"
+                  href={editHref}
+                >
+                  Edit
+                </Link>
+              ) : null}
+              {onDelete ? (
+                <button
+                  aria-label="Delete trade"
+                  className="inline-flex min-h-9 items-center rounded-full border border-[color:color-mix(in_srgb,var(--danger)_20%,transparent)] bg-[color:color-mix(in_srgb,var(--danger)_10%,transparent)] px-3 text-xs font-medium text-[var(--danger)] transition hover:border-[color:color-mix(in_srgb,var(--danger)_34%,transparent)]"
+                  type="button"
+                  onClick={() => {
+                    setActionError(null);
+                    setIsDeleteConfirmOpen((current) => !current);
+                  }}
+                >
+                  Delete
+                </button>
+              ) : null}
+            </div>
+          </div>
+
+          {trade.screenshotUrl ? (
+            <a
+              className="relative min-h-[170px] overflow-hidden rounded-[22px] border border-[color:var(--border-color)] bg-[var(--surface)]"
+              href={trade.screenshotUrl}
+              rel="noreferrer"
+              target="_blank"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                alt={`${symbolLabel} trade screenshot`}
+                className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.02]"
+                loading="lazy"
+                src={trade.screenshotUrl}
+              />
+              <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-[linear-gradient(180deg,transparent,rgba(10,12,16,0.78))] px-4 py-3 text-sm text-white">
+                Screenshot
+              </div>
+            </a>
+          ) : (
+            <div className="grid min-h-[150px] place-items-center rounded-[22px] border border-dashed border-[color:var(--border-color)] bg-[radial-gradient(circle_at_top,var(--accent-primary-glow),transparent_62%),var(--surface)] px-4 text-center text-sm text-[var(--muted)]">
+              No screenshot
+            </div>
+          )}
+        </div>
+
+        {onDelete && (isDeleteConfirmOpen || actionError) ? (
+          <div className="mt-4 rounded-[22px] border border-[color:color-mix(in_srgb,var(--danger)_20%,transparent)] bg-[linear-gradient(180deg,color-mix(in_srgb,var(--danger)_8%,transparent),var(--surface))] px-4 py-3.5">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-sm font-medium text-[var(--foreground)]">
+                  Delete this trade?
+                </p>
+                {actionError ? (
+                  <p className="mt-2 text-sm text-[var(--danger)]">{actionError}</p>
+                ) : null}
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  className="inline-flex min-h-10 items-center rounded-full border border-[color:var(--border-color)] bg-[var(--surface-raised)] px-4 text-sm font-medium text-[var(--muted-strong)] transition hover:border-[color:var(--border-strong)] hover:text-[var(--foreground)]"
+                  type="button"
+                  onClick={() => {
+                    setIsDeleteConfirmOpen(false);
+                    setActionError(null);
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="inline-flex min-h-10 items-center rounded-full border border-[color:color-mix(in_srgb,var(--danger)_28%,transparent)] bg-[linear-gradient(135deg,var(--danger),color-mix(in_srgb,var(--danger)_72%,black))] px-4 text-sm font-medium text-white shadow-[0_20px_42px_-28px_color-mix(in_srgb,var(--danger)_40%,transparent)] transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
+                  disabled={isDeleting}
+                  type="button"
+                  onClick={() => {
+                    void handleDelete();
+                  }}
+                >
+                  {isDeleting ? 'Deleting...' : 'Delete'}
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+      </motion.article>
+    );
   }
 
   return (
@@ -303,6 +630,7 @@ export default function TradeCard({
               screenshotUrl={trade.screenshotUrl}
               symbol={symbolLabel}
               compact={compact}
+              placeholder
             />
           ) : null}
 

@@ -10,7 +10,7 @@ export function Panel({ children, className }: PanelProps) {
   return (
     <section
       className={cx(
-        'relative isolate overflow-hidden rounded-[32px] border border-[color:var(--border-strong)] bg-[linear-gradient(180deg,var(--surface-strong),var(--surface))] shadow-[0_34px_90px_-46px_var(--shadow-color),0_10px_24px_-18px_color-mix(in_srgb,var(--shadow-color)_72%,transparent),inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-xl before:pointer-events-none before:absolute before:inset-0 before:bg-[radial-gradient(circle_at_top_right,var(--accent-panel-glow),transparent_34%),radial-gradient(circle_at_bottom_left,var(--accent-panel-glow-soft),transparent_34%)] before:opacity-100 after:pointer-events-none after:absolute after:inset-x-6 after:top-0 after:h-px after:bg-[linear-gradient(90deg,transparent,rgba(255,255,255,0.08),transparent)]',
+        'relative isolate overflow-hidden rounded-[32px] border border-[color:var(--border-strong)] bg-[linear-gradient(180deg,var(--surface-strong),var(--surface))] shadow-[0_34px_90px_-46px_var(--shadow-color),0_10px_24px_-18px_color-mix(in_srgb,var(--shadow-color)_72%,transparent),inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-xl before:pointer-events-none before:absolute before:inset-[-28%] before:bg-[radial-gradient(circle_at_top_right,var(--accent-panel-glow),transparent_58%),radial-gradient(circle_at_bottom_left,var(--accent-panel-glow-soft),transparent_56%)] before:opacity-100 before:blur-2xl after:pointer-events-none after:absolute after:inset-x-6 after:top-0 after:h-px after:bg-[linear-gradient(90deg,transparent,rgba(255,255,255,0.08),transparent)]',
         className,
       )}
     >
