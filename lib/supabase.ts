@@ -45,6 +45,10 @@ export type TradeRow = {
   PnL?: number | string | null;
   Notes?: string | null;
   ScreenShotURL?: string | null;
+  share_enabled?: boolean | null;
+  share_token?: string | null;
+  shared_at?: string | null;
+  tags?: string[] | null;
   open_time?: string | null;
   close_time?: string | null;
   account_id?: string | null;

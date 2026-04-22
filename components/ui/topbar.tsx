@@ -30,6 +30,7 @@ const primaryNavigationItems = [
 
 const secondaryNavigationItems = [
   { href: '/accounts', label: 'Accounts' },
+  { href: '/trades', label: 'Trades' },
   { href: '/trades/new', label: 'New Trade' },
   { href: '/profile', label: 'Profile' },
   { href: '/settings', label: 'Settings' },
@@ -42,6 +43,7 @@ const protectedHrefs = new Set([
   '/dashboard',
   '/profile',
   '/settings',
+  '/trades',
   '/trades/new',
 ]);
 

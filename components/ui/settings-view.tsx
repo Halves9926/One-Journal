@@ -94,10 +94,12 @@ function SettingCard({
 function ListViewSelector({
   label,
   mode,
+  modes,
   onChange,
 }: {
   label: string;
   mode: ListViewMode;
+  modes?: readonly ListViewMode[];
   onChange: (mode: ListViewMode) => void;
 }) {
   return (
@@ -110,7 +112,7 @@ function ListViewSelector({
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          {LIST_VIEW_MODES.map((item) => (
+          {(modes ?? LIST_VIEW_MODES).map((item) => (
             <button
               key={item}
               className={cx(
@@ -160,7 +162,9 @@ export default function SettingsView() {
     resetWidgetPreferences,
     setDefaultWinRateVariant,
   } = useWidgetPreferences();
-  const activeCount = Object.values(preferences).filter(Boolean).length;
+  const activeCount = TRADE_FIELD_DEFINITIONS.filter(
+    (field) => field.key !== 'screenshot_url' && preferences[field.key],
+  ).length;
   const normalizedSettingsQuery = settingsQuery.trim().toLowerCase();
   const accentColorSnapshot = `${accentColors.primary}|${accentColors.secondary}`;
   const [draftAccentColorState, setDraftAccentColorState] = useState(() => ({
@@ -392,6 +396,11 @@ export default function SettingsView() {
                 <ListViewSelector
                   key={target}
                   label={label}
+                  modes={
+                    target === 'trades'
+                      ? LIST_VIEW_MODES
+                      : LIST_VIEW_MODES.filter((mode) => mode !== 'calendar')
+                  }
                   mode={listViewPreferences[target]}
                   onChange={(mode) => setListViewMode(target, mode)}
                 />
@@ -445,7 +454,9 @@ export default function SettingsView() {
 
                   <div className="grid gap-4 md:grid-cols-2">
                     {TRADE_FIELD_DEFINITIONS.filter(
-                      (field) => field.section === section.key,
+                      (field) =>
+                        field.section === section.key &&
+                        field.key !== 'screenshot_url',
                     ).map((field) => (
                       <SwitchField
                         key={field.key}

@@ -141,6 +141,7 @@ export default function AnalysisCard({
   const [isSharePanelOpen, setIsSharePanelOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isSharing, setIsSharing] = useState(false);
+  const [isUpdatingScreenshot, setIsUpdatingScreenshot] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [shareError, setShareError] = useState<string | null>(null);
   const [shareMessage, setShareMessage] = useState<string | null>(null);
@@ -148,13 +149,20 @@ export default function AnalysisCard({
     enabled: boolean;
     token: string | null;
   } | null>(null);
+  const [screenshotOverride, setScreenshotOverride] = useState<
+    string | null | undefined
+  >(undefined);
   const symbolLabel = analysis.symbol ?? 'Account thesis';
+  const screenshotUrl =
+    screenshotOverride === undefined ? analysis.screenshotUrl : screenshotOverride;
   const shareEnabled = shareOverride?.enabled ?? analysis.shareEnabled;
   const shareToken = shareOverride?.token ?? analysis.shareToken;
   const sharePath = shareToken ? buildAnalysisSharePath(shareToken) : null;
   const canManageSharing = Boolean(
     supabase && user && analysis.userId === user.id,
   );
+  const hasScreenshot = Boolean(screenshotUrl);
+  const hasScreenshotActions = Boolean(editHref || (hasScreenshot && canManageSharing));
   const previewSections = useMemo(
     () =>
       [
@@ -204,6 +212,74 @@ export default function AnalysisCard({
 
     setIsDeleteConfirmOpen(false);
     setIsDeleting(false);
+  }
+
+  async function handleRemoveScreenshot() {
+    if (!supabase || !user || !canManageSharing) {
+      setActionError('Sign in to update screenshots.');
+      return;
+    }
+
+    setIsUpdatingScreenshot(true);
+    setActionError(null);
+
+    const { error } = await supabase
+      .from('analyses')
+      .update({ screenshot_url: null })
+      .eq('id', analysis.id)
+      .eq('user_id', user.id);
+
+    if (error) {
+      setActionError(error.message);
+      setIsUpdatingScreenshot(false);
+      return;
+    }
+
+    setScreenshotOverride(null);
+    setIsUpdatingScreenshot(false);
+    onShareUpdated?.();
+  }
+
+  function renderScreenshotActions(size: 'compact' | 'default' = 'default') {
+    const baseClassName =
+      size === 'compact'
+        ? 'inline-flex min-h-8 items-center rounded-full border px-3 text-xs font-medium transition'
+        : 'inline-flex min-h-9 items-center rounded-full border px-3 text-xs font-medium transition';
+    const neutralClassName =
+      'border-[color:var(--border-color)] bg-[var(--surface)] text-[var(--muted-strong)] hover:border-[color:var(--border-strong)] hover:text-[var(--foreground)]';
+
+    return (
+      <>
+        {editHref ? (
+          <Link
+            className={cx(
+              baseClassName,
+              hasScreenshot
+                ? neutralClassName
+                : 'border-[color:var(--accent-border-soft)] bg-[var(--accent-soft-bg)] text-[var(--accent-text)] hover:border-[color:var(--accent-border-strong)]',
+            )}
+            href={editHref}
+          >
+            {hasScreenshot ? 'Change screenshot' : 'Add screenshot'}
+          </Link>
+        ) : null}
+        {hasScreenshot && canManageSharing ? (
+          <button
+            className={cx(
+              baseClassName,
+              'border-rose-500/20 bg-rose-500/10 text-rose-700 hover:border-rose-500/34 hover:bg-rose-500/16 disabled:cursor-not-allowed disabled:opacity-60 dark:text-rose-300',
+            )}
+            disabled={isUpdatingScreenshot}
+            type="button"
+            onClick={() => {
+              void handleRemoveScreenshot();
+            }}
+          >
+            {isUpdatingScreenshot ? 'Removing...' : 'Remove screenshot'}
+          </button>
+        ) : null}
+      </>
+    );
   }
 
   async function handleEnableSharing() {
@@ -355,8 +431,9 @@ export default function AnalysisCard({
             {getPreviewText(getAnalysisPreview(analysis), 96) ?? 'No preview yet'}
           </p>
 
-          {editHref || onDelete || canManageSharing ? (
-            <div className="flex items-center gap-2 md:justify-end">
+          {editHref || onDelete || canManageSharing || hasScreenshotActions ? (
+            <div className="flex flex-wrap items-center gap-2 md:justify-end">
+              {renderScreenshotActions('compact')}
               {canManageSharing ? (
                 <button
                   className="inline-flex min-h-8 items-center rounded-full border border-[color:var(--border-color)] bg-[var(--surface)] px-3 text-xs font-medium text-[var(--muted-strong)] transition hover:border-[color:var(--border-strong)] hover:text-[var(--foreground)]"
@@ -403,18 +480,21 @@ export default function AnalysisCard({
           </div>
         ) : null}
 
-        {onDelete && (isDeleteConfirmOpen || actionError) ? (
+        {(onDelete || hasScreenshotActions) && (isDeleteConfirmOpen || actionError) ? (
           <div className="mt-2 rounded-[18px] border border-[color:color-mix(in_srgb,var(--danger)_20%,transparent)] bg-[linear-gradient(180deg,color-mix(in_srgb,var(--danger)_8%,transparent),var(--surface))] px-3 py-3">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <p className="text-sm font-medium text-[var(--foreground)]">
-                  Delete this analysis?
-                </p>
+                {isDeleteConfirmOpen ? (
+                  <p className="text-sm font-medium text-[var(--foreground)]">
+                    Delete this analysis?
+                  </p>
+                ) : null}
                 {actionError ? (
                   <p className="mt-1 text-sm text-[var(--danger)]">{actionError}</p>
                 ) : null}
               </div>
-              <div className="flex items-center gap-2">
+              {isDeleteConfirmOpen ? (
+                <div className="flex items-center gap-2">
                 <button
                   className="inline-flex min-h-9 items-center rounded-full border border-[color:var(--border-color)] bg-[var(--surface-raised)] px-3 text-xs font-medium text-[var(--muted-strong)] transition hover:border-[color:var(--border-strong)] hover:text-[var(--foreground)]"
                   type="button"
@@ -435,7 +515,8 @@ export default function AnalysisCard({
                 >
                   {isDeleting ? 'Deleting...' : 'Delete'}
                 </button>
-              </div>
+                </div>
+              ) : null}
             </div>
           </div>
         ) : null}
@@ -513,6 +594,7 @@ export default function AnalysisCard({
             </p>
 
             <div className="mt-5 flex flex-wrap items-center gap-2">
+              {renderScreenshotActions()}
               {canManageSharing ? (
                 <button
                   className={cx(
@@ -555,10 +637,10 @@ export default function AnalysisCard({
             </div>
           </div>
 
-          {analysis.screenshotUrl ? (
+          {screenshotUrl ? (
             <a
               className="relative min-h-[170px] overflow-hidden rounded-[22px] border border-[color:var(--border-color)] bg-[var(--surface)]"
-              href={analysis.screenshotUrl}
+              href={screenshotUrl}
               rel="noreferrer"
               target="_blank"
             >
@@ -567,7 +649,7 @@ export default function AnalysisCard({
                 alt={`${symbolLabel} analysis screenshot`}
                 className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.02]"
                 loading="lazy"
-                src={analysis.screenshotUrl}
+                src={screenshotUrl}
               />
               <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-[linear-gradient(180deg,transparent,rgba(10,12,16,0.78))] px-4 py-3 text-sm text-white">
                 Screenshot
@@ -575,7 +657,17 @@ export default function AnalysisCard({
             </a>
           ) : (
             <div className="grid min-h-[150px] place-items-center rounded-[22px] border border-dashed border-[color:var(--border-color)] bg-[radial-gradient(circle_at_top,var(--accent-primary-glow),transparent_62%),var(--surface)] px-4 text-center text-sm text-[var(--muted)]">
-              No screenshot
+              <div className="space-y-3">
+                <p>No screenshot</p>
+                {editHref ? (
+                  <Link
+                    className="inline-flex min-h-9 items-center rounded-full border border-[color:var(--accent-border-soft)] bg-[var(--accent-soft-bg)] px-3 text-xs font-medium text-[var(--accent-text)] transition hover:border-[color:var(--accent-border-strong)]"
+                    href={editHref}
+                  >
+                    Add screenshot
+                  </Link>
+                ) : null}
+              </div>
             </div>
           )}
         </div>
@@ -636,18 +728,21 @@ export default function AnalysisCard({
           </div>
         ) : null}
 
-        {onDelete && (isDeleteConfirmOpen || actionError) ? (
+        {(onDelete || hasScreenshotActions) && (isDeleteConfirmOpen || actionError) ? (
           <div className="mt-4 rounded-[22px] border border-[color:color-mix(in_srgb,var(--danger)_20%,transparent)] bg-[linear-gradient(180deg,color-mix(in_srgb,var(--danger)_8%,transparent),var(--surface))] px-4 py-3.5">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <p className="text-sm font-medium text-[var(--foreground)]">
-                  Delete this analysis?
-                </p>
+                {isDeleteConfirmOpen ? (
+                  <p className="text-sm font-medium text-[var(--foreground)]">
+                    Delete this analysis?
+                  </p>
+                ) : null}
                 {actionError ? (
                   <p className="mt-2 text-sm text-[var(--danger)]">{actionError}</p>
                 ) : null}
               </div>
-              <div className="flex items-center gap-2">
+              {isDeleteConfirmOpen ? (
+                <div className="flex items-center gap-2">
                 <button
                   className="inline-flex min-h-10 items-center rounded-full border border-[color:var(--border-color)] bg-[var(--surface-raised)] px-4 text-sm font-medium text-[var(--muted-strong)] transition hover:border-[color:var(--border-strong)] hover:text-[var(--foreground)]"
                   type="button"
@@ -668,7 +763,8 @@ export default function AnalysisCard({
                 >
                   {isDeleting ? 'Deleting...' : 'Delete'}
                 </button>
-              </div>
+                </div>
+              ) : null}
             </div>
           </div>
         ) : null}
@@ -741,8 +837,9 @@ export default function AnalysisCard({
             ) : null}
           </div>
 
-          {editHref || onDelete || canManageSharing ? (
-            <div className="flex items-center gap-2 self-start md:self-end">
+          {editHref || onDelete || canManageSharing || hasScreenshotActions ? (
+            <div className="flex flex-wrap items-center gap-2 self-start md:self-end">
+              {renderScreenshotActions()}
               {canManageSharing ? (
                 <button
                   type="button"
@@ -857,15 +954,15 @@ export default function AnalysisCard({
           </div>
         ) : null}
 
-        {analysis.screenshotUrl && !compact ? (
+        {screenshotUrl && !compact ? (
           <AnalysisCover
-            screenshotUrl={analysis.screenshotUrl}
+            screenshotUrl={screenshotUrl}
             symbol={symbolLabel}
             placeholder
           />
         ) : !compact ? (
           <AnalysisCover
-            screenshotUrl={analysis.screenshotUrl}
+            screenshotUrl={screenshotUrl}
             symbol={symbolLabel}
             placeholder
           />
@@ -898,21 +995,26 @@ export default function AnalysisCard({
           </div>
         )}
 
-        {onDelete && (isDeleteConfirmOpen || actionError) ? (
+        {(onDelete || hasScreenshotActions) && (isDeleteConfirmOpen || actionError) ? (
           <div className="rounded-[22px] border border-rose-500/18 bg-[linear-gradient(180deg,rgba(127,29,29,0.08),var(--surface))] px-4 py-3.5">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <p className="text-sm font-medium text-[var(--foreground)]">
-                  Delete this analysis?
-                </p>
-                <p className="mt-1 text-sm text-[var(--muted)]">
-                  This removes the thesis log from the active account journal.
-                </p>
+                {isDeleteConfirmOpen ? (
+                  <>
+                    <p className="text-sm font-medium text-[var(--foreground)]">
+                      Delete this analysis?
+                    </p>
+                    <p className="mt-1 text-sm text-[var(--muted)]">
+                      This removes the thesis log from the active account journal.
+                    </p>
+                  </>
+                ) : null}
                 {actionError ? (
                   <p className="mt-2 text-sm text-[var(--danger)]">{actionError}</p>
                 ) : null}
               </div>
-              <div className="flex items-center gap-2">
+              {isDeleteConfirmOpen ? (
+                <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={() => {
@@ -933,7 +1035,8 @@ export default function AnalysisCard({
                 >
                   {isDeleting ? 'Deleting...' : 'Delete'}
                 </button>
-              </div>
+                </div>
+              ) : null}
             </div>
           </div>
         ) : null}

@@ -17,6 +17,10 @@ export const TRADE_COLUMNS = {
   pnl: 'PnL',
   notes: 'Notes',
   screenshotUrl: 'ScreenShotURL',
+  shareEnabled: 'share_enabled',
+  shareToken: 'share_token',
+  sharedAt: 'shared_at',
+  tags: 'tags',
   openTime: 'open_time',
   closeTime: 'close_time',
   updatedAt: 'updated_at',
@@ -36,6 +40,10 @@ export const TRADE_SELECT = [
   'PnL',
   'Notes',
   'ScreenShotURL',
+  'share_enabled',
+  'share_token',
+  'shared_at',
+  'tags',
   'open_time',
   'close_time',
   'account_id',
@@ -61,8 +69,56 @@ export type TradeView = {
   pnl: number | null;
   notes: string | null;
   screenshotUrl: string | null;
+  shareEnabled: boolean;
+  shareToken: string | null;
+  sharedAt: string | null;
+  tags: TradeTag[];
   updatedAt: string | null;
   userId: string | null;
+};
+
+export type PublicSharedTradeView = {
+  authorDisplayName: string | null;
+  authorUsername: string | null;
+  bias: string | null;
+  closeTime: string | null;
+  createdAt: string | null;
+  date: string | null;
+  entryPrice: number | null;
+  id: string;
+  notes: string | null;
+  openTime: string | null;
+  pnl: number | null;
+  riskPercent: number | null;
+  rr: number | null;
+  screenshotUrl: string | null;
+  sharedAt: string | null;
+  stoploss: number | null;
+  symbol: string;
+  tags: TradeTag[];
+  takeProfit: number | null;
+};
+
+export type PublicSharedTradeRow = {
+  author_display_name?: string | null;
+  author_username?: string | null;
+  close_time?: string | null;
+  created_at?: string | null;
+  direction?: string | null;
+  entry_price?: number | string | null;
+  notes?: string | null;
+  open_time?: string | null;
+  pnl?: number | string | null;
+  risk_percent?: number | string | null;
+  rr?: number | string | null;
+  screenshot_url?: string | null;
+  shared_at?: string | null;
+  stop_loss?: number | string | null;
+  symbol?: string | null;
+  tags?: string[] | null;
+  take_profit?: number | string | null;
+  trade_date?: string | null;
+  trade_id?: string | number | null;
 };
 
 export type TradeSummary = {
@@ -94,6 +150,22 @@ export type TradeSummary = {
 };
 
 export const EMPTY_VALUE = '--';
+
+export const TRADE_TAG_OPTIONS = [
+  'Missed',
+  'Executed',
+  'Late',
+  'Early',
+  'Emotional',
+  'Followed Plan',
+  'Broke Plan',
+  'News',
+  'Revenge',
+  'High Quality',
+  'Low Quality',
+] as const;
+
+export type TradeTag = (typeof TRADE_TAG_OPTIONS)[number];
 
 function cleanText(value: unknown) {
   if (typeof value !== 'string') {
@@ -137,6 +209,36 @@ function normalizeTimeValue(value: unknown) {
   return `${matchedParts[1]}:${matchedParts[2]}`;
 }
 
+function isTradeTag(value: string): value is TradeTag {
+  return (TRADE_TAG_OPTIONS as readonly string[]).includes(value);
+}
+
+export function normalizeTradeTags(value: unknown) {
+  const values = Array.isArray(value)
+    ? value
+    : typeof value === 'string'
+      ? value.split(',')
+      : [];
+  const tagMap = new Map(
+    TRADE_TAG_OPTIONS.map((tag) => [tag.toLowerCase(), tag] as const),
+  );
+  const tags: TradeTag[] = [];
+
+  for (const item of values) {
+    if (typeof item !== 'string') {
+      continue;
+    }
+
+    const normalizedTag = tagMap.get(item.trim().toLowerCase());
+
+    if (normalizedTag && isTradeTag(normalizedTag) && !tags.includes(normalizedTag)) {
+      tags.push(normalizedTag);
+    }
+  }
+
+  return tags;
+}
+
 function getTradeOutcome(trade: TradeView) {
   if ((trade.pnl ?? 0) > 0) {
     return 'win' as const;
@@ -170,8 +272,72 @@ export function normalizeTrade(row: TradeRow, fallbackIndex = 0): TradeView {
     pnl: toNumber(row.PnL),
     notes: cleanText(row.Notes),
     screenshotUrl: cleanText(row.ScreenShotURL),
+    shareEnabled: row.share_enabled === true,
+    shareToken: cleanText(row.share_token),
+    sharedAt: cleanText(row.shared_at),
+    tags: normalizeTradeTags(row.tags),
     updatedAt: cleanText(row.updated_at),
     userId: cleanText(row.user_id),
+  };
+}
+
+export function createTradeShareToken() {
+  const bytes = new Uint8Array(24);
+
+  if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+    crypto.getRandomValues(bytes);
+  } else {
+    for (let index = 0; index < bytes.length; index += 1) {
+      bytes[index] = Math.floor(Math.random() * 256);
+    }
+  }
+
+  return btoa(String.fromCharCode(...bytes))
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/g, '');
+}
+
+export function buildTradeSharePath(token: string) {
+  return `/share/trade/${token}`;
+}
+
+export function buildTradeShareUrl(token: string) {
+  const path = buildTradeSharePath(token);
+
+  if (typeof window === 'undefined') {
+    return path;
+  }
+
+  return `${window.location.origin}${path}`;
+}
+
+export function normalizePublicSharedTrade(
+  row: PublicSharedTradeRow,
+): PublicSharedTradeView {
+  return {
+    authorDisplayName: cleanText(row.author_display_name),
+    authorUsername: cleanText(row.author_username),
+    bias: cleanText(row.direction),
+    closeTime: normalizeTimeValue(row.close_time),
+    createdAt: cleanText(row.created_at),
+    date: cleanText(row.trade_date),
+    entryPrice: toNumber(row.entry_price),
+    id:
+      typeof row.trade_id === 'string' || typeof row.trade_id === 'number'
+        ? String(row.trade_id)
+        : 'shared-trade',
+    notes: cleanText(row.notes),
+    openTime: normalizeTimeValue(row.open_time),
+    pnl: toNumber(row.pnl),
+    riskPercent: toNumber(row.risk_percent),
+    rr: toNumber(row.rr),
+    screenshotUrl: cleanText(row.screenshot_url),
+    sharedAt: cleanText(row.shared_at),
+    stoploss: toNumber(row.stop_loss),
+    symbol: cleanText(row.symbol)?.toUpperCase() ?? '',
+    tags: normalizeTradeTags(row.tags),
+    takeProfit: toNumber(row.take_profit),
   };
 }
 
@@ -192,6 +358,7 @@ export type TradeFormInput = {
   stop_loss: string;
   strategy: string;
   symbol: string;
+  tags: TradeTag[];
   take_profit: string;
   trade_date: string;
 };
@@ -247,6 +414,7 @@ function mapTradeFormToPayload(
   payload.Symbol = input.symbol.trim() ? input.symbol.trim().toUpperCase() : null;
   payload.Bias = input.direction || null;
   payload.ScreenShotURL = input.screenshot_url.trim() || null;
+  payload.tags = normalizeTradeTags(input.tags);
   payload.open_time = input.open_time.trim() || null;
   payload.close_time = input.close_time.trim() || null;
 
@@ -326,6 +494,7 @@ export function createInitialTradeFormValues(accountId = ''): TradeFormInput {
     stop_loss: '',
     strategy: '',
     symbol: '',
+    tags: [],
     take_profit: '',
     trade_date: getTodayValue(),
   };
@@ -395,6 +564,7 @@ export function mapTradeToFormValues(
     stop_loss: toTrimmedNumberString(trade.stoploss),
     strategy: parsedNotes.strategy,
     symbol: trade.symbol,
+    tags: trade.tags,
     take_profit: toTrimmedNumberString(trade.takeProfit),
     trade_date: trade.date ?? getTodayValue(),
   };
@@ -564,6 +734,7 @@ export function getTradeSearchText(trade: TradeView) {
     parsedNotes.strategy,
     parsedNotes.session,
     parsedNotes.mistake,
+    trade.tags.join(' '),
     timeRange ?? '',
     trade.openTime ?? '',
     trade.closeTime ?? '',

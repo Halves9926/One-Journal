@@ -3,20 +3,23 @@
 import {
   closestCenter,
   DndContext,
+  DragOverlay,
   KeyboardSensor,
+  MeasuringStrategy,
   PointerSensor,
   TouchSensor,
   useSensor,
   useSensors,
   type DragEndEvent,
+  type DragStartEvent,
 } from '@dnd-kit/core';
 import {
   arrayMove,
+  rectSortingStrategy,
   SortableContext,
   sortableKeyboardCoordinates,
   useSortable,
 } from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
 import {
   useEffect,
   useId,
@@ -32,6 +35,7 @@ import { Button, ButtonLink } from '@/components/ui/button';
 import { MessageBanner } from '@/components/ui/form-fields';
 import type { ListViewMode } from '@/components/ui/list-view-preferences';
 import { MetricCard, Panel, PanelHeader } from '@/components/ui/panel';
+import TradeCalendarView from '@/components/ui/trade-calendar-view';
 import TradeCard from '@/components/ui/trade-card';
 import WinRateWidget, {
   type WinRateWidgetVariant,
@@ -101,6 +105,12 @@ const homeWidgetGridClassNames: Record<HomeWidgetSize, string> = {
   compact: 'sm:col-span-1 xl:col-span-4',
   full: 'sm:col-span-2 xl:col-span-12',
   medium: 'sm:col-span-2 xl:col-span-6',
+};
+
+const homeWidgetPreviewSizeClassNames: Record<HomeWidgetSize, string> = {
+  compact: 'w-[min(88vw,360px)]',
+  full: 'w-[min(92vw,720px)]',
+  medium: 'w-[min(90vw,520px)]',
 };
 
 function subscribeToHomeLayout(onStoreChange: () => void) {
@@ -419,7 +429,20 @@ const homeWidgetRegistry = [
             </div>
           ) : null}
 
-          {!tradesLoading && !tradesError && recentTrades.length > 0 ? (
+          {!tradesLoading &&
+          !tradesError &&
+          recentTrades.length > 0 &&
+          tradeListMode === 'calendar' ? (
+            <TradeCalendarView
+              trades={recentTrades}
+              emptyMessage="No recent trades available for the calendar."
+            />
+          ) : null}
+
+          {!tradesLoading &&
+          !tradesError &&
+          recentTrades.length > 0 &&
+          tradeListMode !== 'calendar' ? (
             <div
               className={cx(
                 'grid gap-4',
@@ -742,11 +765,14 @@ function SortableHomeWidget({
     disabled: !editing,
     id: widget.id,
   });
+  const translatedTransform = transform
+    ? `translate3d(${Math.round(transform.x)}px, ${Math.round(transform.y)}px, 0)`
+    : undefined;
   const style: CSSProperties = {
     opacity: isDragging ? 0.22 : undefined,
-    transform: CSS.Transform.toString(transform),
-    transition,
-    zIndex: isDragging ? 1 : undefined,
+    transform: translatedTransform,
+    transition: isDragging ? undefined : transition,
+    zIndex: isDragging ? 20 : undefined,
   };
 
   return (
@@ -756,36 +782,25 @@ function SortableHomeWidget({
       style={style}
     >
       {editing ? (
-        <>
-          <button
-            ref={setActivatorNodeRef}
-            aria-label={`Drag ${widget.name}`}
-            className="absolute left-4 top-4 z-20 inline-flex h-12 w-12 touch-none items-center justify-center rounded-full border border-[color:var(--accent-border-soft)] bg-[var(--surface-raised)] text-[var(--accent-text)] shadow-[0_14px_32px_-26px_var(--shadow-color)] transition duration-150 hover:border-[color:var(--accent-border-strong)] hover:bg-[var(--accent-soft-bg)] active:scale-95"
-            title="Drag"
-            type="button"
-            {...attributes}
-            {...(listeners ?? {})}
-          >
-            <MoveIcon className="h-4 w-4" />
-          </button>
-          {canRemove ? (
+        <div className="mb-3 flex min-w-0 flex-wrap items-center gap-2 rounded-[22px] border border-[color:var(--accent-border-soft)] bg-[linear-gradient(180deg,var(--accent-soft-bg),var(--surface))] px-3 py-2 shadow-[0_14px_30px_-26px_var(--shadow-color)]">
+          <div className="flex min-w-0 flex-1 items-center gap-2">
             <button
-              aria-label={`Remove ${widget.name}`}
-              className="absolute right-4 top-4 z-20 inline-flex h-10 w-10 items-center justify-center rounded-full border border-rose-200/70 bg-[var(--surface-raised)] text-rose-600 shadow-[0_14px_32px_-26px_var(--shadow-color)] transition duration-150 hover:bg-rose-50 hover:text-rose-700 active:scale-95 dark:border-rose-500/35 dark:text-rose-300 dark:hover:bg-rose-500/12"
-              title="Remove"
+              ref={setActivatorNodeRef}
+              aria-label={`Drag ${widget.name}`}
+              className="inline-flex h-10 w-10 shrink-0 touch-none items-center justify-center rounded-full border border-[color:var(--accent-border-soft)] bg-[var(--surface-raised)] text-[var(--accent-text)] transition duration-150 hover:border-[color:var(--accent-border-strong)] hover:bg-[var(--accent-soft-bg)] active:scale-95"
+              title="Drag"
               type="button"
-              onClick={(event) => {
-                event.preventDefault();
-                event.stopPropagation();
-                onRemove();
-              }}
-              onPointerDown={(event) => event.stopPropagation()}
+              {...attributes}
+              {...(listeners ?? {})}
             >
-              <TrashIcon className="h-4 w-4" />
+              <MoveIcon className="h-4 w-4" />
             </button>
-          ) : null}
+            <span className="truncate text-sm font-medium text-[var(--foreground)]">
+              {widget.name}
+            </span>
+          </div>
           {widget.visualOptions ? (
-            <div className="absolute left-4 right-16 top-[4.25rem] z-20 flex flex-wrap gap-1.5">
+            <div className="flex min-w-0 flex-wrap gap-1.5">
               {widget.visualOptions.map((option) => (
                 <button
                   key={option.id}
@@ -808,15 +823,59 @@ function SortableHomeWidget({
               ))}
             </div>
           ) : null}
-        </>
+          {canRemove ? (
+            <button
+              aria-label={`Remove ${widget.name}`}
+              className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-rose-200/70 bg-[var(--surface-raised)] text-rose-600 transition duration-150 hover:bg-rose-50 hover:text-rose-700 active:scale-95 dark:border-rose-500/35 dark:text-rose-300 dark:hover:bg-rose-500/12"
+              title="Remove"
+              type="button"
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                onRemove();
+              }}
+              onPointerDown={(event) => event.stopPropagation()}
+            >
+              <TrashIcon className="h-4 w-4" />
+            </button>
+          ) : null}
+        </div>
       ) : null}
       <div
         className={cx(
           'h-full min-w-0 transition-[box-shadow,border-color,opacity] duration-150 [&>article]:h-full [&>section]:h-full',
           editing &&
-            'rounded-[34px] ring-1 ring-[color:var(--accent-border-soft)] ring-offset-4 ring-offset-[var(--background)]',
+            'overflow-hidden rounded-[34px] ring-1 ring-[color:var(--accent-border-soft)] ring-offset-2 ring-offset-[var(--background)]',
         )}
       >
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function HomeWidgetDragPreview({
+  children,
+  widget,
+}: {
+  children: ReactNode;
+  widget: HomeWidgetDefinition;
+}) {
+  return (
+    <div
+      className={cx(
+        'pointer-events-none overflow-hidden rounded-[34px] border border-[color:var(--accent-border-soft)] bg-[linear-gradient(180deg,var(--surface-raised),var(--surface))] p-3 shadow-[0_34px_90px_-36px_rgba(0,0,0,0.45)]',
+        'max-h-[min(72vh,560px)]',
+        homeWidgetPreviewSizeClassNames[widget.size],
+      )}
+    >
+      <div className="mb-2 flex items-center gap-2 rounded-[18px] border border-[color:var(--border-color)] bg-[var(--surface)] px-3 py-2">
+        <MoveIcon className="h-4 w-4 text-[var(--accent-text)]" />
+        <span className="truncate text-sm font-medium text-[var(--foreground)]">
+          {widget.name}
+        </span>
+      </div>
+      <div className="min-w-0 overflow-hidden rounded-[28px] [&>article]:h-auto [&>section]:h-auto">
         {children}
       </div>
     </div>
@@ -846,6 +905,7 @@ export function HomeLayoutWorkspace({
 }) {
   const [finderOpen, setFinderOpen] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [activeWidgetId, setActiveWidgetId] = useState<HomeWidgetId | null>(null);
   const { preferences: widgetPreferences } = useWidgetPreferences();
   const storageKey = useMemo(
     () => buildHomeLayoutStorageKey({ accountId, userId }),
@@ -883,6 +943,9 @@ export function HomeLayoutWorkspace({
         .filter((widget): widget is HomeWidgetDefinition => Boolean(widget)),
     [widgetIds],
   );
+  const activeWidget = activeWidgetId
+    ? homeWidgetMap.get(activeWidgetId) ?? null
+    : null;
   const allWidgetsActive = widgetIds.length === HOME_WIDGET_IDS.length;
   const isDefaultLayout =
     widgetIds.length === DEFAULT_HOME_WIDGET_IDS.length &&
@@ -999,7 +1062,17 @@ export function HomeLayoutWorkspace({
     });
   }
 
+  function handleDragStart(event: DragStartEvent) {
+    const activeId = String(event.active.id);
+
+    if (isHomeWidgetId(activeId)) {
+      setActiveWidgetId(activeId);
+    }
+  }
+
   function handleDragEnd(event: DragEndEvent) {
+    setActiveWidgetId(null);
+
     const activeId = String(event.active.id);
     const overId = event.over ? String(event.over.id) : null;
 
@@ -1110,10 +1183,17 @@ export function HomeLayoutWorkspace({
       ) : (
         <DndContext
           collisionDetection={closestCenter}
+          measuring={{
+            droppable: {
+              strategy: MeasuringStrategy.Always,
+            },
+          }}
           sensors={sensors}
+          onDragCancel={() => setActiveWidgetId(null)}
           onDragEnd={handleDragEnd}
+          onDragStart={handleDragStart}
         >
-          <SortableContext items={widgetIds}>
+          <SortableContext items={widgetIds} strategy={rectSortingStrategy}>
             <div
               className={cx(
                 'grid grid-cols-1 items-stretch gap-4 sm:grid-cols-2 xl:grid-cols-12',
@@ -1137,6 +1217,13 @@ export function HomeLayoutWorkspace({
               ))}
             </div>
           </SortableContext>
+          <DragOverlay adjustScale={false} dropAnimation={null}>
+            {activeWidget ? (
+              <HomeWidgetDragPreview widget={activeWidget}>
+                {activeWidget.render(renderContext)}
+              </HomeWidgetDragPreview>
+            ) : null}
+          </DragOverlay>
         </DndContext>
       )}
 

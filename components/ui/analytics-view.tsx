@@ -447,7 +447,11 @@ export default function AnalyticsView() {
   );
 
   useEffect(() => {
-    setMatchedTradesVisibleCount(3);
+    const timeoutId = window.setTimeout(() => {
+      setMatchedTradesVisibleCount(3);
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
   }, [filters]);
 
   function resetFilters() {

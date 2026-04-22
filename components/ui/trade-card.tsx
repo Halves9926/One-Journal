@@ -4,7 +4,11 @@ import { useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
 
+import { useAuth } from '@/components/ui/auth-provider';
 import {
+  buildTradeSharePath,
+  buildTradeShareUrl,
+  createTradeShareToken,
   formatCompactNumber,
   formatPercentValue,
   formatPnl,
@@ -25,6 +29,7 @@ type TradeCardProps = {
   featured?: boolean;
   index?: number;
   onDelete?: (tradeId: string) => Promise<{ error: string | null }>;
+  onShareUpdated?: () => void;
   trade: TradeView;
   variant?: 'stacked';
 };
@@ -56,6 +61,45 @@ function getNotesPreview(notes: string | null, compact: boolean) {
   return `${flattenedNotes.slice(0, limit - 3).trimEnd()}...`;
 }
 
+function TradeTags({
+  className,
+  limit,
+  tags,
+}: {
+  className?: string;
+  limit?: number;
+  tags: TradeView['tags'];
+}) {
+  const visibleTags = typeof limit === 'number' ? tags.slice(0, limit) : tags;
+
+  if (visibleTags.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className={cx('flex flex-wrap gap-2', className)}>
+      {visibleTags.map((tag) => (
+        <span
+          key={tag}
+          className={cx(
+            'rounded-full border px-3 py-1 text-xs text-[var(--muted-strong)]',
+            tag === 'Missed'
+              ? 'border-amber-500/24 bg-amber-500/10 text-amber-700 dark:text-amber-300'
+              : 'border-[color:var(--border-color)] bg-[var(--surface-raised)]',
+          )}
+        >
+          {tag}
+        </span>
+      ))}
+      {typeof limit === 'number' && tags.length > limit ? (
+        <span className="rounded-full border border-[color:var(--border-color)] bg-[var(--surface)] px-3 py-1 text-xs text-[var(--muted)]">
+          +{tags.length - limit}
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
 function TradeCover({
   className,
   compact = false,
@@ -80,7 +124,7 @@ function TradeCover({
       <div
         className={cx(
           'relative grid overflow-hidden rounded-[26px] border border-dashed border-[color:var(--border-color)] bg-[radial-gradient(circle_at_22%_18%,var(--accent-primary-glow),transparent_42%),linear-gradient(135deg,var(--surface-raised),var(--surface))] shadow-[0_22px_48px_-34px_var(--shadow-color)]',
-          compact ? 'min-h-[120px]' : 'min-h-[220px]',
+          compact ? 'min-h-[76px]' : 'min-h-[96px]',
           className,
         )}
       >
@@ -89,9 +133,6 @@ function TradeCover({
           <div>
             <p className="font-mono text-[11px] uppercase tracking-[0.28em] text-[var(--accent-text)]">
               {symbol}
-            </p>
-            <p className="mt-3 text-sm leading-6 text-[var(--muted)]">
-              No screenshot attached. Trade details stay available below.
             </p>
           </div>
         </div>
@@ -112,7 +153,7 @@ function TradeCover({
       <div
         className={cx(
           'overflow-hidden bg-[radial-gradient(circle_at_top,var(--accent-primary-glow),transparent_58%),linear-gradient(180deg,var(--surface-strong),var(--surface))]',
-          compact ? 'aspect-[16/8.5]' : 'aspect-[16/10] min-h-[220px]',
+          compact ? 'aspect-[16/9]' : 'aspect-[16/9] max-h-[320px]',
         )}
       >
         {/* Native img keeps remote screenshots flexible without remotePatterns coupling. */}
@@ -121,7 +162,7 @@ function TradeCover({
           src={screenshotUrl}
           alt={`${symbol} trade screenshot`}
           loading="lazy"
-          className="h-full w-full object-cover transition duration-500 lg:group-hover/cover:scale-[1.02]"
+          className="h-full w-full object-contain transition duration-500 lg:group-hover/cover:scale-[1.01]"
           onError={() => setImageFailed(true)}
         />
       </div>
@@ -139,13 +180,36 @@ export default function TradeCard({
   featured = false,
   index = 0,
   onDelete,
+  onShareUpdated,
   trade,
   variant,
 }: TradeCardProps) {
-  const hasScreenshot = Boolean(trade.screenshotUrl);
+  const { supabase, user } = useAuth();
+  const [screenshotOverride, setScreenshotOverride] = useState<
+    string | null | undefined
+  >(undefined);
+  const screenshotUrl =
+    screenshotOverride === undefined ? trade.screenshotUrl : screenshotOverride;
+  const hasScreenshot = Boolean(screenshotUrl);
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
+  const [isSharePanelOpen, setIsSharePanelOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isSharing, setIsSharing] = useState(false);
+  const [isUpdatingScreenshot, setIsUpdatingScreenshot] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [shareError, setShareError] = useState<string | null>(null);
+  const [shareMessage, setShareMessage] = useState<string | null>(null);
+  const [shareOverride, setShareOverride] = useState<{
+    enabled: boolean;
+    token: string | null;
+  } | null>(null);
+  const canManageScreenshot = Boolean(
+    supabase && user && trade.userId === user.id,
+  );
+  const canManageSharing = canManageScreenshot;
+  const shareEnabled = shareOverride?.enabled ?? trade.shareEnabled;
+  const shareToken = shareOverride?.token ?? trade.shareToken;
+  const sharePath = shareToken ? buildTradeSharePath(shareToken) : null;
   const details = useMemo(
     () =>
       [
@@ -184,8 +248,11 @@ export default function TradeCard({
   const notesPreview = getNotesPreview(trade.notes, compact);
   const parsedNotes = parseTradeNotes(trade.notes);
   const tradeTimeRangeLabel = getTradeTimeRangeLabel(trade);
-  const shouldShowInlineCover = !featured || !hasScreenshot;
-  const hasActions = Boolean(editHref || onDelete);
+  const shouldShowInlineCover = Boolean(screenshotUrl) && !featured;
+  const hasScreenshotActions = Boolean(editHref || (hasScreenshot && canManageScreenshot));
+  const hasActions = Boolean(
+    editHref || onDelete || hasScreenshotActions || canManageSharing,
+  );
 
   async function handleDelete() {
     if (!onDelete) {
@@ -205,6 +272,258 @@ export default function TradeCard({
 
     setIsDeleteConfirmOpen(false);
     setIsDeleting(false);
+  }
+
+  async function handleRemoveScreenshot() {
+    if (!supabase || !user || !canManageScreenshot) {
+      setActionError('Sign in to update screenshots.');
+      return;
+    }
+
+    setIsUpdatingScreenshot(true);
+    setActionError(null);
+
+    const { error } = await supabase
+      .from('Trades')
+      .update({ ScreenShotURL: null })
+      .eq('ID', trade.id)
+      .eq('user_id', user.id);
+
+    if (error) {
+      setActionError(error.message);
+      setIsUpdatingScreenshot(false);
+      return;
+    }
+
+    setScreenshotOverride(null);
+    setIsUpdatingScreenshot(false);
+  }
+
+  async function handleEnableSharing() {
+    if (!supabase || !user || !canManageSharing) {
+      setShareError('Sign in to share trades.');
+      return;
+    }
+
+    const nextToken = shareToken ?? createTradeShareToken();
+    const now = new Date().toISOString();
+
+    setIsSharing(true);
+    setShareError(null);
+    setShareMessage(null);
+
+    const { error } = await supabase
+      .from('Trades')
+      .update({
+        share_enabled: true,
+        share_token: nextToken,
+        shared_at: trade.sharedAt ?? now,
+      })
+      .eq('ID', trade.id)
+      .eq('user_id', user.id);
+
+    if (error) {
+      setShareError(error.message);
+      setIsSharing(false);
+      return;
+    }
+
+    setShareOverride({
+      enabled: true,
+      token: nextToken,
+    });
+    setShareMessage('Public link enabled.');
+    setIsSharing(false);
+    onShareUpdated?.();
+  }
+
+  async function handleDisableSharing() {
+    if (!supabase || !user || !canManageSharing) {
+      setShareError('Sign in to update sharing.');
+      return;
+    }
+
+    setIsSharing(true);
+    setShareError(null);
+    setShareMessage(null);
+
+    const { error } = await supabase
+      .from('Trades')
+      .update({
+        share_enabled: false,
+      })
+      .eq('ID', trade.id)
+      .eq('user_id', user.id);
+
+    if (error) {
+      setShareError(error.message);
+      setIsSharing(false);
+      return;
+    }
+
+    setShareOverride({
+      enabled: false,
+      token: shareToken,
+    });
+    setShareMessage('Public link disabled.');
+    setIsSharing(false);
+    onShareUpdated?.();
+  }
+
+  async function handleCopyShareLink() {
+    if (!shareToken) {
+      setShareError('Enable sharing before copying the link.');
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(buildTradeShareUrl(shareToken));
+      setShareError(null);
+      setShareMessage('Link copied.');
+    } catch {
+      setShareError('Copy failed. Select and copy the link manually.');
+    }
+  }
+
+  function renderScreenshotActions(size: 'compact' | 'default' = 'default') {
+    const baseClassName =
+      size === 'compact'
+        ? 'inline-flex min-h-8 items-center rounded-full border px-3 text-xs font-medium transition'
+        : 'inline-flex min-h-9 items-center rounded-full border px-3 text-xs font-medium transition';
+    const neutralClassName =
+      'border-[color:var(--border-color)] bg-[var(--surface)] text-[var(--muted-strong)] hover:border-[color:var(--border-strong)] hover:text-[var(--foreground)]';
+
+    return (
+      <>
+        {editHref ? (
+          <Link
+            className={cx(
+              baseClassName,
+              hasScreenshot
+                ? neutralClassName
+                : 'border-[color:var(--accent-border-soft)] bg-[var(--accent-soft-bg)] text-[var(--accent-text)] hover:border-[color:var(--accent-border-strong)]',
+            )}
+            href={editHref}
+          >
+            {hasScreenshot ? 'Change screenshot' : 'Add screenshot'}
+          </Link>
+        ) : null}
+        {hasScreenshot && canManageScreenshot ? (
+          <button
+            className={cx(
+              baseClassName,
+              'border-rose-500/20 bg-rose-500/10 text-rose-700 hover:border-rose-500/34 hover:bg-rose-500/16 disabled:cursor-not-allowed disabled:opacity-60 dark:text-rose-300',
+            )}
+            disabled={isUpdatingScreenshot}
+            type="button"
+            onClick={() => {
+              void handleRemoveScreenshot();
+            }}
+          >
+            {isUpdatingScreenshot ? 'Removing...' : 'Remove screenshot'}
+          </button>
+        ) : null}
+      </>
+    );
+  }
+
+  function renderShareButton(size: 'compact' | 'default' = 'default') {
+    if (!canManageSharing) {
+      return null;
+    }
+
+    const baseClassName =
+      size === 'compact'
+        ? 'inline-flex min-h-8 items-center rounded-full border px-3 text-xs font-medium transition'
+        : 'inline-flex min-h-9 items-center rounded-full border px-3 text-xs font-medium transition';
+
+    return (
+      <button
+        className={cx(
+          baseClassName,
+          shareEnabled
+            ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-700 hover:border-emerald-500/34 dark:text-emerald-300'
+            : 'border-[color:var(--border-color)] bg-[var(--surface)] text-[var(--muted-strong)] hover:border-[color:var(--border-strong)] hover:text-[var(--foreground)]',
+        )}
+        type="button"
+        onClick={() => {
+          setShareError(null);
+          setShareMessage(null);
+          setIsSharePanelOpen((current) => !current);
+        }}
+      >
+        {shareEnabled ? 'Shared' : 'Share'}
+      </button>
+    );
+  }
+
+  function renderSharePanel(compactPanel = false) {
+    if (!canManageSharing || !isSharePanelOpen) {
+      return null;
+    }
+
+    return (
+      <div
+        className={cx(
+          'rounded-[24px] border border-[color:var(--accent-border-soft)] bg-[linear-gradient(180deg,var(--accent-soft-bg),var(--surface))] px-4 py-4',
+          compactPanel ? 'mt-2 rounded-[18px] px-3 py-3' : 'mt-4',
+        )}
+      >
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="min-w-0">
+            <p className="font-mono text-[11px] uppercase tracking-[0.24em] text-[var(--accent-text)]">
+              {shareEnabled ? 'Public link active' : 'Private trade'}
+            </p>
+            <p className="mt-2 break-all text-sm leading-6 text-[var(--muted-strong)]">
+              {shareEnabled && sharePath
+                ? sharePath
+                : 'Enable sharing to create a public read-only link.'}
+            </p>
+            {shareError ? (
+              <p className="mt-2 text-sm text-[var(--danger)]">{shareError}</p>
+            ) : shareMessage ? (
+              <p className="mt-2 text-sm text-[var(--success)]">{shareMessage}</p>
+            ) : null}
+          </div>
+          <div className="flex flex-col gap-2 sm:flex-row lg:shrink-0">
+            {shareEnabled ? (
+              <>
+                <button
+                  className="inline-flex min-h-10 items-center justify-center rounded-full border border-[color:var(--border-color)] bg-[var(--surface-raised)] px-4 text-sm font-medium text-[var(--muted-strong)] transition hover:border-[color:var(--border-strong)] hover:text-[var(--foreground)]"
+                  type="button"
+                  onClick={() => {
+                    void handleCopyShareLink();
+                  }}
+                >
+                  Copy link
+                </button>
+                <button
+                  className="inline-flex min-h-10 items-center justify-center rounded-full border border-rose-500/20 bg-rose-500/10 px-4 text-sm font-medium text-rose-700 transition hover:border-rose-500/34 hover:bg-rose-500/16 disabled:cursor-not-allowed disabled:opacity-60 dark:text-rose-300"
+                  disabled={isSharing}
+                  type="button"
+                  onClick={() => {
+                    void handleDisableSharing();
+                  }}
+                >
+                  {isSharing ? 'Updating...' : 'Disable'}
+                </button>
+              </>
+            ) : (
+              <button
+                className="inline-flex min-h-10 items-center justify-center rounded-full border border-[color:var(--accent-border-soft)] bg-[linear-gradient(135deg,var(--accent-gradient-start),var(--accent-gradient-mid)_60%,var(--accent-gradient-end))] px-4 text-sm font-medium text-[var(--accent-button-text)] shadow-[0_18px_38px_-24px_var(--accent-button-shadow)] transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
+                disabled={isSharing}
+                type="button"
+                onClick={() => {
+                  void handleEnableSharing();
+                }}
+              >
+                {isSharing ? 'Creating...' : 'Enable link'}
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    );
   }
 
   if (compact && variant !== 'stacked') {
@@ -262,6 +581,7 @@ export default function TradeCard({
                 {parsedNotes.mistake}
               </span>
             ) : null}
+            <TradeTags tags={trade.tags} limit={2} className="contents" />
           </div>
 
           <p
@@ -274,7 +594,9 @@ export default function TradeCard({
           </p>
 
           {hasActions ? (
-            <div className="flex items-center gap-2 md:justify-end">
+            <div className="flex flex-wrap items-center gap-2 md:justify-end">
+              {renderScreenshotActions('compact')}
+              {renderShareButton('compact')}
               {editHref ? (
                 <Link
                   className="inline-flex min-h-8 items-center rounded-full border border-[color:var(--border-color)] bg-[var(--surface)] px-3 text-xs font-medium text-[var(--muted-strong)] transition hover:border-[color:var(--border-strong)] hover:text-[var(--foreground)]"
@@ -300,18 +622,23 @@ export default function TradeCard({
           ) : null}
         </div>
 
-        {onDelete && (isDeleteConfirmOpen || actionError) ? (
+        {renderSharePanel(true)}
+
+        {(onDelete || hasScreenshotActions) && (isDeleteConfirmOpen || actionError) ? (
           <div className="mt-2 rounded-[18px] border border-[color:color-mix(in_srgb,var(--danger)_20%,transparent)] bg-[linear-gradient(180deg,color-mix(in_srgb,var(--danger)_8%,transparent),var(--surface))] px-3 py-3">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <p className="text-sm font-medium text-[var(--foreground)]">
-                  Delete this trade?
-                </p>
+                {isDeleteConfirmOpen ? (
+                  <p className="text-sm font-medium text-[var(--foreground)]">
+                    Delete this trade?
+                  </p>
+                ) : null}
                 {actionError ? (
                   <p className="mt-1 text-sm text-[var(--danger)]">{actionError}</p>
                 ) : null}
               </div>
-              <div className="flex items-center gap-2">
+              {isDeleteConfirmOpen ? (
+                <div className="flex items-center gap-2">
                 <button
                   className="inline-flex min-h-9 items-center rounded-full border border-[color:var(--border-color)] bg-[var(--surface-raised)] px-3 text-xs font-medium text-[var(--muted-strong)] transition hover:border-[color:var(--border-strong)] hover:text-[var(--foreground)]"
                   type="button"
@@ -332,7 +659,8 @@ export default function TradeCard({
                 >
                   {isDeleting ? 'Deleting...' : 'Delete'}
                 </button>
-              </div>
+                </div>
+              ) : null}
             </div>
           </div>
         ) : null}
@@ -367,7 +695,13 @@ export default function TradeCard({
                 : 'bg-[var(--chart-neutral)]',
           )}
         />
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(220px,320px)] lg:items-stretch">
+        <div
+          className={cx(
+            'grid gap-4',
+            screenshotUrl &&
+              'lg:grid-cols-[minmax(0,1fr)_minmax(220px,320px)] lg:items-start',
+          )}
+        >
           <div className="min-w-0">
             <p className="mb-3 font-mono text-[11px] uppercase tracking-[0.28em] text-[var(--muted)]">
               {formatTradeDate(trade.date)}
@@ -397,6 +731,8 @@ export default function TradeCard({
               </span>
             </div>
 
+            <TradeTags tags={trade.tags} limit={5} className="mt-3" />
+
             <div className="mt-4 flex flex-wrap gap-2 text-sm text-[var(--muted)]">
               {trade.rr !== null ? <span>RR {formatCompactNumber(trade.rr)}</span> : null}
               {trade.riskPercent !== null ? (
@@ -415,6 +751,8 @@ export default function TradeCard({
             )}
 
             <div className="mt-5 flex flex-wrap items-center gap-2">
+              {renderScreenshotActions()}
+              {renderShareButton()}
               {editHref ? (
                 <Link
                   className="inline-flex min-h-9 items-center rounded-full border border-[color:var(--border-color)] bg-[var(--surface)] px-3 text-xs font-medium text-[var(--muted-strong)] transition hover:border-[color:var(--border-strong)] hover:text-[var(--foreground)]"
@@ -439,43 +777,46 @@ export default function TradeCard({
             </div>
           </div>
 
-          {trade.screenshotUrl ? (
+          {screenshotUrl ? (
             <a
-              className="relative min-h-[170px] overflow-hidden rounded-[22px] border border-[color:var(--border-color)] bg-[var(--surface)]"
-              href={trade.screenshotUrl}
+              className="relative block overflow-hidden rounded-[22px] border border-[color:var(--border-color)] bg-[var(--surface)]"
+              href={screenshotUrl}
               rel="noreferrer"
               target="_blank"
             >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                alt={`${symbolLabel} trade screenshot`}
-                className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.02]"
-                loading="lazy"
-                src={trade.screenshotUrl}
-              />
+              <div className="aspect-[16/9] max-h-[220px] overflow-hidden bg-[var(--surface-raised)]">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  alt={`${symbolLabel} trade screenshot`}
+                  className="h-full w-full object-contain transition duration-500 group-hover:scale-[1.01]"
+                  loading="lazy"
+                  src={screenshotUrl}
+                />
+              </div>
               <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-[linear-gradient(180deg,transparent,rgba(10,12,16,0.78))] px-4 py-3 text-sm text-white">
                 Screenshot
               </div>
             </a>
-          ) : (
-            <div className="grid min-h-[150px] place-items-center rounded-[22px] border border-dashed border-[color:var(--border-color)] bg-[radial-gradient(circle_at_top,var(--accent-primary-glow),transparent_62%),var(--surface)] px-4 text-center text-sm text-[var(--muted)]">
-              No screenshot
-            </div>
-          )}
+          ) : null}
         </div>
 
-        {onDelete && (isDeleteConfirmOpen || actionError) ? (
+        {renderSharePanel()}
+
+        {(onDelete || hasScreenshotActions) && (isDeleteConfirmOpen || actionError) ? (
           <div className="mt-4 rounded-[22px] border border-[color:color-mix(in_srgb,var(--danger)_20%,transparent)] bg-[linear-gradient(180deg,color-mix(in_srgb,var(--danger)_8%,transparent),var(--surface))] px-4 py-3.5">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <p className="text-sm font-medium text-[var(--foreground)]">
-                  Delete this trade?
-                </p>
+                {isDeleteConfirmOpen ? (
+                  <p className="text-sm font-medium text-[var(--foreground)]">
+                    Delete this trade?
+                  </p>
+                ) : null}
                 {actionError ? (
                   <p className="mt-2 text-sm text-[var(--danger)]">{actionError}</p>
                 ) : null}
               </div>
-              <div className="flex items-center gap-2">
+              {isDeleteConfirmOpen ? (
+                <div className="flex items-center gap-2">
                 <button
                   className="inline-flex min-h-10 items-center rounded-full border border-[color:var(--border-color)] bg-[var(--surface-raised)] px-4 text-sm font-medium text-[var(--muted-strong)] transition hover:border-[color:var(--border-strong)] hover:text-[var(--foreground)]"
                   type="button"
@@ -496,7 +837,8 @@ export default function TradeCard({
                 >
                   {isDeleting ? 'Deleting...' : 'Delete'}
                 </button>
-              </div>
+                </div>
+              ) : null}
             </div>
           </div>
         ) : null}
@@ -560,11 +902,14 @@ export default function TradeCard({
                   {tradeTimeRangeLabel ? ` • ${tradeTimeRangeLabel}` : ''}
                 </p>
               ) : null}
+              <TradeTags tags={trade.tags} className="mt-3" />
             </div>
 
             <div className="flex flex-col gap-2 md:items-end">
               {hasActions ? (
-                <div className="flex items-center gap-2 self-start md:self-end">
+                <div className="flex flex-wrap items-center gap-2 self-start md:self-end">
+                  {renderScreenshotActions()}
+                  {renderShareButton()}
                   {editHref ? (
                     <Link
                       href={editHref}
@@ -625,12 +970,13 @@ export default function TradeCard({
             </div>
           </div>
 
+          {renderSharePanel()}
+
           {shouldShowInlineCover ? (
             <TradeCover
-              screenshotUrl={trade.screenshotUrl}
+              screenshotUrl={screenshotUrl}
               symbol={symbolLabel}
               compact={compact}
-              placeholder
             />
           ) : null}
 
@@ -659,21 +1005,26 @@ export default function TradeCard({
             </div>
           ) : null}
 
-          {onDelete && (isDeleteConfirmOpen || actionError) ? (
+          {(onDelete || hasScreenshotActions) && (isDeleteConfirmOpen || actionError) ? (
             <div className="rounded-[22px] border border-rose-500/18 bg-[linear-gradient(180deg,rgba(127,29,29,0.08),var(--surface))] px-4 py-3.5">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <p className="text-sm font-medium text-[var(--foreground)]">
-                    Delete this trade?
-                  </p>
-                  <p className="mt-1 text-sm text-[var(--muted)]">
-                    This removes the execution from the journal and updates account metrics.
-                  </p>
+                  {isDeleteConfirmOpen ? (
+                    <>
+                      <p className="text-sm font-medium text-[var(--foreground)]">
+                        Delete this trade?
+                      </p>
+                      <p className="mt-1 text-sm text-[var(--muted)]">
+                        This removes the execution from the journal and updates account metrics.
+                      </p>
+                    </>
+                  ) : null}
                   {actionError ? (
                     <p className="mt-2 text-sm text-[var(--danger)]">{actionError}</p>
                   ) : null}
                 </div>
-                <div className="flex items-center gap-2">
+                {isDeleteConfirmOpen ? (
+                  <div className="flex items-center gap-2">
                   <button
                     type="button"
                     onClick={() => {
@@ -694,7 +1045,8 @@ export default function TradeCard({
                   >
                     {isDeleting ? 'Deleting...' : 'Delete'}
                   </button>
-                </div>
+                  </div>
+                ) : null}
               </div>
             </div>
           ) : null}
@@ -702,9 +1054,9 @@ export default function TradeCard({
 
         {featured && hasScreenshot ? (
           <TradeCover
-            screenshotUrl={trade.screenshotUrl}
+            screenshotUrl={screenshotUrl}
             symbol={symbolLabel}
-            className="xl:h-full"
+            className="xl:max-h-[340px]"
           />
         ) : null}
       </div>

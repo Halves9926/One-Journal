@@ -16,6 +16,7 @@ import {
 import PageShell from '@/components/ui/page-shell';
 import { MetricCard, Panel, PanelHeader } from '@/components/ui/panel';
 import { Reveal } from '@/components/ui/reveal';
+import TradeCalendarView from '@/components/ui/trade-calendar-view';
 import TradeCard from '@/components/ui/trade-card';
 import { useUserTrades } from '@/components/ui/use-user-trades';
 import { useWidgetPreferences } from '@/components/ui/widget-preferences';
@@ -70,7 +71,10 @@ export default function AccountsView() {
   const activeAccountTrades =
     accountEntries.find((entry) => entry.account.id === activeAccount?.id)?.trades ??
     tradesState.items;
-  const visibleAccountTrades = activeAccountTrades.slice(0, 6);
+  const visibleAccountTrades =
+    preferences.trades === 'calendar'
+      ? activeAccountTrades
+      : activeAccountTrades.slice(0, 6);
   const fundedAccounts = accounts.filter((account) => account.isFunded).length;
   const totalNetPnl = accountEntries.reduce(
     (total, entry) => total + entry.metrics.summary.netPnl,
@@ -280,18 +284,25 @@ export default function AccountsView() {
                 ) : null}
 
                 {!tradesState.loading && !tradesState.error && visibleAccountTrades.length > 0 ? (
-                  <div className="grid gap-4">
-                    {visibleAccountTrades.map((trade, index) => (
-                      <TradeCard
-                        key={`account-visible-trade-${trade.id}`}
-                        trade={trade}
-                        index={index}
-                        compact
-                        editHref={`/trades/${trade.id}/edit`}
-                        variant="stacked"
-                      />
-                    ))}
-                  </div>
+                  preferences.trades === 'calendar' ? (
+                    <TradeCalendarView
+                      trades={visibleAccountTrades}
+                      emptyMessage="No active account trades available for this calendar."
+                    />
+                  ) : (
+                    <div className="grid gap-4">
+                      {visibleAccountTrades.map((trade, index) => (
+                        <TradeCard
+                          key={`account-visible-trade-${trade.id}`}
+                          trade={trade}
+                          index={index}
+                          compact
+                          editHref={`/trades/${trade.id}/edit`}
+                          variant="stacked"
+                        />
+                      ))}
+                    </div>
+                  )
                 ) : null}
               </div>
             </Panel>

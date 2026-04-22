@@ -142,8 +142,9 @@ export default function HomeView() {
     [activeAccount, tradesState.items],
   );
   const summary = accountMetrics?.summary ?? buildTradeSummary([]);
-  const recentTrades = tradesState.items.slice(0, 4);
   const tradeListMode = listViewPreferences.trades;
+  const recentTrades =
+    tradeListMode === 'calendar' ? tradesState.items : tradesState.items.slice(0, 4);
   const displayEquity =
     activeAccount && accountMetrics
       ? isPropAccount(activeAccount) &&

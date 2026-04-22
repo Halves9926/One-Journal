@@ -430,15 +430,19 @@ export const analyticsMetricRegistry = [
         label: 'Compact',
       },
     ],
-    render: ({ analytics, metricVariants }) => (
-      <WinRateWidget
-        breakeven={analytics.summary.breakeven}
-        caption={`${analytics.summary.totalTrades} tracked outcome${analytics.summary.totalTrades === 1 ? '' : 's'}`}
-        losses={analytics.summary.losses}
-        variant={metricVariants['win-rate'] ?? 'radial'}
-        wins={analytics.summary.wins}
-      />
-    ),
+    render: ({ analytics, metricVariants }) => {
+      const variant = metricVariants['win-rate'];
+
+      return (
+        <WinRateWidget
+          breakeven={analytics.summary.breakeven}
+          caption={`${analytics.summary.totalTrades} tracked outcome${analytics.summary.totalTrades === 1 ? '' : 's'}`}
+          losses={analytics.summary.losses}
+          variant={variant === 'compact' || variant === 'radial' ? variant : 'radial'}
+          wins={analytics.summary.wins}
+        />
+      );
+    },
   },
   {
     category: 'Core',

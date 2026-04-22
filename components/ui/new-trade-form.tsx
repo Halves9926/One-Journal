@@ -17,6 +17,7 @@ import {
 import PageShell from '@/components/ui/page-shell';
 import { Panel, PanelHeader } from '@/components/ui/panel';
 import { Reveal } from '@/components/ui/reveal';
+import ScreenshotInput from '@/components/ui/screenshot-input';
 import { useTradePreferences } from '@/components/ui/trade-preferences-provider';
 import {
   clearFormDraft,
@@ -32,6 +33,7 @@ import {
 import type { TradeRow } from '@/lib/supabase';
 import {
   TRADE_SELECT,
+  TRADE_TAG_OPTIONS,
   createInitialTradeFormValues,
   formatPnl,
   getTradeTimeRangeLabel,
@@ -39,8 +41,10 @@ import {
   mapTradeFormToUpdate,
   mapTradeToFormValues,
   normalizeTrade,
+  type TradeTag,
   type TradeFormInput,
 } from '@/lib/trades';
+import { cx } from '@/lib/utils';
 
 type ToastState = {
   items: string[];
@@ -49,7 +53,7 @@ type ToastState = {
   title: string;
 } | null;
 
-type FieldErrors = Partial<Record<TradeFieldKey | 'account_id', string>>;
+type FieldErrors = Partial<Record<keyof TradeFormInput, string>>;
 
 type NewTradeFormProps = {
   mode?: 'create' | 'edit';
@@ -310,6 +314,15 @@ export default function NewTradeForm({
 
     setShouldPersistDraft(true);
     setToast(null);
+  }
+
+  function toggleTag(tag: TradeTag) {
+    updateValue(
+      'tags',
+      values.tags.includes(tag)
+        ? values.tags.filter((currentTag) => currentTag !== tag)
+        : [...values.tags, tag],
+    );
   }
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -646,7 +659,10 @@ export default function NewTradeForm({
 
             {TRADE_FIELD_SECTIONS.map((section, sectionIndex) => {
               const fields = TRADE_FIELD_DEFINITIONS.filter(
-                (field) => field.section === section.key && preferences[field.key],
+                (field) =>
+                  field.section === section.key &&
+                  field.key !== 'screenshot_url' &&
+                  preferences[field.key],
               );
 
               if (fields.length === 0) {
@@ -725,6 +741,55 @@ export default function NewTradeForm({
                 </Reveal>
               );
             })}
+
+            <Reveal delay={0.18}>
+              <Panel className="overflow-hidden">
+                <PanelHeader
+                  eyebrow="screenshot"
+                  title="Trade screenshot"
+                  description="Attach a chart URL now or leave it empty and add it from the card later."
+                />
+                <div className="grid gap-4 px-6 pb-6 sm:px-8 sm:pb-8">
+                  <ScreenshotInput
+                    id="field-screenshot_url"
+                    kind="trade"
+                    value={values.screenshot_url}
+                    onChange={(nextValue) => updateValue('screenshot_url', nextValue)}
+                  />
+                </div>
+              </Panel>
+            </Reveal>
+
+            <Reveal delay={0.2}>
+              <Panel className="overflow-hidden">
+                <PanelHeader
+                  eyebrow="tags"
+                  title="Trade tags"
+                  description="Mark execution quality and behavior for faster reviews."
+                />
+                <div className="flex flex-wrap gap-2 px-6 pb-6 sm:px-8 sm:pb-8">
+                  {TRADE_TAG_OPTIONS.map((tag) => {
+                    const isActive = values.tags.includes(tag);
+
+                    return (
+                      <button
+                        key={tag}
+                        className={cx(
+                          'rounded-full border px-4 py-2 text-sm font-medium transition',
+                          isActive
+                            ? 'border-[color:var(--accent-border-soft)] bg-[var(--accent-soft-bg)] text-[var(--accent-text)] shadow-[0_14px_30px_-24px_var(--shadow-color)]'
+                            : 'border-[color:var(--border-color)] bg-[var(--surface)] text-[var(--muted-strong)] hover:border-[color:var(--border-strong)] hover:text-[var(--foreground)]',
+                        )}
+                        type="button"
+                        onClick={() => toggleTag(tag)}
+                      >
+                        {tag}
+                      </button>
+                    );
+                  })}
+                </div>
+              </Panel>
+            </Reveal>
           </div>
 
           <div className="space-y-6 xl:sticky xl:top-32 xl:self-start">
@@ -761,8 +826,27 @@ export default function NewTradeForm({
                       {values.rr || '0'} /{' '}
                       {values.pnl.trim() && Number.isFinite(Number(values.pnl))
                         ? formatPnl(Number(values.pnl))
-                        : '$0'}
+                      : '$0'}
                     </p>
+                  </div>
+                  <div className="rounded-[22px] border border-[color:var(--border-color)] bg-[var(--surface-raised)] p-4 shadow-[0_14px_28px_-24px_var(--shadow-color)]">
+                    <p className="text-sm text-[var(--muted)]">Tags</p>
+                    {values.tags.length > 0 ? (
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {values.tags.map((tag) => (
+                          <span
+                            key={tag}
+                            className="rounded-full border border-[color:var(--accent-border-soft)] bg-[var(--accent-soft-bg)] px-3 py-1 text-xs text-[var(--accent-text)]"
+                          >
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="mt-2 text-sm text-[var(--muted-strong)]">
+                        No tags selected.
+                      </p>
+                    )}
                   </div>
                 </div>
               </Panel>

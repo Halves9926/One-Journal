@@ -2,7 +2,7 @@
 
 import { useSyncExternalStore } from 'react';
 
-export const LIST_VIEW_MODES = ['compact', 'cards', 'stacked'] as const;
+export const LIST_VIEW_MODES = ['compact', 'cards', 'stacked', 'calendar'] as const;
 
 export type ListViewMode = (typeof LIST_VIEW_MODES)[number];
 export type ListViewTarget = 'accounts' | 'analyses' | 'trades';
@@ -20,6 +20,7 @@ export const DEFAULT_LIST_VIEW_PREFERENCES: ListViewPreferences = {
 
 const modeLabels: Record<ListViewMode, string> = {
   cards: 'Cards',
+  calendar: 'Calendar',
   compact: 'Compact',
   stacked: 'Stacked Preview',
 };
@@ -31,6 +32,10 @@ function isListViewMode(value: unknown): value is ListViewMode {
   );
 }
 
+function isNonCalendarListViewMode(value: unknown): value is ListViewMode {
+  return isListViewMode(value) && value !== 'calendar';
+}
+
 function normalizeListViewPreferences(value: unknown): ListViewPreferences {
   if (!value || typeof value !== 'object') {
     return DEFAULT_LIST_VIEW_PREFERENCES;
@@ -39,10 +44,10 @@ function normalizeListViewPreferences(value: unknown): ListViewPreferences {
   const input = value as Partial<Record<ListViewTarget, unknown>>;
 
   return {
-    accounts: isListViewMode(input.accounts)
+    accounts: isNonCalendarListViewMode(input.accounts)
       ? input.accounts
       : DEFAULT_LIST_VIEW_PREFERENCES.accounts,
-    analyses: isListViewMode(input.analyses)
+    analyses: isNonCalendarListViewMode(input.analyses)
       ? input.analyses
       : DEFAULT_LIST_VIEW_PREFERENCES.analyses,
     trades: isListViewMode(input.trades)

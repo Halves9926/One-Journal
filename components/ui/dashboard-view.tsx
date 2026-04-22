@@ -20,6 +20,7 @@ import {
 } from '@/components/ui/trade-charts';
 import { MetricCard, Panel, PanelHeader } from '@/components/ui/panel';
 import { Reveal } from '@/components/ui/reveal';
+import TradeCalendarView from '@/components/ui/trade-calendar-view';
 import TradeCard from '@/components/ui/trade-card';
 import { useUserAnalyses } from '@/components/ui/use-user-analyses';
 import { useUserTrades } from '@/components/ui/use-user-trades';
@@ -319,7 +320,21 @@ export default function DashboardView() {
   const feedUsesCompact =
     listViewPreferences.trades === 'compact' ||
     listViewPreferences.analyses === 'compact';
-  const visibleTrades = tradesState.items.slice(0, 6);
+  const visibleTrades =
+    listViewPreferences.trades === 'calendar'
+      ? tradesState.items
+      : tradesState.items.slice(0, 6);
+  const filteredFeedTrades = useMemo(
+    () =>
+      filteredJournalFeed
+        .filter((entry): entry is Extract<JournalFeedEntry, { kind: 'trade' }> =>
+          entry.kind === 'trade',
+        )
+        .map((entry) => entry.value),
+    [filteredJournalFeed],
+  );
+  const shouldShowFeedCalendar =
+    feedScope === 'trades' && listViewPreferences.trades === 'calendar';
 
   async function handleLogout() {
     if (!supabase) {
@@ -646,19 +661,26 @@ export default function DashboardView() {
               ) : null}
 
               {!tradesState.loading && !tradesState.error && visibleTrades.length > 0 ? (
-                <div className="grid gap-4">
-                  {visibleTrades.map((trade, index) => (
-                    <TradeCard
-                      key={`visible-trade-${trade.id}`}
-                      trade={trade}
-                      index={index}
-                      compact
-                      editHref={`/trades/${trade.id}/edit`}
-                      onDelete={handleDeleteTrade}
-                      variant="stacked"
-                    />
-                  ))}
-                </div>
+                listViewPreferences.trades === 'calendar' ? (
+                  <TradeCalendarView
+                    trades={visibleTrades}
+                    emptyMessage="No visible trades available for this calendar."
+                  />
+                ) : (
+                  <div className="grid gap-4">
+                    {visibleTrades.map((trade, index) => (
+                      <TradeCard
+                        key={`visible-trade-${trade.id}`}
+                        trade={trade}
+                        index={index}
+                        compact
+                        editHref={`/trades/${trade.id}/edit`}
+                        onDelete={handleDeleteTrade}
+                        variant="stacked"
+                      />
+                    ))}
+                  </div>
+                )
               ) : null}
             </div>
           </Panel>
@@ -881,47 +903,54 @@ export default function DashboardView() {
                   !tradesState.error &&
                   !analysesState.error &&
                   filteredJournalFeed.length > 0 ? (
-                    <div
-                      className={cx(
-                        'grid gap-4',
-                        feedUsesStacked || feedUsesCompact
-                          ? 'grid-cols-1'
-                          : 'xl:grid-cols-2',
-                      )}
-                    >
-                      {filteredJournalFeed.map((entry, index) => (
-                        entry.kind === 'trade' ? (
-                          <TradeCard
-                            key={`trade-${entry.id}`}
-                            trade={entry.value}
-                            index={index}
-                            compact={listViewPreferences.trades !== 'cards'}
-                            editHref={`/trades/${entry.value.id}/edit`}
-                            onDelete={handleDeleteTrade}
-                            variant={
-                              listViewPreferences.trades === 'stacked'
-                                ? 'stacked'
-                                : undefined
-                            }
-                          />
-                        ) : (
-                          <AnalysisCard
-                            key={`analysis-${entry.id}`}
-                            analysis={entry.value}
-                            index={index}
-                            compact={listViewPreferences.analyses !== 'cards'}
-                            editHref={`/analyses/${entry.value.id}/edit`}
-                            onDelete={handleDeleteAnalysis}
-                            onShareUpdated={analysesState.refresh}
-                            variant={
-                              listViewPreferences.analyses === 'stacked'
-                                ? 'stacked'
-                                : undefined
-                            }
-                          />
-                        )
-                      ))}
-                    </div>
+                    shouldShowFeedCalendar ? (
+                      <TradeCalendarView
+                        trades={filteredFeedTrades}
+                        emptyMessage="No trades match this calendar filter."
+                      />
+                    ) : (
+                      <div
+                        className={cx(
+                          'grid gap-4',
+                          feedUsesStacked || feedUsesCompact
+                            ? 'grid-cols-1'
+                            : 'xl:grid-cols-2',
+                        )}
+                      >
+                        {filteredJournalFeed.map((entry, index) => (
+                          entry.kind === 'trade' ? (
+                            <TradeCard
+                              key={`trade-${entry.id}`}
+                              trade={entry.value}
+                              index={index}
+                              compact={listViewPreferences.trades !== 'cards'}
+                              editHref={`/trades/${entry.value.id}/edit`}
+                              onDelete={handleDeleteTrade}
+                              variant={
+                                listViewPreferences.trades === 'stacked'
+                                  ? 'stacked'
+                                  : undefined
+                              }
+                            />
+                          ) : (
+                            <AnalysisCard
+                              key={`analysis-${entry.id}`}
+                              analysis={entry.value}
+                              index={index}
+                              compact={listViewPreferences.analyses !== 'cards'}
+                              editHref={`/analyses/${entry.value.id}/edit`}
+                              onDelete={handleDeleteAnalysis}
+                              onShareUpdated={analysesState.refresh}
+                              variant={
+                                listViewPreferences.analyses === 'stacked'
+                                  ? 'stacked'
+                                  : undefined
+                              }
+                            />
+                          )
+                        ))}
+                      </div>
+                    )
                   ) : null}
                 </div>
               </Panel>

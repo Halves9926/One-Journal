@@ -173,7 +173,7 @@ export default function RootLayout({
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
-      <body className="min-h-screen bg-[var(--background)] font-sans text-[var(--foreground)] antialiased">
+      <body className="min-h-screen font-sans text-[var(--foreground)] antialiased">
         <ThemeProvider>
           <AuthProvider>
             <AccountsProvider>

@@ -17,6 +17,7 @@ import {
 import PageShell from '@/components/ui/page-shell';
 import { Panel, PanelHeader } from '@/components/ui/panel';
 import { Reveal } from '@/components/ui/reveal';
+import ScreenshotInput from '@/components/ui/screenshot-input';
 import { useClientReady } from '@/components/ui/use-client-ready';
 import {
   clearFormDraft,
@@ -616,15 +617,13 @@ export default function NewAnalysisForm({
                     placeholder="Anything extra worth remembering..."
                     wrapperClassName="md:col-span-2"
                   />
-                  <InputField
-                    label="Screenshot URL"
-                    type="url"
+                  <ScreenshotInput
+                    id="field-analysis-screenshot_url"
+                    kind="analysis"
                     value={values.screenshot_url}
-                    onChange={(event) =>
-                      updateValue('screenshot_url', event.target.value)
+                    onChange={(nextValue) =>
+                      updateValue('screenshot_url', nextValue)
                     }
-                    placeholder="https://..."
-                    wrapperClassName="md:col-span-2"
                   />
                 </div>
               </Panel>
