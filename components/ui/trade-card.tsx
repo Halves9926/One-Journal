@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
 
+import { useAccounts } from '@/components/ui/accounts-provider';
 import { useAuth } from '@/components/ui/auth-provider';
 import {
   buildTradeSharePath,
@@ -185,6 +186,7 @@ export default function TradeCard({
   variant,
 }: TradeCardProps) {
   const { supabase, user } = useAuth();
+  const { accounts } = useAccounts();
   const [screenshotOverride, setScreenshotOverride] = useState<
     string | null | undefined
   >(undefined);
@@ -203,10 +205,22 @@ export default function TradeCard({
     enabled: boolean;
     token: string | null;
   } | null>(null);
+  const tradeAccount = accounts.find((account) => account.id === trade.accountId);
+  const isOwnTrade = Boolean(user && trade.userId === user.id);
+  const canManageTradeEntry = Boolean(
+    supabase &&
+      user &&
+      (tradeAccount
+        ? tradeAccount.coopRole === 'owner' ||
+          tradeAccount.coopRole === 'admin' ||
+          (tradeAccount.coopRole === 'member' && isOwnTrade)
+        : isOwnTrade),
+  );
   const canManageScreenshot = Boolean(
-    supabase && user && trade.userId === user.id,
+    supabase && user && canManageTradeEntry,
   );
   const canManageSharing = canManageScreenshot;
+  const effectiveEditHref = canManageTradeEntry ? editHref : undefined;
   const shareEnabled = shareOverride?.enabled ?? trade.shareEnabled;
   const shareToken = shareOverride?.token ?? trade.shareToken;
   const sharePath = shareToken ? buildTradeSharePath(shareToken) : null;
@@ -249,9 +263,14 @@ export default function TradeCard({
   const parsedNotes = parseTradeNotes(trade.notes);
   const tradeTimeRangeLabel = getTradeTimeRangeLabel(trade);
   const shouldShowInlineCover = Boolean(screenshotUrl) && !featured;
-  const hasScreenshotActions = Boolean(editHref || (hasScreenshot && canManageScreenshot));
+  const hasScreenshotActions = Boolean(
+    effectiveEditHref || (hasScreenshot && canManageScreenshot),
+  );
   const hasActions = Boolean(
-    editHref || onDelete || hasScreenshotActions || canManageSharing,
+    effectiveEditHref ||
+      (onDelete && canManageTradeEntry) ||
+      hasScreenshotActions ||
+      canManageSharing,
   );
 
   async function handleDelete() {
@@ -286,8 +305,7 @@ export default function TradeCard({
     const { error } = await supabase
       .from('Trades')
       .update({ ScreenShotURL: null })
-      .eq('ID', trade.id)
-      .eq('user_id', user.id);
+      .eq('ID', trade.id);
 
     if (error) {
       setActionError(error.message);
@@ -319,8 +337,7 @@ export default function TradeCard({
         share_token: nextToken,
         shared_at: trade.sharedAt ?? now,
       })
-      .eq('ID', trade.id)
-      .eq('user_id', user.id);
+      .eq('ID', trade.id);
 
     if (error) {
       setShareError(error.message);
@@ -352,8 +369,7 @@ export default function TradeCard({
       .update({
         share_enabled: false,
       })
-      .eq('ID', trade.id)
-      .eq('user_id', user.id);
+      .eq('ID', trade.id);
 
     if (error) {
       setShareError(error.message);
@@ -395,7 +411,7 @@ export default function TradeCard({
 
     return (
       <>
-        {editHref ? (
+        {effectiveEditHref ? (
           <Link
             className={cx(
               baseClassName,
@@ -403,7 +419,7 @@ export default function TradeCard({
                 ? neutralClassName
                 : 'border-[color:var(--accent-border-soft)] bg-[var(--accent-soft-bg)] text-[var(--accent-text)] hover:border-[color:var(--accent-border-strong)]',
             )}
-            href={editHref}
+            href={effectiveEditHref}
           >
             {hasScreenshot ? 'Change screenshot' : 'Add screenshot'}
           </Link>
@@ -597,15 +613,15 @@ export default function TradeCard({
             <div className="flex flex-wrap items-center gap-2 md:justify-end">
               {renderScreenshotActions('compact')}
               {renderShareButton('compact')}
-              {editHref ? (
+              {effectiveEditHref ? (
                 <Link
                   className="inline-flex min-h-8 items-center rounded-full border border-[color:var(--border-color)] bg-[var(--surface)] px-3 text-xs font-medium text-[var(--muted-strong)] transition hover:border-[color:var(--border-strong)] hover:text-[var(--foreground)]"
-                  href={editHref}
+                  href={effectiveEditHref}
                 >
                   Edit
                 </Link>
               ) : null}
-              {onDelete ? (
+              {onDelete && canManageTradeEntry ? (
                 <button
                   aria-label="Delete trade"
                   className="inline-flex min-h-8 items-center rounded-full border border-[color:color-mix(in_srgb,var(--danger)_20%,transparent)] bg-[color:color-mix(in_srgb,var(--danger)_10%,transparent)] px-3 text-xs font-medium text-[var(--danger)] transition hover:border-[color:color-mix(in_srgb,var(--danger)_34%,transparent)]"
@@ -624,7 +640,8 @@ export default function TradeCard({
 
         {renderSharePanel(true)}
 
-        {(onDelete || hasScreenshotActions) && (isDeleteConfirmOpen || actionError) ? (
+        {((onDelete && canManageTradeEntry) || hasScreenshotActions) &&
+        (isDeleteConfirmOpen || actionError) ? (
           <div className="mt-2 rounded-[18px] border border-[color:color-mix(in_srgb,var(--danger)_20%,transparent)] bg-[linear-gradient(180deg,color-mix(in_srgb,var(--danger)_8%,transparent),var(--surface))] px-3 py-3">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
@@ -753,15 +770,15 @@ export default function TradeCard({
             <div className="mt-5 flex flex-wrap items-center gap-2">
               {renderScreenshotActions()}
               {renderShareButton()}
-              {editHref ? (
+              {effectiveEditHref ? (
                 <Link
                   className="inline-flex min-h-9 items-center rounded-full border border-[color:var(--border-color)] bg-[var(--surface)] px-3 text-xs font-medium text-[var(--muted-strong)] transition hover:border-[color:var(--border-strong)] hover:text-[var(--foreground)]"
-                  href={editHref}
+                  href={effectiveEditHref}
                 >
                   Edit
                 </Link>
               ) : null}
-              {onDelete ? (
+              {onDelete && canManageTradeEntry ? (
                 <button
                   aria-label="Delete trade"
                   className="inline-flex min-h-9 items-center rounded-full border border-[color:color-mix(in_srgb,var(--danger)_20%,transparent)] bg-[color:color-mix(in_srgb,var(--danger)_10%,transparent)] px-3 text-xs font-medium text-[var(--danger)] transition hover:border-[color:color-mix(in_srgb,var(--danger)_34%,transparent)]"
@@ -802,7 +819,8 @@ export default function TradeCard({
 
         {renderSharePanel()}
 
-        {(onDelete || hasScreenshotActions) && (isDeleteConfirmOpen || actionError) ? (
+        {((onDelete && canManageTradeEntry) || hasScreenshotActions) &&
+        (isDeleteConfirmOpen || actionError) ? (
           <div className="mt-4 rounded-[22px] border border-[color:color-mix(in_srgb,var(--danger)_20%,transparent)] bg-[linear-gradient(180deg,color-mix(in_srgb,var(--danger)_8%,transparent),var(--surface))] px-4 py-3.5">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
@@ -910,15 +928,15 @@ export default function TradeCard({
                 <div className="flex flex-wrap items-center gap-2 self-start md:self-end">
                   {renderScreenshotActions()}
                   {renderShareButton()}
-                  {editHref ? (
+                  {effectiveEditHref ? (
                     <Link
-                      href={editHref}
+                      href={effectiveEditHref}
                       className="inline-flex min-h-9 items-center rounded-full border border-[color:var(--border-color)] bg-[var(--surface)] px-3 text-xs font-medium text-[var(--muted-strong)] transition hover:border-[color:var(--border-strong)] hover:text-[var(--foreground)]"
                     >
                       Edit
                     </Link>
                   ) : null}
-                  {onDelete ? (
+                  {onDelete && canManageTradeEntry ? (
                     <button
                       type="button"
                       onClick={() => {
@@ -1005,7 +1023,8 @@ export default function TradeCard({
             </div>
           ) : null}
 
-          {(onDelete || hasScreenshotActions) && (isDeleteConfirmOpen || actionError) ? (
+          {((onDelete && canManageTradeEntry) || hasScreenshotActions) &&
+          (isDeleteConfirmOpen || actionError) ? (
             <div className="rounded-[22px] border border-rose-500/18 bg-[linear-gradient(180deg,rgba(127,29,29,0.08),var(--surface))] px-4 py-3.5">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>

@@ -10,6 +10,7 @@ import {
   Cell,
   ComposedChart,
   Line,
+  ReferenceLine,
   ResponsiveContainer,
   Scatter,
   ScatterChart,
@@ -19,6 +20,11 @@ import {
 } from 'recharts';
 
 import { Panel } from '@/components/ui/panel';
+import {
+  formatChartCurrencyTick,
+  getSmartYAxisDomain,
+  shouldShowZeroLine,
+} from '@/lib/chart-scale';
 import {
   formatDistributionBucketLabel,
   formatHoldingAxisValue,
@@ -111,12 +117,13 @@ function AnalyticsTooltip({
                 'font-medium text-[var(--foreground)]',
                 valueTone === 'pnl' &&
                   typeof entry.value === 'number' &&
+                  Number.isFinite(entry.value) &&
                   getPnlTextClassName(entry.value),
               )}
             >
-              {typeof entry.value === 'number'
+              {typeof entry.value === 'number' && Number.isFinite(entry.value)
                 ? formatValue(entry.value, entry)
-                : entry.value}
+                : entry.value ?? '--'}
             </span>
           </div>
         ))}
@@ -180,6 +187,14 @@ export function EquityCurveAnalyticsCard({
 }) {
   const gradientId = useId().replace(/:/g, '');
   const latestEquity = points.at(-1)?.equity ?? 0;
+  const yScale = getSmartYAxisDomain(
+    points.map((point) => point.equity),
+    {
+      includeZero: true,
+      paddingRatio: 0.18,
+      tickCount: 5,
+    },
+  );
 
   return (
     <ChartShell
@@ -224,6 +239,14 @@ export function EquityCurveAnalyticsCard({
               strokeDasharray="4 8"
               vertical={false}
             />
+            {shouldShowZeroLine(yScale.domain) ? (
+              <ReferenceLine
+                y={0}
+                stroke={chartColors.neutral}
+                strokeDasharray="3 6"
+                strokeOpacity={0.72}
+              />
+            ) : null}
             <XAxis
               dataKey="label"
               axisLine={false}
@@ -236,10 +259,14 @@ export function EquityCurveAnalyticsCard({
             />
             <YAxis
               axisLine={false}
+              domain={yScale.domain}
               tick={axisTickStyle}
-              tickFormatter={(value: number) => formatCurrency(value, 0)}
+              tickFormatter={(value: number) =>
+                formatChartCurrencyTick(value, { signed: true })
+              }
               tickLine={false}
               tickMargin={12}
+              ticks={yScale.ticks}
               width={88}
             />
             <Tooltip
@@ -277,6 +304,15 @@ export function EquityCurveAnalyticsCard({
 }
 
 export function PnlByDayAnalyticsCard({ points }: { points: PnlByDayPoint[] }) {
+  const yScale = getSmartYAxisDomain(
+    points.map((point) => point.netPnl),
+    {
+      includeZero: true,
+      paddingRatio: 0.18,
+      tickCount: 5,
+    },
+  );
+
   return (
     <ChartShell
       eyebrow="calendar"
@@ -291,6 +327,9 @@ export function PnlByDayAnalyticsCard({ points }: { points: PnlByDayPoint[] }) {
               strokeDasharray="4 8"
               vertical={false}
             />
+            {shouldShowZeroLine(yScale.domain) ? (
+              <ReferenceLine y={0} stroke={chartColors.neutral} strokeDasharray="3 6" />
+            ) : null}
             <XAxis
               dataKey="label"
               axisLine={false}
@@ -303,10 +342,14 @@ export function PnlByDayAnalyticsCard({ points }: { points: PnlByDayPoint[] }) {
             />
             <YAxis
               axisLine={false}
+              domain={yScale.domain}
               tick={axisTickStyle}
-              tickFormatter={(value: number) => formatCurrency(value, 0)}
+              tickFormatter={(value: number) =>
+                formatChartCurrencyTick(value, { signed: true })
+              }
               tickLine={false}
               tickMargin={12}
+              ticks={yScale.ticks}
               width={88}
             />
             <Tooltip
@@ -340,6 +383,15 @@ export function SessionPerformanceAnalyticsCard({
 }: {
   items: AnalyticsBreakdownItem[];
 }) {
+  const xScale = getSmartYAxisDomain(
+    items.map((item) => item.netPnl),
+    {
+      includeZero: true,
+      paddingRatio: 0.18,
+      tickCount: 5,
+    },
+  );
+
   return (
     <ChartShell
       eyebrow="session"
@@ -354,13 +406,20 @@ export function SessionPerformanceAnalyticsCard({
               strokeDasharray="4 8"
               horizontal={false}
             />
+            {shouldShowZeroLine(xScale.domain) ? (
+              <ReferenceLine x={0} stroke={chartColors.neutral} strokeDasharray="3 6" />
+            ) : null}
             <XAxis
               type="number"
+              domain={xScale.domain}
               axisLine={false}
               tick={axisTickStyle}
-              tickFormatter={(value: number) => formatCurrency(value, 0)}
+              tickFormatter={(value: number) =>
+                formatChartCurrencyTick(value, { signed: true })
+              }
               tickLine={false}
               tickMargin={12}
+              ticks={xScale.ticks}
             />
             <YAxis
               type="category"
@@ -470,6 +529,24 @@ export function LongShortAnalyticsCard({
   shortStats: AnalyticsDirectionStats;
 }) {
   const data = [longStats, shortStats];
+  const pnlScale = getSmartYAxisDomain(
+    data.map((item) => item.netPnl),
+    {
+      includeZero: true,
+      paddingRatio: 0.18,
+      tickCount: 5,
+    },
+  );
+  const winRateScale = getSmartYAxisDomain(
+    data.map((item) => item.winRate),
+    {
+      maxValue: 100,
+      minRange: 10,
+      minValue: 0,
+      paddingRatio: 0.18,
+      tickCount: 4,
+    },
+  );
 
   return (
     <ChartShell
@@ -485,6 +562,14 @@ export function LongShortAnalyticsCard({
               strokeDasharray="4 8"
               vertical={false}
             />
+            {shouldShowZeroLine(pnlScale.domain) ? (
+              <ReferenceLine
+                yAxisId="left"
+                y={0}
+                stroke={chartColors.neutral}
+                strokeDasharray="3 6"
+              />
+            ) : null}
             <XAxis
               dataKey="label"
               axisLine={false}
@@ -496,20 +581,26 @@ export function LongShortAnalyticsCard({
             <YAxis
               yAxisId="left"
               axisLine={false}
+              domain={pnlScale.domain}
               tick={axisTickStyle}
-              tickFormatter={(value: number) => formatCurrency(value, 0)}
+              tickFormatter={(value: number) =>
+                formatChartCurrencyTick(value, { signed: true })
+              }
               tickLine={false}
               tickMargin={12}
+              ticks={pnlScale.ticks}
               width={84}
             />
             <YAxis
               yAxisId="right"
               orientation="right"
               axisLine={false}
+              domain={winRateScale.domain}
               tick={axisTickStyle}
               tickFormatter={(value: number) => `${formatCompactNumber(value, 0)}%`}
               tickLine={false}
               tickMargin={12}
+              ticks={winRateScale.ticks}
               width={64}
             />
             <Tooltip
@@ -638,6 +729,15 @@ export function WeekdayPerformanceAnalyticsCard({
 }: {
   items: AnalyticsBreakdownItem[];
 }) {
+  const yScale = getSmartYAxisDomain(
+    items.map((item) => item.netPnl),
+    {
+      includeZero: true,
+      paddingRatio: 0.18,
+      tickCount: 5,
+    },
+  );
+
   return (
     <ChartShell
       eyebrow="weekday"
@@ -652,6 +752,9 @@ export function WeekdayPerformanceAnalyticsCard({
               strokeDasharray="4 8"
               vertical={false}
             />
+            {shouldShowZeroLine(yScale.domain) ? (
+              <ReferenceLine y={0} stroke={chartColors.neutral} strokeDasharray="3 6" />
+            ) : null}
             <XAxis
               dataKey="label"
               axisLine={false}
@@ -663,10 +766,14 @@ export function WeekdayPerformanceAnalyticsCard({
             />
             <YAxis
               axisLine={false}
+              domain={yScale.domain}
               tick={axisTickStyle}
-              tickFormatter={(value: number) => formatCurrency(value, 0)}
+              tickFormatter={(value: number) =>
+                formatChartCurrencyTick(value, { signed: true })
+              }
               tickLine={false}
               tickMargin={12}
+              ticks={yScale.ticks}
               width={86}
             />
             <Tooltip
@@ -705,6 +812,15 @@ export function DrawdownCurveAnalyticsCard({
   points: EquityPoint[];
 }) {
   const gradientId = useId().replace(/:/g, '');
+  const yScale = getSmartYAxisDomain(
+    points.map((point) => point.drawdown),
+    {
+      includeZero: true,
+      minValue: 0,
+      paddingRatio: 0.18,
+      tickCount: 5,
+    },
+  );
 
   return (
     <ChartShell
@@ -740,6 +856,12 @@ export function DrawdownCurveAnalyticsCard({
               strokeDasharray="4 8"
               vertical={false}
             />
+            <ReferenceLine
+              y={0}
+              stroke={chartColors.neutral}
+              strokeDasharray="3 6"
+              strokeOpacity={0.72}
+            />
             <XAxis
               dataKey="label"
               axisLine={false}
@@ -752,10 +874,12 @@ export function DrawdownCurveAnalyticsCard({
             />
             <YAxis
               axisLine={false}
+              domain={yScale.domain}
               tick={axisTickStyle}
-              tickFormatter={(value: number) => formatCurrency(value, 0)}
+              tickFormatter={(value: number) => formatChartCurrencyTick(value)}
               tickLine={false}
               tickMargin={12}
+              ticks={yScale.ticks}
               width={86}
             />
             <Tooltip
@@ -797,6 +921,15 @@ export function DurationScatterAnalyticsCard({
   averageHoldingMinutes: number | null;
   points: ScatterPoint[];
 }) {
+  const pnlScale = getSmartYAxisDomain(
+    points.map((point) => point.pnl),
+    {
+      includeZero: true,
+      paddingRatio: 0.18,
+      tickCount: 5,
+    },
+  );
+
   return (
     <ChartShell
       eyebrow="duration"
@@ -817,6 +950,9 @@ export function DurationScatterAnalyticsCard({
               stroke="var(--border-color)"
               strokeDasharray="4 8"
             />
+            {shouldShowZeroLine(pnlScale.domain) ? (
+              <ReferenceLine y={0} stroke={chartColors.neutral} strokeDasharray="3 6" />
+            ) : null}
             <XAxis
               type="number"
               dataKey="durationMinutes"
@@ -833,10 +969,14 @@ export function DurationScatterAnalyticsCard({
               dataKey="pnl"
               name="PnL"
               axisLine={false}
+              domain={pnlScale.domain}
               tick={axisTickStyle}
-              tickFormatter={(value: number) => formatCurrency(value, 0)}
+              tickFormatter={(value: number) =>
+                formatChartCurrencyTick(value, { signed: true })
+              }
               tickLine={false}
               tickMargin={12}
+              ticks={pnlScale.ticks}
               width={86}
             />
             <Tooltip
@@ -874,6 +1014,14 @@ export function DurationScatterAnalyticsCard({
 
 export function RecentTrendAnalyticsCard({ points }: { points: TrendPoint[] }) {
   const gradientId = useId().replace(/:/g, '');
+  const yScale = getSmartYAxisDomain(
+    points.map((point) => point.rollingPnl),
+    {
+      includeZero: true,
+      paddingRatio: 0.18,
+      tickCount: 5,
+    },
+  );
 
   return (
     <ChartShell
@@ -895,6 +1043,9 @@ export function RecentTrendAnalyticsCard({ points }: { points: TrendPoint[] }) {
               strokeDasharray="4 8"
               vertical={false}
             />
+            {shouldShowZeroLine(yScale.domain) ? (
+              <ReferenceLine y={0} stroke={chartColors.neutral} strokeDasharray="3 6" />
+            ) : null}
             <XAxis
               dataKey="label"
               axisLine={false}
@@ -907,10 +1058,14 @@ export function RecentTrendAnalyticsCard({ points }: { points: TrendPoint[] }) {
             />
             <YAxis
               axisLine={false}
+              domain={yScale.domain}
               tick={axisTickStyle}
-              tickFormatter={(value: number) => formatCurrency(value, 0)}
+              tickFormatter={(value: number) =>
+                formatChartCurrencyTick(value, { signed: true })
+              }
               tickLine={false}
               tickMargin={12}
+              ticks={yScale.ticks}
               width={86}
             />
             <Tooltip

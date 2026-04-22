@@ -184,8 +184,7 @@ export default function HomeView() {
     const { error } = await supabase
       .from('Trades')
       .delete()
-      .eq('ID', tradeId)
-      .eq('user_id', user.id);
+      .eq('ID', tradeId);
 
     if (error) {
       return { error: error.message };

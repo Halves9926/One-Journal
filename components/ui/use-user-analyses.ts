@@ -34,7 +34,7 @@ type UseUserAnalysesOptions = {
 export function useUserAnalyses({
   accountId,
   enabled = true,
-  fallbackToAllWhenScopedEmpty = true,
+  fallbackToAllWhenScopedEmpty = false,
   includeUnassigned = true,
   limit = 24,
 }: UseUserAnalysesOptions = {}) {
@@ -56,28 +56,18 @@ export function useUserAnalyses({
     }
 
     const currentSupabase = supabase;
-    const currentUserId = user.id;
     const currentAccountId = accountId?.trim() ? accountId.trim() : null;
     let ignore = false;
 
-    function rowBelongsToCurrentUser(row: AnalysisRow) {
-      const rowUserId =
-        typeof row.user_id === 'string' && row.user_id.trim()
-          ? row.user_id.trim()
-          : null;
-
-      return rowUserId === null || rowUserId === currentUserId;
-    }
-
-    async function runAnalysesQuery(withUserFilter: boolean) {
+    async function runAnalysesQuery() {
       let query = currentSupabase
         .from('analyses')
         .select(ANALYSIS_SELECT)
         .order('analysis_date', { ascending: false })
         .order('updated_at', { ascending: false });
 
-      if (withUserFilter) {
-        query = query.eq('user_id', currentUserId);
+      if (currentAccountId && !includeUnassigned) {
+        query = query.eq('account_id', currentAccountId);
       }
 
       if (
@@ -99,7 +89,7 @@ export function useUserAnalyses({
         error: null,
       }));
 
-      const { data, error } = await runAnalysesQuery(true);
+      const { data, error } = await runAnalysesQuery();
 
       if (ignore) {
         return;
@@ -114,19 +104,7 @@ export function useUserAnalyses({
         return;
       }
 
-      let rows = data ?? [];
-
-      if (rows.length === 0) {
-        const fallbackResult = await runAnalysesQuery(false);
-
-        if (ignore) {
-          return;
-        }
-
-        if (!fallbackResult.error && fallbackResult.data && fallbackResult.data.length > 0) {
-          rows = fallbackResult.data.filter(rowBelongsToCurrentUser);
-        }
-      }
+      const rows = data ?? [];
 
       const normalizedAnalyses = rows.map((analysis, index) =>
         normalizeAnalysis(analysis, index),

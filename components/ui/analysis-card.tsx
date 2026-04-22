@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
 
+import { useAccounts } from '@/components/ui/accounts-provider';
 import { useAuth } from '@/components/ui/auth-provider';
 import {
   buildAnalysisSharePath,
@@ -137,6 +138,7 @@ export default function AnalysisCard({
   variant,
 }: AnalysisCardProps) {
   const { supabase, user } = useAuth();
+  const { accounts } = useAccounts();
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const [isSharePanelOpen, setIsSharePanelOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -158,11 +160,27 @@ export default function AnalysisCard({
   const shareEnabled = shareOverride?.enabled ?? analysis.shareEnabled;
   const shareToken = shareOverride?.token ?? analysis.shareToken;
   const sharePath = shareToken ? buildAnalysisSharePath(shareToken) : null;
-  const canManageSharing = Boolean(
-    supabase && user && analysis.userId === user.id,
+  const analysisAccount = accounts.find(
+    (account) => account.id === analysis.accountId,
   );
+  const isOwnAnalysis = Boolean(user && analysis.userId === user.id);
+  const canManageAnalysisEntry = Boolean(
+    supabase &&
+      user &&
+      (analysisAccount
+        ? analysisAccount.coopRole === 'owner' ||
+          analysisAccount.coopRole === 'admin' ||
+          (analysisAccount.coopRole === 'member' && isOwnAnalysis)
+        : isOwnAnalysis),
+  );
+  const canManageSharing = Boolean(
+    supabase && user && canManageAnalysisEntry,
+  );
+  const effectiveEditHref = canManageAnalysisEntry ? editHref : undefined;
   const hasScreenshot = Boolean(screenshotUrl);
-  const hasScreenshotActions = Boolean(editHref || (hasScreenshot && canManageSharing));
+  const hasScreenshotActions = Boolean(
+    effectiveEditHref || (hasScreenshot && canManageSharing),
+  );
   const previewSections = useMemo(
     () =>
       [
@@ -226,8 +244,7 @@ export default function AnalysisCard({
     const { error } = await supabase
       .from('analyses')
       .update({ screenshot_url: null })
-      .eq('id', analysis.id)
-      .eq('user_id', user.id);
+      .eq('id', analysis.id);
 
     if (error) {
       setActionError(error.message);
@@ -250,7 +267,7 @@ export default function AnalysisCard({
 
     return (
       <>
-        {editHref ? (
+        {effectiveEditHref ? (
           <Link
             className={cx(
               baseClassName,
@@ -258,7 +275,7 @@ export default function AnalysisCard({
                 ? neutralClassName
                 : 'border-[color:var(--accent-border-soft)] bg-[var(--accent-soft-bg)] text-[var(--accent-text)] hover:border-[color:var(--accent-border-strong)]',
             )}
-            href={editHref}
+            href={effectiveEditHref}
           >
             {hasScreenshot ? 'Change screenshot' : 'Add screenshot'}
           </Link>
@@ -303,8 +320,7 @@ export default function AnalysisCard({
         share_token: nextToken,
         share_updated_at: now,
       })
-      .eq('id', analysis.id)
-      .eq('user_id', user.id);
+      .eq('id', analysis.id);
 
     if (error) {
       setShareError(error.message);
@@ -338,8 +354,7 @@ export default function AnalysisCard({
         share_token: null,
         share_updated_at: new Date().toISOString(),
       })
-      .eq('id', analysis.id)
-      .eq('user_id', user.id);
+      .eq('id', analysis.id);
 
     if (error) {
       setShareError(error.message);
@@ -431,7 +446,10 @@ export default function AnalysisCard({
             {getPreviewText(getAnalysisPreview(analysis), 96) ?? 'No preview yet'}
           </p>
 
-          {editHref || onDelete || canManageSharing || hasScreenshotActions ? (
+          {effectiveEditHref ||
+          (onDelete && canManageAnalysisEntry) ||
+          canManageSharing ||
+          hasScreenshotActions ? (
             <div className="flex flex-wrap items-center gap-2 md:justify-end">
               {renderScreenshotActions('compact')}
               {canManageSharing ? (
@@ -447,15 +465,15 @@ export default function AnalysisCard({
                   Share
                 </button>
               ) : null}
-              {editHref ? (
+              {effectiveEditHref ? (
                 <Link
                   className="inline-flex min-h-8 items-center rounded-full border border-[color:var(--border-color)] bg-[var(--surface)] px-3 text-xs font-medium text-[var(--muted-strong)] transition hover:border-[color:var(--border-strong)] hover:text-[var(--foreground)]"
-                  href={editHref}
+                  href={effectiveEditHref}
                 >
                   Edit
                 </Link>
               ) : null}
-              {onDelete ? (
+              {onDelete && canManageAnalysisEntry ? (
                 <button
                   aria-label="Delete analysis"
                   className="inline-flex min-h-8 items-center rounded-full border border-[color:color-mix(in_srgb,var(--danger)_20%,transparent)] bg-[color:color-mix(in_srgb,var(--danger)_10%,transparent)] px-3 text-xs font-medium text-[var(--danger)] transition hover:border-[color:color-mix(in_srgb,var(--danger)_34%,transparent)]"
@@ -480,7 +498,8 @@ export default function AnalysisCard({
           </div>
         ) : null}
 
-        {(onDelete || hasScreenshotActions) && (isDeleteConfirmOpen || actionError) ? (
+        {((onDelete && canManageAnalysisEntry) || hasScreenshotActions) &&
+        (isDeleteConfirmOpen || actionError) ? (
           <div className="mt-2 rounded-[18px] border border-[color:color-mix(in_srgb,var(--danger)_20%,transparent)] bg-[linear-gradient(180deg,color-mix(in_srgb,var(--danger)_8%,transparent),var(--surface))] px-3 py-3">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
@@ -613,15 +632,15 @@ export default function AnalysisCard({
                   Share
                 </button>
               ) : null}
-              {editHref ? (
+              {effectiveEditHref ? (
                 <Link
                   className="inline-flex min-h-9 items-center rounded-full border border-[color:var(--border-color)] bg-[var(--surface)] px-3 text-xs font-medium text-[var(--muted-strong)] transition hover:border-[color:var(--border-strong)] hover:text-[var(--foreground)]"
-                  href={editHref}
+                  href={effectiveEditHref}
                 >
                   Edit
                 </Link>
               ) : null}
-              {onDelete ? (
+              {onDelete && canManageAnalysisEntry ? (
                 <button
                   aria-label="Delete analysis"
                   className="inline-flex min-h-9 items-center rounded-full border border-[color:color-mix(in_srgb,var(--danger)_20%,transparent)] bg-[color:color-mix(in_srgb,var(--danger)_10%,transparent)] px-3 text-xs font-medium text-[var(--danger)] transition hover:border-[color:color-mix(in_srgb,var(--danger)_34%,transparent)]"
@@ -659,10 +678,10 @@ export default function AnalysisCard({
             <div className="grid min-h-[150px] place-items-center rounded-[22px] border border-dashed border-[color:var(--border-color)] bg-[radial-gradient(circle_at_top,var(--accent-primary-glow),transparent_62%),var(--surface)] px-4 text-center text-sm text-[var(--muted)]">
               <div className="space-y-3">
                 <p>No screenshot</p>
-                {editHref ? (
+                {effectiveEditHref ? (
                   <Link
                     className="inline-flex min-h-9 items-center rounded-full border border-[color:var(--accent-border-soft)] bg-[var(--accent-soft-bg)] px-3 text-xs font-medium text-[var(--accent-text)] transition hover:border-[color:var(--accent-border-strong)]"
-                    href={editHref}
+                    href={effectiveEditHref}
                   >
                     Add screenshot
                   </Link>
@@ -728,7 +747,8 @@ export default function AnalysisCard({
           </div>
         ) : null}
 
-        {(onDelete || hasScreenshotActions) && (isDeleteConfirmOpen || actionError) ? (
+        {((onDelete && canManageAnalysisEntry) || hasScreenshotActions) &&
+        (isDeleteConfirmOpen || actionError) ? (
           <div className="mt-4 rounded-[22px] border border-[color:color-mix(in_srgb,var(--danger)_20%,transparent)] bg-[linear-gradient(180deg,color-mix(in_srgb,var(--danger)_8%,transparent),var(--surface))] px-4 py-3.5">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
@@ -837,7 +857,10 @@ export default function AnalysisCard({
             ) : null}
           </div>
 
-          {editHref || onDelete || canManageSharing || hasScreenshotActions ? (
+          {effectiveEditHref ||
+          (onDelete && canManageAnalysisEntry) ||
+          canManageSharing ||
+          hasScreenshotActions ? (
             <div className="flex flex-wrap items-center gap-2 self-start md:self-end">
               {renderScreenshotActions()}
               {canManageSharing ? (
@@ -858,15 +881,15 @@ export default function AnalysisCard({
                   Share
                 </button>
               ) : null}
-              {editHref ? (
+              {effectiveEditHref ? (
                 <Link
-                  href={editHref}
+                  href={effectiveEditHref}
                   className="inline-flex min-h-9 items-center rounded-full border border-[color:var(--border-color)] bg-[var(--surface)] px-3 text-xs font-medium text-[var(--muted-strong)] transition hover:border-[color:var(--border-strong)] hover:text-[var(--foreground)]"
                 >
                   Edit
                 </Link>
               ) : null}
-              {onDelete ? (
+              {onDelete && canManageAnalysisEntry ? (
                 <button
                   type="button"
                   onClick={() => {
@@ -995,7 +1018,8 @@ export default function AnalysisCard({
           </div>
         )}
 
-        {(onDelete || hasScreenshotActions) && (isDeleteConfirmOpen || actionError) ? (
+        {((onDelete && canManageAnalysisEntry) || hasScreenshotActions) &&
+        (isDeleteConfirmOpen || actionError) ? (
           <div className="rounded-[22px] border border-rose-500/18 bg-[linear-gradient(180deg,rgba(127,29,29,0.08),var(--surface))] px-4 py-3.5">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>

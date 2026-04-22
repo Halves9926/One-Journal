@@ -532,7 +532,19 @@ function getWorstBreakdownItem(items: AnalyticsBreakdownItem[]) {
 
 function buildEquityCurve(trades: AnalyticsTrade[]) {
   const chronologicalTrades = [...trades].sort(sortTradesAscending);
-  const points: EquityPoint[] = [];
+  const points: EquityPoint[] =
+    chronologicalTrades.length > 0
+      ? [
+          {
+            date: null,
+            drawdown: 0,
+            equity: 0,
+            label: 'Start',
+            pnl: 0,
+            tradeId: 'baseline',
+          },
+        ]
+      : [];
   let cumulativeEquity = 0;
   let peakEquity = 0;
 

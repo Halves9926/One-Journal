@@ -285,6 +285,18 @@ export default function NewAccountView({
     );
   }
 
+  if (isEditMode && accountToEdit && !accountToEdit.canManageAccount) {
+    return (
+      <PageShell>
+        <Panel className="p-6 sm:p-8">
+          <p className="text-sm text-[var(--muted)]">
+            You can view this account, but only owners and admins can edit account settings.
+          </p>
+        </Panel>
+      </PageShell>
+    );
+  }
+
   return (
     <PageShell size="wide">
       <FeedbackToast

@@ -2,8 +2,10 @@
 
 import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
+  useMemo,
   useState,
   type ReactNode,
 } from 'react';
@@ -55,9 +57,77 @@ const initialState: AccountsState = {
   loading: true,
 };
 
+function getActiveAccountStorageKey(userId: string) {
+  return `one-journal.active-account-id.${userId}`;
+}
+
 export function AccountsProvider({ children }: { children: ReactNode }) {
   const { loading: authLoading, supabase, user } = useAuth();
   const [state, setState] = useState<AccountsState>(initialState);
+  const [activeAccountId, setActiveAccountIdState] = useState<string | null>(null);
+
+  function persistActiveAccountId(accountId: string | null) {
+    setActiveAccountIdState(accountId);
+
+    if (!user || typeof window === 'undefined') {
+      return;
+    }
+
+    const storageKey = getActiveAccountStorageKey(user.id);
+
+    if (accountId) {
+      window.localStorage.setItem(storageKey, accountId);
+    } else {
+      window.localStorage.removeItem(storageKey);
+    }
+  }
+
+  const loadAccessibleAccounts = useCallback(async function loadAccessibleAccounts(
+    client = supabase,
+    currentUser = user,
+  ): Promise<{ accounts: AccountView[]; error: string | null }> {
+    if (!client || !currentUser) {
+      return { accounts: [], error: null };
+    }
+
+    const rpcResult = await client
+      .rpc('get_accessible_accounts')
+      .overrideTypes<AccountRow[], { merge: false }>();
+
+    if (!rpcResult.error) {
+      const rpcRows = Array.isArray(rpcResult.data)
+        ? (rpcResult.data as AccountRow[])
+        : [];
+
+      return {
+        accounts: rpcRows.map((account, index) =>
+          normalizeAccount(account, index, currentUser.id),
+        ),
+        error: null,
+      };
+    }
+
+    const fallbackResult = await client
+      .from(ACCOUNTS_TABLE)
+      .select(ACCOUNT_SELECT)
+      .eq('user_id', currentUser.id)
+      .order('created_at', { ascending: true })
+      .overrideTypes<AccountRow[], { merge: false }>();
+
+    if (fallbackResult.error) {
+      return {
+        accounts: [],
+        error: fallbackResult.error.message || rpcResult.error.message,
+      };
+    }
+
+    return {
+      accounts: (fallbackResult.data ?? []).map((account, index) =>
+        normalizeAccount(account, index, currentUser.id),
+      ),
+      error: null,
+    };
+  }, [supabase, user]);
 
   async function refreshAccounts() {
     if (!supabase || !user) {
@@ -70,28 +140,54 @@ export function AccountsProvider({ children }: { children: ReactNode }) {
       loading: true,
     }));
 
-    const { data, error } = await supabase
-      .from(ACCOUNTS_TABLE)
-      .select(ACCOUNT_SELECT)
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: true })
-      .overrideTypes<AccountRow[], { merge: false }>();
+    const { accounts, error } = await loadAccessibleAccounts();
 
     if (error) {
       setState({
         accounts: [],
-        error: error.message,
+        error,
         loading: false,
       });
       return;
     }
 
     setState({
-      accounts: (data ?? []).map((account, index) => normalizeAccount(account, index)),
+      accounts,
       error: null,
       loading: false,
     });
   }
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    let animationFrame = 0;
+
+    if (!user) {
+      animationFrame = window.requestAnimationFrame(() => {
+        setActiveAccountIdState(null);
+      });
+      return () => {
+        if (animationFrame) {
+          window.cancelAnimationFrame(animationFrame);
+        }
+      };
+    }
+
+    animationFrame = window.requestAnimationFrame(() => {
+      setActiveAccountIdState(
+        window.localStorage.getItem(getActiveAccountStorageKey(user.id)),
+      );
+    });
+
+    return () => {
+      if (animationFrame) {
+        window.cancelAnimationFrame(animationFrame);
+      }
+    };
+  }, [user]);
 
   useEffect(() => {
     if (authLoading) {
@@ -107,12 +203,10 @@ export function AccountsProvider({ children }: { children: ReactNode }) {
     let ignore = false;
 
     async function loadInitialAccounts() {
-      const { data, error } = await currentSupabase
-        .from(ACCOUNTS_TABLE)
-        .select(ACCOUNT_SELECT)
-        .eq('user_id', currentUser.id)
-        .order('created_at', { ascending: true })
-        .overrideTypes<AccountRow[], { merge: false }>();
+      const { accounts, error } = await loadAccessibleAccounts(
+        currentSupabase,
+        currentUser,
+      );
 
       if (ignore) {
         return;
@@ -121,14 +215,14 @@ export function AccountsProvider({ children }: { children: ReactNode }) {
       if (error) {
         setState({
           accounts: [],
-          error: error.message,
+          error,
           loading: false,
         });
         return;
       }
 
       setState({
-        accounts: (data ?? []).map((account, index) => normalizeAccount(account, index)),
+        accounts,
         error: null,
         loading: false,
       });
@@ -139,7 +233,7 @@ export function AccountsProvider({ children }: { children: ReactNode }) {
     return () => {
       ignore = true;
     };
-  }, [authLoading, supabase, user]);
+  }, [authLoading, loadAccessibleAccounts, supabase, user]);
 
   async function applyAccountUpdate(accountId: string, payload: AccountUpdate) {
     if (!supabase || !user) {
@@ -149,8 +243,7 @@ export function AccountsProvider({ children }: { children: ReactNode }) {
     const { error } = await supabase
       .from(ACCOUNTS_TABLE)
       .update(payload)
-      .eq('id', accountId)
-      .eq('user_id', user.id);
+      .eq('id', accountId);
 
     if (error) {
       return { error: error.message };
@@ -165,6 +258,10 @@ export function AccountsProvider({ children }: { children: ReactNode }) {
 
     if (!account) {
       return { error: 'Account not found.' };
+    }
+
+    if (!account.canManageAccount) {
+      return { error: 'You do not have permission to edit this account.' };
     }
 
     return applyAccountUpdate(accountId, mapAccountFormToUpdate(input, account));
@@ -194,6 +291,7 @@ export function AccountsProvider({ children }: { children: ReactNode }) {
     await refreshAccounts();
 
     if (shouldActivate && data?.id) {
+      persistActiveAccountId(String(data.id));
       return { error: null };
     }
 
@@ -211,10 +309,13 @@ export function AccountsProvider({ children }: { children: ReactNode }) {
       return { error: 'Account not found.' };
     }
 
+    if (!account.canDeleteAccount) {
+      return { error: 'Only the owner can delete this account.' };
+    }
+
     const { count, error: tradeCountError } = await supabase
       .from('Trades')
       .select('ID', { count: 'exact', head: true })
-      .eq('user_id', user.id)
       .eq('account_id', accountId);
 
     if (tradeCountError) {
@@ -225,7 +326,6 @@ export function AccountsProvider({ children }: { children: ReactNode }) {
       const { error: deleteTradesError } = await supabase
         .from('Trades')
         .delete()
-        .eq('user_id', user.id)
         .eq('account_id', accountId);
 
       if (deleteTradesError) {
@@ -240,8 +340,7 @@ export function AccountsProvider({ children }: { children: ReactNode }) {
     const { error } = await supabase
       .from(ACCOUNTS_TABLE)
       .delete()
-      .eq('id', accountId)
-      .eq('user_id', user.id);
+      .eq('id', accountId);
 
     if (error) {
       return { error: error.message };
@@ -256,30 +355,15 @@ export function AccountsProvider({ children }: { children: ReactNode }) {
   }
 
   async function setActiveAccount(accountId: string) {
-    if (!supabase || !user) {
-      return { error: 'Supabase client unavailable.' };
+    if (!user) {
+      return { error: 'Sign in to switch accounts.' };
     }
 
-    const deactivateResult = await supabase
-      .from(ACCOUNTS_TABLE)
-      .update({ is_active: false })
-      .eq('user_id', user.id);
-
-    if (deactivateResult.error) {
-      return { error: deactivateResult.error.message };
+    if (!state.accounts.some((account) => account.id === accountId)) {
+      return { error: 'Account not found or no longer available.' };
     }
 
-    const activateResult = await supabase
-      .from(ACCOUNTS_TABLE)
-      .update({ is_active: true })
-      .eq('id', accountId)
-      .eq('user_id', user.id);
-
-    if (activateResult.error) {
-      return { error: activateResult.error.message };
-    }
-
-    await refreshAccounts();
+    persistActiveAccountId(accountId);
     return { error: null };
   }
 
@@ -313,7 +397,25 @@ export function AccountsProvider({ children }: { children: ReactNode }) {
     return applyAccountUpdate(accountId, buildPropFundedUpdate(account));
   }
 
-  const resolvedAccounts = !supabase || !user ? initialState.accounts : state.accounts;
+  const resolvedAccounts = useMemo(() => {
+    if (!supabase || !user) {
+      return initialState.accounts;
+    }
+
+    if (state.accounts.length === 0) {
+      return state.accounts;
+    }
+
+    const selectedActiveId =
+      activeAccountId && state.accounts.some((account) => account.id === activeAccountId)
+        ? activeAccountId
+        : state.accounts.find((account) => account.isActive)?.id ?? state.accounts[0]?.id ?? null;
+
+    return state.accounts.map((account) => ({
+      ...account,
+      isActive: selectedActiveId === account.id,
+    }));
+  }, [activeAccountId, state.accounts, supabase, user]);
   const activeAccount =
     resolvedAccounts.find((account) => account.isActive) ?? resolvedAccounts[0] ?? null;
   const value: AccountsContextValue = {

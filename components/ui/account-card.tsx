@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useState } from 'react';
 
+import AccountCoopButton from '@/components/ui/account-coop-modal';
 import { Button } from '@/components/ui/button';
 import { EquitySparkline } from '@/components/ui/trade-charts';
 import { Panel } from '@/components/ui/panel';
@@ -25,6 +26,7 @@ type AccountCardProps = {
   linkedTradesCount?: number;
   metrics: AccountMetrics;
   onActivate: (accountId: string) => Promise<void>;
+  onCoopUpdated?: () => Promise<void> | void;
   onDelete?: (accountId: string) => Promise<{ error: string | null }>;
   onMarkFunded: (accountId: string) => Promise<void>;
   onMarkPhasePassed: (accountId: string) => Promise<void>;
@@ -54,6 +56,7 @@ export default function AccountCard({
   linkedTradesCount = 0,
   metrics,
   onActivate,
+  onCoopUpdated,
   onDelete,
   onMarkFunded,
   onMarkPhasePassed,
@@ -66,12 +69,14 @@ export default function AccountCard({
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const isProp = account.type === 'Propfirm Account';
+  const canManageAccount = account.canManageAccount;
   const hasLinkedTrades = linkedTradesCount > 0;
   const displayEquity =
     isProp && account.phasesEnabled && !account.isFunded
       ? metrics.currentPhaseEquity
       : metrics.overallCurrentEquity;
   const showPassPhaseAction =
+    canManageAccount &&
     isProp &&
     account.phasesEnabled &&
     !account.isFunded &&
@@ -79,12 +84,14 @@ export default function AccountCard({
     account.phaseStatus === 'active' &&
     account.currentPhase < account.phaseCount;
   const showNextPhaseAction =
+    canManageAccount &&
     isProp &&
     account.phasesEnabled &&
     !account.isFunded &&
     account.phaseStatus === 'passed' &&
     account.currentPhase < account.phaseCount;
   const showFundedAction =
+    canManageAccount &&
     isProp &&
     !account.isFunded &&
     ((account.phasesEnabled &&
@@ -151,6 +158,11 @@ export default function AccountCard({
                   Active
                 </span>
               ) : null}
+              {account.isCoop ? (
+                <span className="shrink-0 rounded-full border border-[color:var(--accent-border-soft)] bg-[var(--accent-soft-bg)] px-2 py-0.5 text-[9px] uppercase tracking-[0.18em] text-[var(--accent-text)]">
+                  Co-op
+                </span>
+              ) : null}
             </div>
             <p className="mt-1 truncate text-xs uppercase tracking-[0.18em] text-[var(--muted)]">
               {account.type}
@@ -189,6 +201,7 @@ export default function AccountCard({
                 Edit
               </Link>
             ) : null}
+            <AccountCoopButton account={account} onChanged={onCoopUpdated} />
             <Button
               disabled={
                 account.isActive ||
@@ -298,6 +311,11 @@ export default function AccountCard({
                     ? `Phase ${account.currentPhase}/${account.phaseCount}`
                     : 'Ready'}
               </span>
+              {account.isCoop ? (
+                <span className="rounded-full border border-[color:var(--accent-border-soft)] bg-[var(--accent-soft-bg)] px-3 py-1 text-[10px] uppercase tracking-[0.22em] text-[var(--accent-text)]">
+                  Co-op
+                </span>
+              ) : null}
             </div>
 
             <p className="mt-4 truncate text-2xl font-semibold tracking-tight text-[var(--foreground)]">
@@ -354,6 +372,7 @@ export default function AccountCard({
                 Edit
               </Link>
             ) : null}
+            <AccountCoopButton account={account} onChanged={onCoopUpdated} />
             {onDelete ? (
               <button
                 className="inline-flex min-h-10 items-center gap-2 rounded-full border border-[color:color-mix(in_srgb,var(--danger)_20%,transparent)] bg-[color:color-mix(in_srgb,var(--danger)_10%,transparent)] px-4 text-sm font-medium text-[var(--danger)] transition hover:border-[color:color-mix(in_srgb,var(--danger)_34%,transparent)]"
@@ -513,6 +532,11 @@ export default function AccountCard({
                   Active
                 </span>
               ) : null}
+              {account.isCoop ? (
+                <span className="rounded-full border border-[color:var(--accent-border-soft)] bg-[var(--accent-soft-bg)] px-3 py-1 text-[10px] uppercase tracking-[0.24em] text-[var(--accent-text)]">
+                  Co-op
+                </span>
+              ) : null}
               <span
                 className={cx(
                   'rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.24em]',
@@ -662,6 +686,7 @@ export default function AccountCard({
                   Edit
                 </Link>
               ) : null}
+              <AccountCoopButton account={account} onChanged={onCoopUpdated} />
               {onDelete ? (
                 <button
                   type="button"

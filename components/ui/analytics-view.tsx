@@ -310,7 +310,7 @@ export default function AnalyticsView() {
     () =>
       resolvedAccountId
         ? scopeRecordsToAccount(analyticsTrades, resolvedAccountId, {
-            fallbackToAllWhenEmpty: true,
+            fallbackToAllWhenEmpty: false,
             includeUnassigned: true,
           })
         : {

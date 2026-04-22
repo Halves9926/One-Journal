@@ -210,8 +210,7 @@ export default function AnalysesView() {
     const { error } = await supabase
       .from('analyses')
       .delete()
-      .eq('id', analysisId)
-      .eq('user_id', user.id);
+      .eq('id', analysisId);
 
     if (error) {
       return { error: error.message };

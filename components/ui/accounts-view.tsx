@@ -40,6 +40,7 @@ export default function AccountsView() {
     loading: accountsLoading,
     markAccountFunded,
     markPhasePassed,
+    refreshAccounts,
     setActiveAccount,
     startNextPhase,
   } = useAccounts();
@@ -55,7 +56,7 @@ export default function AccountsView() {
     () =>
       accounts.map((account) => {
         const trades = getTradesForAccount(tradesState.items, account.id, {
-          fallbackToAllWhenEmpty: account.id === activeAccount?.id,
+          fallbackToAllWhenEmpty: false,
           includeUnassigned: account.id === activeAccount?.id,
         });
         const metrics = buildAccountMetrics(account, trades);
@@ -210,6 +211,79 @@ export default function AccountsView() {
           </span>
         </div>
 
+        {accounts.length > 0 ? (
+          <div
+            className={cx(
+              'grid gap-6',
+              accountListMode === 'stacked'
+                ? 'grid-cols-1'
+                : accountListMode === 'compact'
+                  ? 'grid-cols-1'
+                  : 'xl:grid-cols-2',
+            )}
+          >
+            {accountEntries.map((entry, index) => (
+              <Reveal key={entry.account.id} delay={index * 0.05}>
+                <AccountCard
+                  account={entry.account}
+                  metrics={entry.metrics}
+                  busyAction={busyAction}
+                  editHref={
+                    entry.account.canManageAccount
+                      ? `/accounts/${entry.account.id}/edit`
+                      : undefined
+                  }
+                  hasFallbackAccount={accounts.some(
+                    (account) => account.id !== entry.account.id,
+                  )}
+                  linkedTradesCount={entry.metrics.summary.totalTrades}
+                  onActivate={async (accountId) => {
+                    await runAction(
+                      `${accountId}:activate`,
+                      'Active account updated.',
+                      () => setActiveAccount(accountId),
+                    );
+                  }}
+                  onCoopUpdated={refreshAccounts}
+                  onMarkFunded={async (accountId) => {
+                    await runAction(
+                      `${accountId}:funded`,
+                      'Account marked as funded.',
+                      () => markAccountFunded(accountId),
+                    );
+                  }}
+                  onMarkPhasePassed={async (accountId) => {
+                    await runAction(
+                      `${accountId}:pass`,
+                      'Phase marked as passed.',
+                      () => markPhasePassed(accountId),
+                    );
+                  }}
+                  onOpenDashboard={openAccountDashboard}
+                  onStartNextPhase={async (accountId) => {
+                    await runAction(
+                      `${accountId}:next-phase`,
+                      'Next phase started.',
+                      () => startNextPhase(accountId),
+                    );
+                  }}
+                  onDelete={
+                    entry.account.canDeleteAccount ? handleDeleteAccount : undefined
+                  }
+                  variant={
+                    accountListMode === 'stacked'
+                      ? 'stacked'
+                      : accountListMode === 'compact'
+                        ? 'compact'
+                        : undefined
+                  }
+                  winRateVariant={widgetPreferences.defaultWinRateVariant}
+                />
+              </Reveal>
+            ))}
+          </div>
+        ) : null}
+
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <Reveal delay={0.02}>
             <MetricCard
@@ -309,71 +383,6 @@ export default function AccountsView() {
           </Reveal>
         ) : null}
 
-        {accounts.length > 0 ? (
-          <div
-            className={cx(
-              'grid gap-6',
-              accountListMode === 'stacked'
-                ? 'grid-cols-1'
-                : accountListMode === 'compact'
-                  ? 'grid-cols-1'
-                  : 'xl:grid-cols-2',
-            )}
-          >
-            {accountEntries.map((entry, index) => (
-              <Reveal key={entry.account.id} delay={index * 0.05}>
-                <AccountCard
-                  account={entry.account}
-                  metrics={entry.metrics}
-                  busyAction={busyAction}
-                  editHref={`/accounts/${entry.account.id}/edit`}
-                  hasFallbackAccount={accounts.some(
-                    (account) => account.id !== entry.account.id,
-                  )}
-                  linkedTradesCount={entry.metrics.summary.totalTrades}
-                  onActivate={async (accountId) => {
-                    await runAction(
-                      `${accountId}:activate`,
-                      'Active account updated.',
-                      () => setActiveAccount(accountId),
-                    );
-                  }}
-                  onMarkFunded={async (accountId) => {
-                    await runAction(
-                      `${accountId}:funded`,
-                      'Account marked as funded.',
-                      () => markAccountFunded(accountId),
-                    );
-                  }}
-                  onMarkPhasePassed={async (accountId) => {
-                    await runAction(
-                      `${accountId}:pass`,
-                      'Phase marked as passed.',
-                      () => markPhasePassed(accountId),
-                    );
-                  }}
-                  onOpenDashboard={openAccountDashboard}
-                  onStartNextPhase={async (accountId) => {
-                    await runAction(
-                      `${accountId}:next-phase`,
-                      'Next phase started.',
-                      () => startNextPhase(accountId),
-                    );
-                  }}
-                  onDelete={handleDeleteAccount}
-                  variant={
-                    accountListMode === 'stacked'
-                      ? 'stacked'
-                      : accountListMode === 'compact'
-                        ? 'compact'
-                        : undefined
-                  }
-                  winRateVariant={widgetPreferences.defaultWinRateVariant}
-                />
-              </Reveal>
-            ))}
-          </div>
-        ) : null}
       </div>
     </PageShell>
   );

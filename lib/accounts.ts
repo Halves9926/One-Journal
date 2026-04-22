@@ -1,6 +1,14 @@
 import type { AccountInsert, AccountRow, AccountUpdate } from '@/lib/supabase';
 import { scopeRecordsToAccount, type AccountScopeOptions } from '@/lib/account-scope';
 import {
+  canRoleDeleteAccount,
+  canRoleManageAccount,
+  canRoleManageMembers,
+  canRoleWriteJournal,
+  normalizeAccountMemberRole,
+  type AccountMemberRole,
+} from '@/lib/coop';
+import {
   buildTradeSummary,
   type TradeSummary,
   type TradeView,
@@ -46,9 +54,16 @@ export type AccountView = {
   currentEquity: number;
   currentPhase: number;
   dailyDrawdownMax: number | null;
+  canDeleteAccount: boolean;
+  canManageAccount: boolean;
+  canManageMembers: boolean;
+  canWriteJournal: boolean;
+  coopMemberCount: number;
+  coopRole: AccountMemberRole;
   id: string;
   initialEquity: number;
   isActive: boolean;
+  isCoop: boolean;
   isFunded: boolean;
   maxDrawdown: number | null;
   name: string;
@@ -169,7 +184,11 @@ export function isPropAccount(account: AccountView | null | undefined) {
   return account?.type === 'Propfirm Account';
 }
 
-export function normalizeAccount(row: AccountRow, fallbackIndex = 0): AccountView {
+export function normalizeAccount(
+  row: AccountRow,
+  fallbackIndex = 0,
+  currentUserId?: string | null,
+): AccountView {
   const initialEquity = toFiniteNumber(row.initial_equity) ?? 0;
   const currentEquity = toFiniteNumber(row.current_equity) ?? initialEquity;
   const phaseStartEquity = toFiniteNumber(row.phase_start_equity) ?? currentEquity;
@@ -178,8 +197,22 @@ export function normalizeAccount(row: AccountRow, fallbackIndex = 0): AccountVie
     phaseStatusRaw === 'passed' || phaseStatusRaw === 'funded'
       ? phaseStatusRaw
       : 'active';
+  const userId = cleanText(row.user_id);
+  const fallbackRole: AccountMemberRole =
+    userId && currentUserId && userId !== currentUserId ? 'viewer' : 'owner';
+  const coopRole = normalizeAccountMemberRole(row.coop_role, fallbackRole);
+  const coopMemberCount = Math.max(
+    Math.round(toFiniteNumber(row.coop_member_count) ?? 1),
+    1,
+  );
 
   return {
+    canDeleteAccount: canRoleDeleteAccount(coopRole),
+    canManageAccount: canRoleManageAccount(coopRole),
+    canManageMembers: canRoleManageMembers(coopRole),
+    canWriteJournal: canRoleWriteJournal(coopRole),
+    coopMemberCount,
+    coopRole,
     createdAt: cleanText(row.created_at),
     currentEquity,
     currentPhase: clampInteger(toFiniteNumber(row.current_phase), 1),
@@ -187,6 +220,7 @@ export function normalizeAccount(row: AccountRow, fallbackIndex = 0): AccountVie
     id: cleanText(row.id) ?? `account-${fallbackIndex}`,
     initialEquity,
     isActive: toBoolean(row.is_active),
+    isCoop: coopMemberCount > 1 || coopRole !== 'owner',
     isFunded: toBoolean(row.is_funded),
     maxDrawdown: toFiniteNumber(row.max_drawdown),
     name: cleanText(row.name) ?? 'Untitled Account',
@@ -199,7 +233,7 @@ export function normalizeAccount(row: AccountRow, fallbackIndex = 0): AccountVie
     propTarget: toFiniteNumber(row.prop_target),
     type: parseAccountType(row.type),
     updatedAt: cleanText(row.updated_at),
-    userId: cleanText(row.user_id),
+    userId,
   };
 }
 

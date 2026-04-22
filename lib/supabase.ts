@@ -21,6 +21,8 @@ export type AccountRow = {
   prop_target?: number | string | null;
   created_at?: string | null;
   updated_at?: string | null;
+  coop_role?: string | null;
+  coop_member_count?: number | string | null;
   [key: string]: unknown;
 };
 
@@ -118,6 +120,27 @@ export type ProfileInsert = Partial<Omit<ProfileRow, 'created_at' | 'updated_at'
 export type ProfileUpdate = Partial<Omit<ProfileInsert, 'user_id'>> & {
   user_id?: string;
 };
+
+export type AccountMemberRow = {
+  id?: string | null;
+  account_id?: string | null;
+  user_id?: string | null;
+  role?: string | null;
+  invited_by?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+  [key: string]: unknown;
+};
+
+export type AccountMemberInsert = Partial<Omit<AccountMemberRow, 'id'>> & {
+  account_id: string;
+  role: string;
+  user_id: string;
+};
+
+export type AccountMemberUpdate = Partial<
+  Omit<AccountMemberInsert, 'account_id' | 'user_id'>
+>;
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabasePublishableKey =

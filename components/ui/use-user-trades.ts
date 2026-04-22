@@ -30,7 +30,7 @@ type UseUserTradesOptions = {
 export function useUserTrades({
   accountId,
   enabled = true,
-  fallbackToAllWhenScopedEmpty = true,
+  fallbackToAllWhenScopedEmpty = false,
   includeUnassigned = true,
   limit = 24,
 }: UseUserTradesOptions = {}) {
@@ -52,27 +52,17 @@ export function useUserTrades({
     }
 
     const currentSupabase = supabase;
-    const currentUserId = user.id;
     const currentAccountId = accountId?.trim() ? accountId.trim() : null;
     let ignore = false;
 
-    function rowBelongsToCurrentUser(row: TradeRow) {
-      const rowUserId =
-        typeof row.user_id === 'string' && row.user_id.trim()
-          ? row.user_id.trim()
-          : null;
-
-      return rowUserId === null || rowUserId === currentUserId;
-    }
-
-    async function runTradesQuery(withUserFilter: boolean) {
+    async function runTradesQuery() {
       let query = currentSupabase
         .from('Trades')
         .select(TRADE_SELECT)
         .order('Date', { ascending: false });
 
-      if (withUserFilter) {
-        query = query.eq('user_id', currentUserId);
+      if (currentAccountId && !includeUnassigned) {
+        query = query.eq('account_id', currentAccountId);
       }
 
       if (
@@ -94,7 +84,7 @@ export function useUserTrades({
         error: null,
       }));
 
-      const { data, error } = await runTradesQuery(true);
+      const { data, error } = await runTradesQuery();
 
       if (ignore) {
         return;
@@ -109,19 +99,7 @@ export function useUserTrades({
         return;
       }
 
-      let rows = data ?? [];
-
-      if (rows.length === 0) {
-        const fallbackResult = await runTradesQuery(false);
-
-        if (ignore) {
-          return;
-        }
-
-        if (!fallbackResult.error && fallbackResult.data && fallbackResult.data.length > 0) {
-          rows = fallbackResult.data.filter(rowBelongsToCurrentUser);
-        }
-      }
+      const rows = data ?? [];
 
       const normalizedTrades = rows.map((trade, index) =>
         normalizeTrade(trade, index),

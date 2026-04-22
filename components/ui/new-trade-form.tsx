@@ -171,6 +171,12 @@ export default function NewTradeForm({
   const [tradeLoadError, setTradeLoadError] = useState<string | null>(null);
   const [hasHydratedDraft, setHasHydratedDraft] = useState(false);
   const [shouldPersistDraft, setShouldPersistDraft] = useState(false);
+  const writableAccounts = accounts.filter((account) => account.canWriteJournal);
+  const formAccounts = isEditMode
+    ? accounts.filter(
+        (account) => account.canWriteJournal || account.id === values.account_id,
+      )
+    : writableAccounts;
   const selectedAccount =
     accounts.find((account) => account.id === values.account_id) ?? activeAccount ?? null;
 
@@ -180,24 +186,36 @@ export default function NewTradeForm({
   }
 
   useEffect(() => {
-    if (!activeAccount?.id || accounts.length === 0) {
+    if (accounts.length === 0) {
       return;
     }
 
     setValues((current) => {
+      const availableAccounts = isEditMode
+        ? accounts.filter(
+            (account) => account.canWriteJournal || account.id === current.account_id,
+          )
+        : accounts.filter((account) => account.canWriteJournal);
+
       if (
         current.account_id &&
-        accounts.some((account) => account.id === current.account_id)
+        availableAccounts.some((account) => account.id === current.account_id)
       ) {
         return current;
       }
 
+      const fallbackAccount =
+        activeAccount?.canWriteJournal &&
+        availableAccounts.some((account) => account.id === activeAccount.id)
+          ? activeAccount
+          : availableAccounts[0] ?? null;
+
       return {
         ...current,
-        account_id: activeAccount.id,
+        account_id: fallbackAccount?.id ?? '',
       };
     });
-  }, [accounts, activeAccount?.id]);
+  }, [accounts, activeAccount, isEditMode]);
 
   useEffect(() => {
     if (!isEditMode) {
@@ -209,7 +227,6 @@ export default function NewTradeForm({
     }
 
     const currentSupabase = supabase;
-    const currentUser = user;
     const currentTradeId = tradeId;
     let ignore = false;
 
@@ -221,7 +238,6 @@ export default function NewTradeForm({
         .from('Trades')
         .select(TRADE_SELECT)
         .eq('ID', currentTradeId)
-        .eq('user_id', currentUser.id)
         .single()
         .overrideTypes<TradeRow, { merge: false }>();
 
@@ -436,7 +452,6 @@ export default function NewTradeForm({
             .from('Trades')
             .update(payload)
             .eq('ID', tradeId ?? '')
-            .eq('user_id', user.id)
         : supabase.from('Trades').insert(payload);
       const { error } = await query;
 
@@ -569,6 +584,32 @@ export default function NewTradeForm({
     );
   }
 
+  if (!isEditMode && writableAccounts.length === 0) {
+    return (
+      <PageShell size="wide">
+        <Reveal>
+          <Panel className="px-6 py-7 sm:px-8 sm:py-8">
+            <PanelHeader
+              eyebrow="co-op"
+              title="No writable account available"
+              description="Your accessible accounts are read-only right now. Ask the owner for member or admin access to save trades."
+              action={
+                <div className="flex flex-col gap-3 sm:flex-row">
+                  <ButtonLink href="/accounts" size="lg" variant="secondary">
+                    Open Accounts
+                  </ButtonLink>
+                  <ButtonLink href="/dashboard" size="lg" variant="ghost">
+                    Dashboard
+                  </ButtonLink>
+                </div>
+              }
+            />
+          </Panel>
+        </Reveal>
+      </PageShell>
+    );
+  }
+
   const visibleFieldCount = Object.values(preferences).filter(Boolean).length;
 
   return (
@@ -637,7 +678,7 @@ export default function NewTradeForm({
                     id="field-account_id"
                   >
                     <option value="">Select account</option>
-                    {accounts.map((account) => (
+                    {formAccounts.map((account) => (
                       <option key={account.id} value={account.id}>
                         {account.name} - {account.type}
                       </option>

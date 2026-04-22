@@ -83,6 +83,12 @@ export default function NewAnalysisForm({
   const [analysisLoadError, setAnalysisLoadError] = useState<string | null>(null);
   const [hasHydratedDraft, setHasHydratedDraft] = useState(false);
   const [shouldPersistDraft, setShouldPersistDraft] = useState(false);
+  const writableAccounts = accounts.filter((account) => account.canWriteJournal);
+  const formAccounts = isEditMode
+    ? accounts.filter(
+        (account) => account.canWriteJournal || account.id === values.account_id,
+      )
+    : writableAccounts;
   const selectedAccount =
     accounts.find((account) => account.id === values.account_id) ?? activeAccount ?? null;
 
@@ -92,24 +98,36 @@ export default function NewAnalysisForm({
   }
 
   useEffect(() => {
-    if (!activeAccount?.id || accounts.length === 0) {
+    if (accounts.length === 0) {
       return;
     }
 
     setValues((current) => {
+      const availableAccounts = isEditMode
+        ? accounts.filter(
+            (account) => account.canWriteJournal || account.id === current.account_id,
+          )
+        : accounts.filter((account) => account.canWriteJournal);
+
       if (
         current.account_id &&
-        accounts.some((account) => account.id === current.account_id)
+        availableAccounts.some((account) => account.id === current.account_id)
       ) {
         return current;
       }
 
+      const fallbackAccount =
+        activeAccount?.canWriteJournal &&
+        availableAccounts.some((account) => account.id === activeAccount.id)
+          ? activeAccount
+          : availableAccounts[0] ?? null;
+
       return {
         ...current,
-        account_id: activeAccount.id,
+        account_id: fallbackAccount?.id ?? '',
       };
     });
-  }, [accounts, activeAccount?.id]);
+  }, [accounts, activeAccount, isEditMode]);
 
   useEffect(() => {
     if (!isEditMode || !isClient || !supabase || !user || !analysisId) {
@@ -117,7 +135,6 @@ export default function NewAnalysisForm({
     }
 
     const currentSupabase = supabase;
-    const currentUser = user;
     const currentAnalysisId = analysisId;
     let ignore = false;
 
@@ -129,7 +146,6 @@ export default function NewAnalysisForm({
         .from('analyses')
         .select(ANALYSIS_SELECT)
         .eq('id', currentAnalysisId)
-        .eq('user_id', currentUser.id)
         .single()
         .overrideTypes<AnalysisRow, { merge: false }>();
 
@@ -289,7 +305,6 @@ export default function NewAnalysisForm({
             .from('analyses')
             .update(payload)
             .eq('id', analysisId ?? '')
-            .eq('user_id', user.id)
         : supabase.from('analyses').insert(payload);
       const { error } = await query;
 
@@ -428,6 +443,32 @@ export default function NewAnalysisForm({
     );
   }
 
+  if (!isEditMode && writableAccounts.length === 0) {
+    return (
+      <PageShell size="wide">
+        <Reveal>
+          <Panel className="px-6 py-7 sm:px-8 sm:py-8">
+            <PanelHeader
+              eyebrow="co-op"
+              title="No writable account available"
+              description="Your accessible accounts are read-only right now. Ask the owner for member or admin access to save analyses."
+              action={
+                <div className="flex flex-col gap-3 sm:flex-row">
+                  <ButtonLink href="/accounts" size="lg" variant="secondary">
+                    Open Accounts
+                  </ButtonLink>
+                  <ButtonLink href="/dashboard" size="lg" variant="ghost">
+                    Dashboard
+                  </ButtonLink>
+                </div>
+              }
+            />
+          </Panel>
+        </Reveal>
+      </PageShell>
+    );
+  }
+
   return (
     <PageShell size="wide">
       <FeedbackToast
@@ -488,7 +529,7 @@ export default function NewAnalysisForm({
                     onChange={(event) => updateValue('account_id', event.target.value)}
                   >
                     <option value="">Select account</option>
-                    {accounts.map((account) => (
+                    {formAccounts.map((account) => (
                       <option key={account.id} value={account.id}>
                         {account.name} - {account.type}
                       </option>

@@ -362,8 +362,7 @@ export default function DashboardView() {
     const { error } = await supabase
       .from('Trades')
       .delete()
-      .eq('ID', tradeId)
-      .eq('user_id', user.id);
+      .eq('ID', tradeId);
 
     if (error) {
       return { error: error.message };
@@ -382,8 +381,7 @@ export default function DashboardView() {
     const { error } = await supabase
       .from('analyses')
       .delete()
-      .eq('id', analysisId)
-      .eq('user_id', user.id);
+      .eq('id', analysisId);
 
     if (error) {
       return { error: error.message };

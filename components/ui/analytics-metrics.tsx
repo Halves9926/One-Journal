@@ -233,7 +233,9 @@ function NetPnlWidget({
   variant: NetPnlWidgetVariant;
 }) {
   const netPnl = analytics.summary.netPnl;
-  const recentPoints = analytics.equityCurve.slice(-8);
+  const recentPoints = analytics.equityCurve
+    .slice(-8)
+    .filter((point) => Number.isFinite(point.pnl));
   const maxMagnitude = Math.max(
     1,
     ...recentPoints.map((point) => Math.abs(point.pnl)),
@@ -281,7 +283,7 @@ function NetPnlWidget({
               {recentPoints.map((point, index) => {
                 const height = point.pnl === 0
                   ? 12
-                  : Math.max((Math.abs(point.pnl) / maxMagnitude) * 46, 14);
+                  : Math.max((Math.abs(point.pnl) / maxMagnitude) * 88, 18);
 
                 return (
                   <span

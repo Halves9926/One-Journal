@@ -19,6 +19,11 @@ import {
 
 import { Panel } from '@/components/ui/panel';
 import {
+  formatChartCurrencyTick,
+  getSmartYAxisDomain,
+  shouldShowZeroLine,
+} from '@/lib/chart-scale';
+import {
   formatCompactNumber,
   formatCurrency,
   formatPnl,
@@ -90,12 +95,13 @@ function ChartTooltip({
                 'font-medium text-[var(--foreground)]',
                 valueTone === 'pnl' &&
                   typeof entry.value === 'number' &&
+                  Number.isFinite(entry.value) &&
                   getPnlTextClassName(entry.value),
               )}
             >
-              {typeof entry.value === 'number'
+              {typeof entry.value === 'number' && Number.isFinite(entry.value)
                 ? formatter(entry.value)
-                : entry.value}
+                : entry.value ?? '--'}
             </span>
           </div>
         ))}
@@ -177,6 +183,15 @@ export function EquitySparkline({
 }) {
   const gradientId = useId().replace(/:/g, '');
   const data = buildEquityData(trades, baselineEquity);
+  const yScale = getSmartYAxisDomain(
+    data.map((point) => point.equity),
+    {
+      includeZero: false,
+      minRange: Math.max(Math.abs(baselineEquity) * 0.002, 1),
+      paddingRatio: 0.18,
+      tickCount: 3,
+    },
+  );
 
   if (trades.length === 0) {
     return (
@@ -203,8 +218,17 @@ export function EquitySparkline({
           </defs>
           <Tooltip
             cursor={{ stroke: chartColors.accentSoft, strokeDasharray: '4 6' }}
-            content={<ChartTooltip formatter={(value) => formatCurrency(value)} />}
+            content={<ChartTooltip formatter={(value) => formatChartCurrencyTick(value)} />}
           />
+          <YAxis hide domain={yScale.domain} />
+          {baselineEquity >= yScale.domain[0] && baselineEquity <= yScale.domain[1] ? (
+            <ReferenceLine
+              y={baselineEquity}
+              stroke={chartColors.neutral}
+              strokeDasharray="3 6"
+              strokeOpacity={0.5}
+            />
+          ) : null}
           <Area
             type="natural"
             dataKey="equity"
@@ -237,6 +261,15 @@ export function EquityCurveCard({
   const latestValue = data.at(-1)?.equity ?? baselineEquity;
   const latestDelta = latestValue - baselineEquity;
   const recentWindowValue = buildRecentWindowValue(trades);
+  const yScale = getSmartYAxisDomain(
+    data.map((point) => point.equity),
+    {
+      includeZero: false,
+      minRange: Math.max(Math.abs(baselineEquity) * 0.002, 1),
+      paddingRatio: 0.18,
+      tickCount: 5,
+    },
+  );
 
   return (
     <Panel className="h-full p-6 sm:p-7">
@@ -290,7 +323,14 @@ export function EquityCurveCard({
                 strokeDasharray="4 8"
                 vertical={false}
               />
-              <ReferenceLine y={0} stroke={chartColors.neutral} strokeDasharray="3 6" />
+              {baselineEquity >= yScale.domain[0] && baselineEquity <= yScale.domain[1] ? (
+                <ReferenceLine
+                  y={baselineEquity}
+                  stroke={chartColors.neutral}
+                  strokeDasharray="3 6"
+                  strokeOpacity={0.55}
+                />
+              ) : null}
               <XAxis
                 dataKey="label"
                 axisLine={false}
@@ -304,15 +344,17 @@ export function EquityCurveCard({
               />
               <YAxis
                 axisLine={false}
+                domain={yScale.domain}
                 tick={axisTickStyle}
                 tickLine={false}
-                tickFormatter={(value: number) => formatCurrency(value, 1)}
+                tickFormatter={(value: number) => formatChartCurrencyTick(value)}
                 tickMargin={12}
+                ticks={yScale.ticks}
                 width={92}
               />
               <Tooltip
                 cursor={{ stroke: 'var(--border-strong)', strokeDasharray: '4 6' }}
-                content={<ChartTooltip formatter={(value) => formatCurrency(value)} />}
+                content={<ChartTooltip formatter={(value) => formatChartCurrencyTick(value)} />}
               />
               <Area
                 type="natural"
@@ -342,6 +384,14 @@ export function EquityCurveCard({
 
 export function PnlBarsCard({ trades }: { trades: TradeView[] }) {
   const data = buildPerformanceData(trades);
+  const yScale = getSmartYAxisDomain(
+    data.map((point) => point.pnl),
+    {
+      includeZero: true,
+      paddingRatio: 0.18,
+      tickCount: 5,
+    },
+  );
 
   return (
     <Panel className="h-full p-6 sm:p-7">
@@ -363,7 +413,9 @@ export function PnlBarsCard({ trades }: { trades: TradeView[] }) {
                 strokeDasharray="4 8"
                 vertical={false}
               />
-              <ReferenceLine y={0} stroke={chartColors.neutral} strokeDasharray="3 6" />
+              {shouldShowZeroLine(yScale.domain) ? (
+                <ReferenceLine y={0} stroke={chartColors.neutral} strokeDasharray="3 6" />
+              ) : null}
               <XAxis
                 dataKey="label"
                 axisLine={false}
@@ -377,10 +429,14 @@ export function PnlBarsCard({ trades }: { trades: TradeView[] }) {
               />
               <YAxis
                 axisLine={false}
+                domain={yScale.domain}
                 tick={axisTickStyle}
                 tickLine={false}
-                tickFormatter={(value: number) => formatCurrency(value, 1)}
+                tickFormatter={(value: number) =>
+                  formatChartCurrencyTick(value, { signed: true })
+                }
                 tickMargin={12}
+                ticks={yScale.ticks}
                 width={92}
               />
               <Tooltip
