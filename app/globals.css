@@ -66,11 +66,19 @@
     var(--accent-secondary) 8%,
     transparent
   );
+  --brand-mark-primary: color-mix(in srgb, var(--accent-primary) 70%, var(--foreground));
+  --brand-mark-secondary: color-mix(
+    in srgb,
+    var(--accent-secondary) 62%,
+    var(--accent-primary)
+  );
   --ring: var(--accent-focus-ring);
   --danger: #be123c;
   --success: #047857;
   --shadow-color: rgba(15, 23, 42, 0.24);
   --grid-color: rgba(15, 23, 42, 0.085);
+  --grid-fine-color: rgba(15, 23, 42, 0.045);
+  --grid-major-color: rgba(15, 23, 42, 0.09);
   --chart-accent: var(--accent-primary);
   --chart-accent-soft: color-mix(in srgb, var(--accent-secondary) 22%, transparent);
   --chart-secondary: var(--accent-secondary);
@@ -168,11 +176,19 @@ html[data-theme="dark"] {
     var(--accent-secondary) 8%,
     transparent
   );
+  --brand-mark-primary: color-mix(in srgb, var(--accent-primary) 72%, var(--foreground));
+  --brand-mark-secondary: color-mix(
+    in srgb,
+    var(--accent-secondary) 64%,
+    var(--accent-primary)
+  );
   --ring: var(--accent-focus-ring);
   --danger: #e18395;
   --success: #4ba38f;
   --shadow-color: rgba(0, 0, 0, 0.64);
   --grid-color: rgba(226, 218, 206, 0.08);
+  --grid-fine-color: rgba(226, 218, 206, 0.035);
+  --grid-major-color: rgba(226, 218, 206, 0.075);
   --chart-accent: var(--accent-primary);
   --chart-accent-soft: color-mix(in srgb, var(--accent-secondary) 22%, transparent);
   --chart-secondary: var(--accent-secondary);
@@ -198,14 +214,9 @@ html[data-theme="dark"] {
   --pnl-positive-glow: 0 0 22px rgba(75, 155, 136, 0.22);
   --pnl-negative-glow: 0 0 22px rgba(225, 131, 149, 0.2);
   --body-gradient:
-    radial-gradient(ellipse 92% 58% at 50% -18%, var(--accent-glow-top), transparent 74%),
-    radial-gradient(ellipse 74% 54% at 10% 18%, rgba(255, 255, 255, 0.04), transparent 70%),
-    radial-gradient(ellipse 70% 48% at 88% 6%, rgba(128, 95, 76, 0.1), transparent 68%),
-    linear-gradient(180deg, #09090b 0%, #0e0f12 54%, #15171b 100%);
+    linear-gradient(180deg, #17191e 0%, #15171b 46%, #181a1f 100%);
   --body-overlay:
-    radial-gradient(ellipse 92% 64% at 0% 108%, var(--accent-glow-side), transparent 74%),
-    radial-gradient(ellipse 88% 62% at 100% 108%, rgba(255, 255, 255, 0.035), transparent 76%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.025), transparent 44%, rgba(255, 255, 255, 0.018) 100%);
+    linear-gradient(180deg, rgba(255, 255, 255, 0.018), transparent 42%, rgba(255, 255, 255, 0.012) 100%);
 }
 
 html[data-pnl-visual-emphasis="off"] {
@@ -270,9 +281,15 @@ body::before {
   z-index: -2;
   pointer-events: none;
   background-image:
-    linear-gradient(var(--grid-color) 1px, transparent 1px),
-    linear-gradient(90deg, var(--grid-color) 1px, transparent 1px);
-  background-size: 56px 56px;
+    linear-gradient(var(--grid-fine-color) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-fine-color) 1px, transparent 1px),
+    linear-gradient(var(--grid-major-color) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-major-color) 1px, transparent 1px);
+  background-size:
+    8px 8px,
+    8px 8px,
+    56px 56px,
+    56px 56px;
   mask-image: linear-gradient(
     180deg,
     rgba(255, 255, 255, 0.88) 0%,

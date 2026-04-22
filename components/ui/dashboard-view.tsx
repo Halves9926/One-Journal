@@ -543,7 +543,11 @@ export default function DashboardView() {
                   </div>
 
                   <div className="h-28">
-                    <EquitySparkline trades={tradesState.items} className="h-full" />
+                    <EquitySparkline
+                      baselineEquity={accountMetrics?.equityBaseline ?? 0}
+                      trades={tradesState.items}
+                      className="h-full"
+                    />
                   </div>
 
                   <div className="grid gap-3 sm:grid-cols-2">
@@ -689,7 +693,10 @@ export default function DashboardView() {
         <div className="grid gap-6 xl:grid-cols-[minmax(0,1.42fr)_360px]">
           <div className="grid gap-6">
             <Reveal delay={0.04}>
-              <EquityCurveCard trades={tradesState.items} />
+              <EquityCurveCard
+                baselineEquity={accountMetrics?.equityBaseline ?? 0}
+                trades={tradesState.items}
+              />
             </Reveal>
 
             <div className="grid gap-6 xl:grid-cols-[minmax(0,1.08fr)_0.92fr]">

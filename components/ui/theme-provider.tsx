@@ -189,6 +189,10 @@ function getAccentTokenValues(colors: AccentColors) {
       'color-mix(in srgb, var(--accent-primary) 12%, transparent)',
     '--accent-panel-glow-soft':
       'color-mix(in srgb, var(--accent-secondary) 8%, transparent)',
+    '--brand-mark-primary':
+      'color-mix(in srgb, var(--accent-primary) 72%, var(--foreground))',
+    '--brand-mark-secondary':
+      'color-mix(in srgb, var(--accent-secondary) 64%, var(--accent-primary))',
     '--chart-accent': 'var(--accent-primary)',
     '--chart-accent-soft':
       'color-mix(in srgb, var(--accent-secondary) 22%, transparent)',

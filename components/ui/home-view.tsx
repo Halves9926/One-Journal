@@ -5,6 +5,7 @@ import Image from 'next/image';
 
 import { useAccounts } from '@/components/ui/accounts-provider';
 import { useAuth } from '@/components/ui/auth-provider';
+import BrandMark from '@/components/ui/brand-mark';
 import { ButtonLink } from '@/components/ui/button';
 import { MessageBanner } from '@/components/ui/form-fields';
 import { HomeLayoutWorkspace } from '@/components/ui/home-layout-workspace';
@@ -79,15 +80,8 @@ function buildMomentumBars(trades: TradeView[], limit = 8) {
 function HeroBrandBadge({ label }: { label: string }) {
   return (
     <span className="inline-flex items-center gap-3 rounded-full border border-[color:var(--accent-border-soft)] bg-[var(--accent-soft-bg)] px-3 py-1.5">
-      <span className="relative flex h-8 w-8 items-center justify-center overflow-hidden rounded-full bg-[#0f1013] shadow-[0_12px_22px_-18px_rgba(15,23,42,0.34)]">
-        <Image
-          src="/brand/one-journal-mark.png"
-          alt=""
-          width={32}
-          height={32}
-          sizes="32px"
-          className="h-full w-full object-contain p-1"
-        />
+      <span className="relative flex h-8 w-11 items-center justify-center overflow-hidden rounded-full bg-[var(--surface-raised)] px-1.5 shadow-[0_12px_22px_-18px_rgba(15,23,42,0.34)]">
+        <BrandMark />
       </span>
       <span className="font-mono text-[11px] uppercase tracking-[0.32em] text-[var(--accent-text)]">
         {label}
@@ -178,16 +172,8 @@ export default function HomeView() {
   const overviewStatusProgress = activeAccount
     ? isPropAccount(activeAccount) &&
       activeAccount.phasesEnabled &&
-      !activeAccount.isFunded &&
-      activeAccount.propTarget !== null &&
-      activeAccount.propTarget > 0
-      ? Math.max(
-          0,
-          Math.min(
-            ((accountMetrics?.currentPhaseNetPnl ?? 0) / activeAccount.propTarget) * 100,
-            100,
-          ),
-        )
+      !activeAccount.isFunded
+      ? accountMetrics?.phaseTargetProgress ?? 0
       : Math.max(0, Math.min(summary.winRate ?? 0, 100))
     : 0;
   async function handleDeleteTrade(tradeId: string) {
@@ -519,7 +505,11 @@ export default function HomeView() {
                   </div>
 
                   <div className="h-24">
-                    <EquitySparkline trades={tradesState.items} className="h-full" />
+                    <EquitySparkline
+                      baselineEquity={accountMetrics?.equityBaseline ?? 0}
+                      trades={tradesState.items}
+                      className="h-full"
+                    />
                   </div>
 
                   <div className="grid gap-3 sm:grid-cols-2">

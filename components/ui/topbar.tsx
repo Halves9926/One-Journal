@@ -1,7 +1,6 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -9,6 +8,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import AccountSwitcher from '@/components/ui/account-switcher';
 import { useAccounts } from '@/components/ui/accounts-provider';
 import { useAuth } from '@/components/ui/auth-provider';
+import BrandMark from '@/components/ui/brand-mark';
 import { ButtonLink, buttonVariants } from '@/components/ui/button';
 import ThemeToggle from '@/components/ui/theme-toggle';
 import {
@@ -236,15 +236,8 @@ export default function Topbar() {
         >
           <div className="flex min-w-0 items-center justify-between gap-3">
             <Link href="/" className="flex min-w-0 shrink-0 items-center gap-3">
-              <span className="relative flex h-10 w-10 items-center justify-center overflow-hidden rounded-2xl border border-[color:var(--border-color)] bg-[#0f1013] shadow-[0_18px_30px_-22px_rgba(15,23,42,0.36)]">
-                <Image
-                  alt="One Journal brand mark"
-                  className="h-full w-full object-contain p-1.5"
-                  height={40}
-                  sizes="40px"
-                  src="/brand/one-journal-mark.png"
-                  width={40}
-                />
+              <span className="relative flex h-10 w-14 items-center justify-center overflow-hidden rounded-2xl border border-[color:var(--border-color)] bg-[var(--surface-raised)] px-1.5 shadow-[0_18px_30px_-22px_rgba(15,23,42,0.36)]">
+                <BrandMark title="One Journal brand mark" />
               </span>
               <span className="hidden min-w-0 sm:block">
                 <span className="block truncate text-sm font-semibold tracking-tight text-[var(--foreground)]">

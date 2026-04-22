@@ -104,19 +104,27 @@ function ChartTooltip({
   );
 }
 
-function buildEquityData(trades: TradeView[]) {
+function buildEquityData(trades: TradeView[], baselineEquity = 0) {
   const sortedTrades = [...trades].sort((a, b) => {
     const left = a.date ? new Date(a.date).valueOf() : 0;
     const right = b.date ? new Date(b.date).valueOf() : 0;
     return left - right;
   });
 
-  let cumulative = 0;
+  let cumulative = baselineEquity;
+  const points = trades.length > 0
+    ? [
+        {
+          equity: Number(cumulative.toFixed(2)),
+          label: 'Start',
+        },
+      ]
+    : [];
 
-  return sortedTrades.map((trade, index) => {
+  sortedTrades.forEach((trade, index) => {
     cumulative += trade.pnl ?? 0;
 
-    return {
+    points.push({
       equity: Number(cumulative.toFixed(2)),
       label: trade.date
         ? new Date(trade.date).toLocaleDateString('en-GB', {
@@ -124,8 +132,10 @@ function buildEquityData(trades: TradeView[]) {
             month: 'short',
           })
         : `T${index + 1}`,
-    };
+    });
   });
+
+  return points;
 }
 
 function buildPerformanceData(trades: TradeView[]) {
@@ -157,16 +167,18 @@ function buildRecentWindowValue(trades: TradeView[], limit = 5) {
 }
 
 export function EquitySparkline({
+  baselineEquity = 0,
   className,
   trades,
 }: {
+  baselineEquity?: number;
   className?: string;
   trades: TradeView[];
 }) {
   const gradientId = useId().replace(/:/g, '');
-  const data = buildEquityData(trades);
+  const data = buildEquityData(trades, baselineEquity);
 
-  if (data.length <= 1) {
+  if (trades.length === 0) {
     return (
       <div
         className={cx(
@@ -191,7 +203,7 @@ export function EquitySparkline({
           </defs>
           <Tooltip
             cursor={{ stroke: chartColors.accentSoft, strokeDasharray: '4 6' }}
-            content={<ChartTooltip formatter={(value) => formatPnl(value)} valueTone="pnl" />}
+            content={<ChartTooltip formatter={(value) => formatCurrency(value)} />}
           />
           <Area
             type="natural"
@@ -213,10 +225,17 @@ export function EquitySparkline({
   );
 }
 
-export function EquityCurveCard({ trades }: { trades: TradeView[] }) {
+export function EquityCurveCard({
+  baselineEquity = 0,
+  trades,
+}: {
+  baselineEquity?: number;
+  trades: TradeView[];
+}) {
   const gradientId = useId().replace(/:/g, '');
-  const data = buildEquityData(trades);
-  const latestValue = data.at(-1)?.equity ?? 0;
+  const data = buildEquityData(trades, baselineEquity);
+  const latestValue = data.at(-1)?.equity ?? baselineEquity;
+  const latestDelta = latestValue - baselineEquity;
   const recentWindowValue = buildRecentWindowValue(trades);
 
   return (
@@ -248,15 +267,15 @@ export function EquityCurveCard({ trades }: { trades: TradeView[] }) {
         <span
           className={cx(
             'text-sm font-medium',
-            getPnlTextClassName(latestValue),
+            getPnlTextClassName(latestDelta),
           )}
         >
-          Current {formatPnl(latestValue)}
+          Current {formatCurrency(latestValue)}
         </span>
       </div>
 
       <div className="h-[300px] pt-5">
-        {data.length > 1 ? (
+        {trades.length > 0 ? (
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={data} margin={{ left: 6, right: 18, top: 12, bottom: 10 }}>
               <defs>
@@ -293,7 +312,7 @@ export function EquityCurveCard({ trades }: { trades: TradeView[] }) {
               />
               <Tooltip
                 cursor={{ stroke: 'var(--border-strong)', strokeDasharray: '4 6' }}
-                content={<ChartTooltip formatter={(value) => formatPnl(value)} valueTone="pnl" />}
+                content={<ChartTooltip formatter={(value) => formatCurrency(value)} />}
               />
               <Area
                 type="natural"

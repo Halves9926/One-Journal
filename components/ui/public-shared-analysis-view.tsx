@@ -1,9 +1,9 @@
 'use client';
 
-import Image from 'next/image';
 import { useEffect, useMemo, useState } from 'react';
 
 import { useAuth } from '@/components/ui/auth-provider';
+import BrandMark from '@/components/ui/brand-mark';
 import { ButtonLink } from '@/components/ui/button';
 import {
   formatAnalysisDate,
@@ -118,15 +118,8 @@ export default function PublicSharedAnalysisView({ token }: { token: string }) {
 
       <header className="mb-8 flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
-          <span className="relative flex h-11 w-11 items-center justify-center overflow-hidden rounded-2xl border border-[color:var(--border-color)] bg-[#0f1013] shadow-[0_18px_30px_-22px_rgba(15,23,42,0.36)]">
-            <Image
-              src="/brand/one-journal-mark.png"
-              alt="One Journal"
-              width={44}
-              height={44}
-              className="h-full w-full object-contain p-1.5"
-              sizes="44px"
-            />
+          <span className="relative flex h-11 w-16 items-center justify-center overflow-hidden rounded-2xl border border-[color:var(--border-color)] bg-[var(--surface-raised)] px-1.5 shadow-[0_18px_30px_-22px_rgba(15,23,42,0.36)]">
+            <BrandMark title="One Journal" />
           </span>
           <div>
             <p className="text-sm font-semibold tracking-tight text-[var(--foreground)]">

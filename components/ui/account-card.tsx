@@ -326,7 +326,11 @@ export default function AccountCard({
               {formatCurrency(displayEquity)}
             </p>
             <div className="mt-4 h-20">
-              <EquitySparkline trades={metrics.phaseTrades} className="h-full" />
+              <EquitySparkline
+                baselineEquity={metrics.phaseEquityBaseline}
+                trades={metrics.phaseTrades}
+                className="h-full"
+              />
             </div>
           </div>
 
@@ -558,7 +562,11 @@ export default function AccountCard({
           </div>
 
           <div className="h-28">
-            <EquitySparkline trades={metrics.phaseTrades} className="h-full" />
+            <EquitySparkline
+              baselineEquity={metrics.phaseEquityBaseline}
+              trades={metrics.phaseTrades}
+              className="h-full"
+            />
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-3">

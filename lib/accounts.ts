@@ -68,9 +68,13 @@ export type AccountMetrics = {
   currentDrawdown: number;
   currentPhaseEquity: number;
   currentPhaseNetPnl: number;
+  equityBaseline: number;
   maxObservedDrawdown: number;
   overallCurrentEquity: number;
   peakEquity: number;
+  phaseEquityBaseline: number;
+  phaseTargetEquity: number | null;
+  phaseTargetProgress: number | null;
   phaseTargetReached: boolean;
   phaseTargetRemaining: number | null;
   phaseTrades: TradeView[];
@@ -168,7 +172,7 @@ export function isPropAccount(account: AccountView | null | undefined) {
 export function normalizeAccount(row: AccountRow, fallbackIndex = 0): AccountView {
   const initialEquity = toFiniteNumber(row.initial_equity) ?? 0;
   const currentEquity = toFiniteNumber(row.current_equity) ?? initialEquity;
-  const phaseStartEquity = toFiniteNumber(row.phase_start_equity) ?? initialEquity;
+  const phaseStartEquity = toFiniteNumber(row.phase_start_equity) ?? currentEquity;
   const phaseStatusRaw = cleanText(row.phase_status);
   const phaseStatus: AccountPhaseStatus =
     phaseStatusRaw === 'passed' || phaseStatusRaw === 'funded'
@@ -284,11 +288,13 @@ export function mapAccountFormToUpdate(
     phaseCount,
     phasesEnabled,
   } = buildAccountConfig(input);
+  const currentEquityChanged = account.currentEquity !== currentEquity;
   const shouldResetPhaseTracking =
     !isProp ||
     isFunded ||
     !phasesEnabled ||
     !account.phasesEnabled ||
+    currentEquityChanged ||
     account.currentPhase !== currentPhase ||
     account.phaseCount !== phaseCount;
   const passedPhaseCount = !isProp
@@ -367,6 +373,16 @@ export function getPhaseTrades(account: AccountView, trades: TradeView[]) {
   });
 }
 
+function getPropTargetEquity(account: AccountView, phaseEquityBaseline: number) {
+  if (!isPropAccount(account) || !account.phasesEnabled || account.propTarget === null) {
+    return null;
+  }
+
+  return account.propTarget > account.initialEquity
+    ? account.propTarget
+    : phaseEquityBaseline + account.propTarget;
+}
+
 export function buildAccountMetrics(
   account: AccountView,
   trades: TradeView[],
@@ -391,9 +407,10 @@ export function buildAccountMetrics(
 
     return leftTime - rightTime;
   });
-  let runningEquity = account.initialEquity;
-  let peakEquity = account.initialEquity;
-  let maxObservedDrawdown = 0;
+  const equityBaseline = account.currentEquity - summary.netPnl;
+  let runningEquity = equityBaseline;
+  let peakEquity = Math.max(account.initialEquity, equityBaseline);
+  let maxObservedDrawdown = Math.max(peakEquity - runningEquity, 0);
 
   for (const trade of sortedTrades) {
     runningEquity += trade.pnl ?? 0;
@@ -401,32 +418,50 @@ export function buildAccountMetrics(
     maxObservedDrawdown = Math.max(maxObservedDrawdown, peakEquity - runningEquity);
   }
 
-  const overallCurrentEquity =
-    trades.length > 0
-      ? account.initialEquity + summary.netPnl
-      : account.currentEquity || account.initialEquity;
+  const overallCurrentEquity = account.currentEquity;
   const currentDrawdown = Math.max(peakEquity - overallCurrentEquity, 0);
+  const phaseEquityBaseline =
+    isPropAccount(account) && account.phasesEnabled && !account.isFunded
+      ? account.phaseStartEquity
+      : equityBaseline;
   const currentPhaseEquity =
     isPropAccount(account) && account.phasesEnabled && !account.isFunded
-      ? account.phaseStartEquity + currentPhaseNetPnl
+      ? phaseEquityBaseline + currentPhaseNetPnl
       : overallCurrentEquity;
+  const phaseTargetEquity = getPropTargetEquity(account, phaseEquityBaseline);
   const phaseTargetReached =
-    isPropAccount(account) &&
-    account.phasesEnabled &&
-    account.propTarget !== null &&
-    currentPhaseNetPnl >= account.propTarget;
+    phaseTargetEquity !== null && currentPhaseEquity >= phaseTargetEquity;
   const phaseTargetRemaining =
-    isPropAccount(account) && account.phasesEnabled && account.propTarget !== null
-      ? Math.max(account.propTarget - currentPhaseNetPnl, 0)
+    phaseTargetEquity !== null
+      ? Math.max(phaseTargetEquity - currentPhaseEquity, 0)
       : null;
+  const phaseTargetDistance =
+    phaseTargetEquity !== null ? phaseTargetEquity - phaseEquityBaseline : null;
+  const phaseTargetProgress =
+    phaseTargetDistance !== null && phaseTargetDistance > 0
+      ? Math.max(
+          0,
+          Math.min(
+            ((currentPhaseEquity - phaseEquityBaseline) / phaseTargetDistance) *
+              100,
+            100,
+          ),
+        )
+      : phaseTargetReached
+        ? 100
+        : null;
 
   return {
     currentDrawdown,
     currentPhaseEquity,
     currentPhaseNetPnl,
+    equityBaseline,
     maxObservedDrawdown,
     overallCurrentEquity,
     peakEquity,
+    phaseEquityBaseline,
+    phaseTargetEquity,
+    phaseTargetProgress,
     phaseTargetReached,
     phaseTargetRemaining,
     phaseTrades,
@@ -448,7 +483,7 @@ export function buildPropAdvancePhaseUpdate(account: AccountView): AccountUpdate
 
   return {
     current_phase: nextPhase,
-    phase_start_equity: account.initialEquity,
+    phase_start_equity: account.currentEquity,
     phase_started_at: new Date().toISOString(),
     phase_status: 'active',
   };
