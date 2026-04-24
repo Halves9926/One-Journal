@@ -38,6 +38,7 @@ export const ANALYTICS_METRIC_IDS = [
   'win-rate',
   'total-trades',
   'average-rr',
+  'average-winning-rr',
   'profit-factor',
   'expectancy',
   'average-win',
@@ -118,6 +119,7 @@ export const DEFAULT_ANALYTICS_METRIC_IDS: AnalyticsMetricId[] = [
   'win-rate',
   'equity-curve',
   'average-rr',
+  'average-winning-rr',
   'profit-factor',
   'best-session',
   'worst-session',
@@ -472,6 +474,26 @@ export const analyticsMetricRegistry = [
         caption="risk to reward captured"
         label="Average RR"
         value={formatMetricRatio(analytics.summary.avgRr, 2, 'No RR')}
+      />
+    ),
+  },
+  {
+    category: 'Edge',
+    description: 'Average risk-reward ratio on winning trades only.',
+    id: 'average-winning-rr',
+    name: 'Average Winning RR',
+    requiredData: ['RR', 'PnL'],
+    size: 'compact',
+    render: ({ analytics }) => (
+      <SummaryWidget
+        caption={`${analytics.summary.wins} winning trade${analytics.summary.wins === 1 ? '' : 's'} with RR`}
+        label="Average winning RR"
+        tone="success"
+        value={formatMetricRatio(
+          analytics.summary.avgWinningRr,
+          2,
+          'No winning RR',
+        )}
       />
     ),
   },

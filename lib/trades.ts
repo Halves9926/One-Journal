@@ -130,6 +130,7 @@ export type TradeSummary = {
   avgLoss: number | null;
   avgPnl: number | null;
   avgRr: number | null;
+  avgWinningRr: number | null;
   avgWin: number | null;
   bestSymbol: string | null;
   bestTrade: number | null;
@@ -820,6 +821,14 @@ export function buildTradeSummary(trades: TradeView[]): TradeSummary {
     trades.length > 0
       ? trades.reduce((total, trade) => total + (trade.rr ?? 0), 0) / trades.length
       : null;
+  const winningRrValues = positiveTrades
+    .map((trade) => trade.rr)
+    .filter((value): value is number => value !== null && Number.isFinite(value));
+  const avgWinningRr =
+    winningRrValues.length > 0
+      ? winningRrValues.reduce((total, value) => total + value, 0) /
+        winningRrValues.length
+      : null;
   const avgPnl =
     trades.length > 0
       ? trades.reduce((total, trade) => total + (trade.pnl ?? 0), 0) / trades.length
@@ -876,6 +885,7 @@ export function buildTradeSummary(trades: TradeView[]): TradeSummary {
     avgLoss,
     avgPnl,
     avgRr,
+    avgWinningRr,
     avgWin,
     bestSymbol: getMostFrequentSymbol(trades),
     bestTrade: bestTrade === Number.NEGATIVE_INFINITY ? null : bestTrade,

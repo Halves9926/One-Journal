@@ -67,6 +67,7 @@ export const HOME_WIDGET_IDS = [
   'win-rate',
   'net-pnl',
   'average-rr',
+  'average-winning-rr',
   'last-trade',
   'recent-trades',
 ] as const;
@@ -357,6 +358,24 @@ const homeWidgetRegistry = [
           summary.avgRr === null
             ? 'Not enough history'
             : formatCompactNumber(summary.avgRr)
+        }
+      />
+    ),
+  },
+  {
+    description: 'Average RR on winning trades only.',
+    id: 'average-winning-rr',
+    name: 'Average Winning RR',
+    size: 'compact',
+    render: ({ summary }) => (
+      <MetricCard
+        caption={`${summary.wins} winning trade${summary.wins === 1 ? '' : 's'} with RR`}
+        label="Avg Winning RR"
+        tone="success"
+        value={
+          summary.avgWinningRr === null
+            ? 'No winning RR'
+            : formatCompactNumber(summary.avgWinningRr)
         }
       />
     ),
