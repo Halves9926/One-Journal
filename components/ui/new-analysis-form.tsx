@@ -661,9 +661,12 @@ export default function NewAnalysisForm({
                   <ScreenshotInput
                     id="field-analysis-screenshot_url"
                     kind="analysis"
-                    value={values.screenshot_url}
+                    value={values.screenshot_urls}
                     onChange={(nextValue) =>
-                      updateValue('screenshot_url', nextValue)
+                      {
+                        updateValue('screenshot_urls', nextValue);
+                        updateValue('screenshot_url', nextValue[0] ?? '');
+                      }
                     }
                   />
                 </div>

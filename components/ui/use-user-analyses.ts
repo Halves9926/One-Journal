@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 import { useAuth } from '@/components/ui/auth-provider';
 import { scopeRecordsToAccount } from '@/lib/account-scope';
@@ -20,7 +20,7 @@ export type UserAnalysesState = {
 const initialState: UserAnalysesState = {
   error: null,
   items: [],
-  loading: false,
+  loading: true,
 };
 
 type UseUserAnalysesOptions = {
@@ -42,9 +42,9 @@ export function useUserAnalyses({
   const [state, setState] = useState<UserAnalysesState>(initialState);
   const [refreshCounter, setRefreshCounter] = useState(0);
 
-  function refresh() {
+  const refresh = useCallback(function refresh() {
     setRefreshCounter((current) => current + 1);
-  }
+  }, []);
 
   useEffect(() => {
     if (authLoading) {
@@ -146,7 +146,12 @@ export function useUserAnalyses({
     user,
   ]);
 
-  const resolvedState = !supabase || !user || !enabled ? initialState : state;
+  const resolvedState =
+    !supabase || !user
+      ? { ...initialState, loading: authLoading || Boolean(enabled) }
+      : !enabled
+        ? { ...initialState, loading: true }
+        : state;
 
   return {
     authLoading,

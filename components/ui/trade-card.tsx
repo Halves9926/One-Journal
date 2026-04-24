@@ -105,12 +105,14 @@ function TradeCover({
   className,
   compact = false,
   placeholder = false,
+  screenshotCount = 0,
   screenshotUrl,
   symbol,
 }: {
   className?: string;
   compact?: boolean;
   placeholder?: boolean;
+  screenshotCount?: number;
   screenshotUrl: string | null;
   symbol: string;
 }) {
@@ -168,7 +170,7 @@ function TradeCover({
         />
       </div>
       <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-[linear-gradient(180deg,transparent,rgba(10,12,16,0.78))] px-4 py-3 text-sm text-white">
-        Screenshot preview
+        Screenshot preview{screenshotCount > 1 ? ` +${screenshotCount - 1}` : ''}
       </div>
     </a>
   );
@@ -188,11 +190,11 @@ export default function TradeCard({
   const { supabase, user } = useAuth();
   const { accounts } = useAccounts();
   const [screenshotOverride, setScreenshotOverride] = useState<
-    string | null | undefined
+    string[] | undefined
   >(undefined);
-  const screenshotUrl =
-    screenshotOverride === undefined ? trade.screenshotUrl : screenshotOverride;
-  const hasScreenshot = Boolean(screenshotUrl);
+  const screenshotUrls = screenshotOverride ?? trade.screenshotUrls;
+  const screenshotUrl = screenshotUrls[0] ?? null;
+  const hasScreenshot = screenshotUrls.length > 0;
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const [isSharePanelOpen, setIsSharePanelOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -304,7 +306,7 @@ export default function TradeCard({
 
     const { error } = await supabase
       .from('Trades')
-      .update({ ScreenShotURL: null })
+      .update({ ScreenShotURL: null, screenshot_urls: [] })
       .eq('ID', trade.id);
 
     if (error) {
@@ -313,7 +315,7 @@ export default function TradeCard({
       return;
     }
 
-    setScreenshotOverride(null);
+    setScreenshotOverride([]);
     setIsUpdatingScreenshot(false);
   }
 
@@ -767,9 +769,8 @@ export default function TradeCard({
               <p className="mt-4 text-sm text-[var(--muted)]">No notes yet.</p>
             )}
 
-            <div className="mt-5 flex flex-wrap items-center gap-2">
-              {renderScreenshotActions()}
-              {renderShareButton()}
+          <div className="mt-5 rounded-[20px] border border-[color:var(--border-color)] bg-[var(--surface)] p-3">
+            <div className="flex flex-wrap items-center gap-2">
               {effectiveEditHref ? (
                 <Link
                   className="inline-flex min-h-9 items-center rounded-full border border-[color:var(--border-color)] bg-[var(--surface)] px-3 text-xs font-medium text-[var(--muted-strong)] transition hover:border-[color:var(--border-strong)] hover:text-[var(--foreground)]"
@@ -778,6 +779,7 @@ export default function TradeCard({
                   Edit
                 </Link>
               ) : null}
+              {renderShareButton()}
               {onDelete && canManageTradeEntry ? (
                 <button
                   aria-label="Delete trade"
@@ -792,6 +794,10 @@ export default function TradeCard({
                 </button>
               ) : null}
             </div>
+            {hasScreenshotActions ? (
+              <div className="mt-2 flex flex-wrap gap-2">{renderScreenshotActions()}</div>
+            ) : null}
+          </div>
           </div>
 
           {screenshotUrl ? (
@@ -811,7 +817,7 @@ export default function TradeCard({
                 />
               </div>
               <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-[linear-gradient(180deg,transparent,rgba(10,12,16,0.78))] px-4 py-3 text-sm text-white">
-                Screenshot
+                Screenshot{screenshotUrls.length > 1 ? ` +${screenshotUrls.length - 1}` : ''}
               </div>
             </a>
           ) : null}
@@ -993,6 +999,7 @@ export default function TradeCard({
           {shouldShowInlineCover ? (
             <TradeCover
               screenshotUrl={screenshotUrl}
+              screenshotCount={screenshotUrls.length}
               symbol={symbolLabel}
               compact={compact}
             />
@@ -1074,6 +1081,7 @@ export default function TradeCard({
         {featured && hasScreenshot ? (
           <TradeCover
             screenshotUrl={screenshotUrl}
+            screenshotCount={screenshotUrls.length}
             symbol={symbolLabel}
             className="xl:max-h-[340px]"
           />

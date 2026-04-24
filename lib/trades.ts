@@ -17,6 +17,7 @@ export const TRADE_COLUMNS = {
   pnl: 'PnL',
   notes: 'Notes',
   screenshotUrl: 'ScreenShotURL',
+  screenshotUrls: 'screenshot_urls',
   shareEnabled: 'share_enabled',
   shareToken: 'share_token',
   sharedAt: 'shared_at',
@@ -40,6 +41,7 @@ export const TRADE_SELECT = [
   'PnL',
   'Notes',
   'ScreenShotURL',
+  'screenshot_urls',
   'share_enabled',
   'share_token',
   'shared_at',
@@ -69,6 +71,7 @@ export type TradeView = {
   pnl: number | null;
   notes: string | null;
   screenshotUrl: string | null;
+  screenshotUrls: string[];
   shareEnabled: boolean;
   shareToken: string | null;
   sharedAt: string | null;
@@ -92,6 +95,7 @@ export type PublicSharedTradeView = {
   riskPercent: number | null;
   rr: number | null;
   screenshotUrl: string | null;
+  screenshotUrls: string[];
   sharedAt: string | null;
   stoploss: number | null;
   symbol: string;
@@ -112,6 +116,7 @@ export type PublicSharedTradeRow = {
   risk_percent?: number | string | null;
   rr?: number | string | null;
   screenshot_url?: string | null;
+  screenshot_urls?: unknown;
   shared_at?: string | null;
   stop_loss?: number | string | null;
   symbol?: string | null;
@@ -174,6 +179,26 @@ function cleanText(value: unknown) {
 
   const trimmedValue = value.trim();
   return trimmedValue.length > 0 ? trimmedValue : null;
+}
+
+export function normalizeScreenshotUrls(
+  value: unknown,
+  legacyUrl?: string | null,
+) {
+  const urls = Array.isArray(value)
+    ? value
+    : typeof value === 'string'
+      ? [value]
+      : [];
+  const normalizedUrls = urls
+    .map((item) => cleanText(item))
+    .filter((item): item is string => Boolean(item));
+
+  if (legacyUrl) {
+    normalizedUrls.unshift(legacyUrl);
+  }
+
+  return [...new Set(normalizedUrls)];
 }
 
 function toNumber(value: unknown) {
@@ -271,7 +296,8 @@ export function normalizeTrade(row: TradeRow, fallbackIndex = 0): TradeView {
     rr: toNumber(row.RrisktoRewardRatio),
     pnl: toNumber(row.PnL),
     notes: cleanText(row.Notes),
-    screenshotUrl: cleanText(row.ScreenShotURL),
+    screenshotUrl: normalizeScreenshotUrls(row.screenshot_urls, cleanText(row.ScreenShotURL))[0] ?? null,
+    screenshotUrls: normalizeScreenshotUrls(row.screenshot_urls, cleanText(row.ScreenShotURL)),
     shareEnabled: row.share_enabled === true,
     shareToken: cleanText(row.share_token),
     sharedAt: cleanText(row.shared_at),
@@ -332,7 +358,8 @@ export function normalizePublicSharedTrade(
     pnl: toNumber(row.pnl),
     riskPercent: toNumber(row.risk_percent),
     rr: toNumber(row.rr),
-    screenshotUrl: cleanText(row.screenshot_url),
+    screenshotUrl: normalizeScreenshotUrls(row.screenshot_urls, cleanText(row.screenshot_url))[0] ?? null,
+    screenshotUrls: normalizeScreenshotUrls(row.screenshot_urls, cleanText(row.screenshot_url)),
     sharedAt: cleanText(row.shared_at),
     stoploss: toNumber(row.stop_loss),
     symbol: cleanText(row.symbol)?.toUpperCase() ?? '',
@@ -354,6 +381,7 @@ export type TradeFormInput = {
   rr: string;
   risk_amount: string;
   screenshot_url: string;
+  screenshot_urls: string[];
   session: string;
   stop_loss: string;
   strategy: string;
@@ -413,7 +441,9 @@ function mapTradeFormToPayload(
   payload.Date = input.trade_date || null;
   payload.Symbol = input.symbol.trim() ? input.symbol.trim().toUpperCase() : null;
   payload.Bias = input.direction || null;
-  payload.ScreenShotURL = input.screenshot_url.trim() || null;
+  const screenshotUrls = normalizeScreenshotUrls(input.screenshot_urls, input.screenshot_url);
+  payload.ScreenShotURL = screenshotUrls[0] ?? null;
+  payload.screenshot_urls = screenshotUrls;
   payload.tags = normalizeTradeTags(input.tags);
   payload.open_time = input.open_time.trim() || null;
   payload.close_time = input.close_time.trim() || null;
@@ -490,6 +520,7 @@ export function createInitialTradeFormValues(accountId = ''): TradeFormInput {
     risk_amount: '',
     rr: '',
     screenshot_url: '',
+    screenshot_urls: [],
     session: '',
     stop_loss: '',
     strategy: '',
@@ -560,6 +591,7 @@ export function mapTradeToFormValues(
     risk_amount: toTrimmedNumberString(trade.riskPercent),
     rr: toTrimmedNumberString(trade.rr),
     screenshot_url: trade.screenshotUrl ?? '',
+    screenshot_urls: trade.screenshotUrls,
     session: parsedNotes.session,
     stop_loss: toTrimmedNumberString(trade.stoploss),
     strategy: parsedNotes.strategy,
@@ -816,9 +848,9 @@ export function buildTradeSummary(trades: TradeView[]): TradeSummary {
     totalWinsValue > 0 && totalLossesValue > 0
       ? totalWinsValue / totalLossesValue
       : null;
-  const screenshotCount = trades.filter((trade) => Boolean(trade.screenshotUrl)).length;
+  const screenshotCount = trades.filter((trade) => trade.screenshotUrls.length > 0).length;
   const latestTradeWithScreenshot =
-    trades.find((trade) => Boolean(trade.screenshotUrl)) ?? null;
+    trades.find((trade) => trade.screenshotUrls.length > 0) ?? null;
   const currentStreakDirection = trades[0] ? getTradeOutcome(trades[0]) : null;
   let currentStreak = 0;
 

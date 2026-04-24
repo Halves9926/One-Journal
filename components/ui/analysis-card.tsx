@@ -63,11 +63,13 @@ function getPreviewText(value: string | null, limit: number) {
 function AnalysisCover({
   className,
   placeholder = false,
+  screenshotCount = 0,
   screenshotUrl,
   symbol,
 }: {
   className?: string;
   placeholder?: boolean;
+  screenshotCount?: number;
   screenshotUrl: string | null;
   symbol: string;
 }) {
@@ -121,7 +123,7 @@ function AnalysisCover({
         />
       </div>
       <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-[linear-gradient(180deg,transparent,rgba(10,12,16,0.78))] px-4 py-3 text-sm text-white">
-        Analysis screenshot
+        Analysis screenshot{screenshotCount > 1 ? ` +${screenshotCount - 1}` : ''}
       </div>
     </a>
   );
@@ -152,11 +154,11 @@ export default function AnalysisCard({
     token: string | null;
   } | null>(null);
   const [screenshotOverride, setScreenshotOverride] = useState<
-    string | null | undefined
+    string[] | undefined
   >(undefined);
   const symbolLabel = analysis.symbol ?? 'Account thesis';
-  const screenshotUrl =
-    screenshotOverride === undefined ? analysis.screenshotUrl : screenshotOverride;
+  const screenshotUrls = screenshotOverride ?? analysis.screenshotUrls;
+  const screenshotUrl = screenshotUrls[0] ?? null;
   const shareEnabled = shareOverride?.enabled ?? analysis.shareEnabled;
   const shareToken = shareOverride?.token ?? analysis.shareToken;
   const sharePath = shareToken ? buildAnalysisSharePath(shareToken) : null;
@@ -177,7 +179,7 @@ export default function AnalysisCard({
     supabase && user && canManageAnalysisEntry,
   );
   const effectiveEditHref = canManageAnalysisEntry ? editHref : undefined;
-  const hasScreenshot = Boolean(screenshotUrl);
+  const hasScreenshot = screenshotUrls.length > 0;
   const hasScreenshotActions = Boolean(
     effectiveEditHref || (hasScreenshot && canManageSharing),
   );
@@ -243,7 +245,7 @@ export default function AnalysisCard({
 
     const { error } = await supabase
       .from('analyses')
-      .update({ screenshot_url: null })
+      .update({ screenshot_url: null, screenshot_urls: [] })
       .eq('id', analysis.id);
 
     if (error) {
@@ -252,7 +254,7 @@ export default function AnalysisCard({
       return;
     }
 
-    setScreenshotOverride(null);
+    setScreenshotOverride([]);
     setIsUpdatingScreenshot(false);
     onShareUpdated?.();
   }
@@ -980,12 +982,14 @@ export default function AnalysisCard({
         {screenshotUrl && !compact ? (
           <AnalysisCover
             screenshotUrl={screenshotUrl}
+            screenshotCount={screenshotUrls.length}
             symbol={symbolLabel}
             placeholder
           />
         ) : !compact ? (
           <AnalysisCover
             screenshotUrl={screenshotUrl}
+            screenshotCount={screenshotUrls.length}
             symbol={symbolLabel}
             placeholder
           />

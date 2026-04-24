@@ -1197,7 +1197,7 @@ export function HomeLayoutWorkspace({
             <div
               className={cx(
                 'grid grid-cols-1 items-stretch gap-4 sm:grid-cols-2 xl:grid-cols-12',
-                editing && 'select-none',
+                editing && 'gap-7 select-none sm:gap-8 xl:gap-9',
               )}
             >
               {selectedWidgets.map((widget) => (

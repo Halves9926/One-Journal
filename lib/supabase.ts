@@ -47,6 +47,7 @@ export type TradeRow = {
   PnL?: number | string | null;
   Notes?: string | null;
   ScreenShotURL?: string | null;
+  screenshot_urls?: unknown;
   share_enabled?: boolean | null;
   share_token?: string | null;
   shared_at?: string | null;
@@ -85,6 +86,7 @@ export type AnalysisRow = {
   timeframe?: string | null;
   notes?: string | null;
   screenshot_url?: string | null;
+  screenshot_urls?: unknown;
   share_enabled?: boolean | null;
   share_token?: string | null;
   share_created_at?: string | null;

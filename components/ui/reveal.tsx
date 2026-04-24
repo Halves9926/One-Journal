@@ -9,6 +9,7 @@ type RevealProps = PropsWithChildren<{
   className?: string;
   delay?: number;
   once?: boolean;
+  trigger?: 'mount' | 'view';
   y?: number;
 }>;
 
@@ -17,6 +18,7 @@ export function Reveal({
   className,
   delay = 0,
   once = true,
+  trigger = 'view',
   y = 22,
 }: RevealProps) {
   const reduceMotion = useReducedMotion();
@@ -28,7 +30,8 @@ export function Reveal({
   return (
     <motion.div
       initial={{ opacity: 0, y }}
-      whileInView={{ opacity: 1, y: 0 }}
+      animate={trigger === 'mount' ? { opacity: 1, y: 0 } : undefined}
+      whileInView={trigger === 'view' ? { opacity: 1, y: 0 } : undefined}
       viewport={{ amount: 0.2, once }}
       transition={{
         duration: 0.68,
@@ -70,4 +73,3 @@ export function HoverLift({
     </motion.div>
   );
 }
-

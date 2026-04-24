@@ -4,6 +4,7 @@ import type {
   AnalysisUpdate,
 } from '@/lib/supabase';
 import { EMPTY_VALUE, formatTradeDate } from '@/lib/trades';
+import { normalizeScreenshotUrls } from '@/lib/trades';
 
 export const ANALYSES_TABLE = 'analyses';
 
@@ -38,6 +39,7 @@ export const ANALYSIS_SELECT = [
   'timeframe',
   'notes',
   'screenshot_url',
+  'screenshot_urls',
   'share_enabled',
   'share_token',
   'share_created_at',
@@ -61,6 +63,7 @@ export type PublicSharedAnalysisView = {
   marketContext: string | null;
   notes: string | null;
   screenshotUrl: string | null;
+  screenshotUrls: string[];
   session: string | null;
   shareUpdatedAt: string | null;
   symbol: string | null;
@@ -82,6 +85,7 @@ export type PublicSharedAnalysisRow = {
   market_context?: string | null;
   notes?: string | null;
   screenshot_url?: string | null;
+  screenshot_urls?: unknown;
   session?: string | null;
   share_updated_at?: string | null;
   symbol?: string | null;
@@ -103,6 +107,7 @@ export type AnalysisView = {
   marketContext: string | null;
   notes: string | null;
   screenshotUrl: string | null;
+  screenshotUrls: string[];
   session: string | null;
   shareCreatedAt: string | null;
   shareEnabled: boolean;
@@ -127,6 +132,7 @@ export type AnalysisFormInput = {
   market_context: string;
   notes: string;
   screenshot_url: string;
+  screenshot_urls: string[];
   session: string;
   symbol: string;
   tags: AnalysisTag[];
@@ -188,6 +194,7 @@ export function createInitialAnalysisFormValues(accountId = ''): AnalysisFormInp
     market_context: '',
     notes: '',
     screenshot_url: '',
+    screenshot_urls: [],
     session: '',
     symbol: '',
     tags: [],
@@ -209,7 +216,8 @@ export function normalizeAnalysis(row: AnalysisRow, fallbackIndex = 0): Analysis
     liquidityNotes: cleanText(row.liquidity_notes),
     marketContext: cleanText(row.market_context),
     notes: cleanText(row.notes),
-    screenshotUrl: cleanText(row.screenshot_url),
+    screenshotUrl: normalizeScreenshotUrls(row.screenshot_urls, cleanText(row.screenshot_url))[0] ?? null,
+    screenshotUrls: normalizeScreenshotUrls(row.screenshot_urls, cleanText(row.screenshot_url)),
     session: cleanText(row.session),
     shareCreatedAt: cleanText(row.share_created_at),
     shareEnabled: row.share_enabled === true,
@@ -239,6 +247,7 @@ export function mapAnalysisToFormValues(
     market_context: analysis.marketContext ?? '',
     notes: analysis.notes ?? '',
     screenshot_url: analysis.screenshotUrl ?? '',
+    screenshot_urls: analysis.screenshotUrls,
     session: analysis.session ?? '',
     symbol: analysis.symbol ?? '',
     tags: analysis.tags,
@@ -261,7 +270,8 @@ function mapAnalysisFormToPayload(
     liquidity_notes: input.liquidity_notes.trim() || null,
     market_context: input.market_context.trim() || null,
     notes: input.notes.trim() || null,
-    screenshot_url: input.screenshot_url.trim() || null,
+    screenshot_url: normalizeScreenshotUrls(input.screenshot_urls, input.screenshot_url)[0] ?? null,
+    screenshot_urls: normalizeScreenshotUrls(input.screenshot_urls, input.screenshot_url),
     session: input.session.trim() || null,
     symbol: input.symbol.trim() ? input.symbol.trim().toUpperCase() : null,
     tags: normalizeAnalysisTags(input.tags),
@@ -366,7 +376,8 @@ export function normalizePublicSharedAnalysis(
     liquidityNotes: cleanText(row.liquidity_notes),
     marketContext: cleanText(row.market_context),
     notes: cleanText(row.notes),
-    screenshotUrl: cleanText(row.screenshot_url),
+    screenshotUrl: normalizeScreenshotUrls(row.screenshot_urls, cleanText(row.screenshot_url))[0] ?? null,
+    screenshotUrls: normalizeScreenshotUrls(row.screenshot_urls, cleanText(row.screenshot_url)),
     session: cleanText(row.session),
     shareUpdatedAt: cleanText(row.share_updated_at),
     symbol: cleanText(row.symbol)?.toUpperCase() ?? null,

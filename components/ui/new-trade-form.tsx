@@ -794,8 +794,11 @@ export default function NewTradeForm({
                   <ScreenshotInput
                     id="field-screenshot_url"
                     kind="trade"
-                    value={values.screenshot_url}
-                    onChange={(nextValue) => updateValue('screenshot_url', nextValue)}
+                    value={values.screenshot_urls}
+                    onChange={(nextValue) => {
+                      updateValue('screenshot_urls', nextValue);
+                      updateValue('screenshot_url', nextValue[0] ?? '');
+                    }}
                   />
                 </div>
               </Panel>

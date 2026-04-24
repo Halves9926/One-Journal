@@ -1,6 +1,6 @@
 'use client';
 
-import { useDeferredValue, useMemo, useState } from 'react';
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
@@ -136,6 +136,30 @@ export default function DashboardView() {
     enabled: Boolean(user && activeAccount),
     limit: null,
   });
+  const initialDashboardFetchKey = useRef<string | null>(null);
+
+  const refreshTrades = tradesState.refresh;
+  const refreshAnalyses = analysesState.refresh;
+
+  useEffect(() => {
+    if (!user?.id || !activeAccount?.id) {
+      return;
+    }
+
+    const fetchKey = `${user.id}:${activeAccount.id}`;
+
+    if (initialDashboardFetchKey.current === fetchKey) {
+      return;
+    }
+
+    initialDashboardFetchKey.current = fetchKey;
+    const timeout = window.setTimeout(() => {
+      refreshTrades();
+      refreshAnalyses();
+    }, 0);
+
+    return () => window.clearTimeout(timeout);
+  }, [activeAccount?.id, refreshAnalyses, refreshTrades, user?.id]);
   const accountMetrics = useMemo(
     () =>
       activeAccount ? buildAccountMetrics(activeAccount, tradesState.items) : null,
@@ -797,7 +821,7 @@ export default function DashboardView() {
               </Reveal>
             </div>
 
-            <Reveal delay={0.16}>
+            <Reveal delay={0.16} trigger="mount">
               <Panel className="overflow-hidden">
                 <PanelHeader
                   eyebrow="journal feed"

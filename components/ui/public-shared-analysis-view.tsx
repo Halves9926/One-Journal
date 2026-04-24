@@ -205,22 +205,27 @@ export default function PublicSharedAnalysisView({ token }: { token: string }) {
             ) : null}
           </section>
 
-          {analysis.screenshotUrl ? (
-            <a
-              className="block overflow-hidden rounded-[30px] border border-[color:var(--border-color)] bg-[var(--surface)] shadow-[0_24px_56px_-38px_var(--shadow-color)]"
-              href={analysis.screenshotUrl}
-              rel="noreferrer"
-              target="_blank"
-            >
-              <div className="aspect-[16/9] bg-[var(--surface-raised)]">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  alt={`${analysis.symbol ?? 'Shared'} analysis screenshot`}
-                  className="h-full w-full object-cover"
-                  src={analysis.screenshotUrl}
-                />
-              </div>
-            </a>
+          {analysis.screenshotUrls.length > 0 ? (
+            <div className="grid gap-4 md:grid-cols-2">
+              {analysis.screenshotUrls.map((url, index) => (
+                <a
+                  key={`${url}-${index}`}
+                  className="block overflow-hidden rounded-[30px] border border-[color:var(--border-color)] bg-[var(--surface)] shadow-[0_24px_56px_-38px_var(--shadow-color)]"
+                  href={url}
+                  rel="noreferrer"
+                  target="_blank"
+                >
+                  <div className="aspect-[16/9] bg-[var(--surface-raised)]">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      alt={`${analysis.symbol ?? 'Shared'} analysis screenshot ${index + 1}`}
+                      className="h-full w-full object-cover"
+                      src={url}
+                    />
+                  </div>
+                </a>
+              ))}
+            </div>
           ) : null}
 
           <div className="grid gap-4 md:grid-cols-2">

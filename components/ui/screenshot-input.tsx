@@ -36,8 +36,8 @@ type ScreenshotInputProps = {
   id: string;
   kind: 'analysis' | 'trade';
   label?: string;
-  onChange: (value: string) => void;
-  value: string;
+  onChange: (value: string[]) => void;
+  value: string[];
 };
 
 function getReadableSize(bytes: number) {
@@ -125,12 +125,14 @@ export default function ScreenshotInput({
 }: ScreenshotInputProps) {
   const { supabase, user } = useAuth();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const [mode, setMode] = useState<'upload' | 'url'>(value.trim() ? 'url' : 'upload');
+  const [mode, setMode] = useState<'upload' | 'url'>(value.length > 0 ? 'url' : 'upload');
+  const [urlDraft, setUrlDraft] = useState('');
   const [failedImageUrl, setFailedImageUrl] = useState<string | null>(null);
   const [dragActive, setDragActive] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const screenshotUrl = value.trim();
+  const screenshotUrls = value.map((item) => item.trim()).filter(Boolean);
+  const screenshotUrl = screenshotUrls[0] ?? '';
   const imageFailed = Boolean(screenshotUrl && failedImageUrl === screenshotUrl);
 
   async function uploadFile(file: File) {
@@ -175,19 +177,37 @@ export default function ScreenshotInput({
     }
 
     setFailedImageUrl(null);
-    onChange(data.publicUrl);
+    onChange([...screenshotUrls, data.publicUrl]);
     setMode('upload');
     setIsUploading(false);
   }
 
   function handleUrlChange(nextValue: string) {
-    onChange(nextValue);
+    setUrlDraft(nextValue);
     setFailedImageUrl(null);
     setError(
       isValidImageUrl(nextValue)
         ? null
         : 'Use a valid http or https screenshot URL.',
     );
+  }
+
+  function addUrlDraft() {
+    const trimmedValue = urlDraft.trim();
+
+    if (!trimmedValue) {
+      return;
+    }
+
+    if (!isValidImageUrl(trimmedValue)) {
+      setError('Use a valid http or https screenshot URL.');
+      return;
+    }
+
+    onChange([...new Set([...screenshotUrls, trimmedValue])]);
+    setUrlDraft('');
+    setError(null);
+    setFailedImageUrl(null);
   }
 
   function handleFileSelection(fileList: FileList | null) {
@@ -249,7 +269,7 @@ export default function ScreenshotInput({
             className="inline-flex min-h-10 items-center justify-center rounded-full border border-rose-500/20 bg-rose-500/10 px-4 text-sm font-medium text-rose-700 transition hover:border-rose-500/34 hover:bg-rose-500/16 dark:text-rose-300"
             type="button"
             onClick={() => {
-              onChange('');
+              onChange([]);
               setError(null);
               setFailedImageUrl(null);
             }}
@@ -285,14 +305,23 @@ export default function ScreenshotInput({
           <span className="mb-2 block text-sm font-medium text-[var(--muted-strong)]">
             Screenshot URL
           </span>
-          <input
-            className="min-h-12 w-full rounded-[18px] border border-[color:var(--border-color)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--foreground)] outline-none transition placeholder:text-[var(--muted)] focus:border-[color:var(--accent-border-strong)] focus:ring-2 focus:ring-[color:var(--accent-focus-ring)]"
-            id={id}
-            placeholder="https://..."
-            type="url"
-            value={value}
-            onChange={(event) => handleUrlChange(event.target.value)}
-          />
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <input
+              className="min-h-12 w-full rounded-[18px] border border-[color:var(--border-color)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--foreground)] outline-none transition placeholder:text-[var(--muted)] focus:border-[color:var(--accent-border-strong)] focus:ring-2 focus:ring-[color:var(--accent-focus-ring)]"
+              id={id}
+              placeholder="https://..."
+              type="url"
+              value={urlDraft}
+              onChange={(event) => handleUrlChange(event.target.value)}
+            />
+            <button
+              className="inline-flex min-h-12 items-center justify-center rounded-[18px] border border-[color:var(--accent-border-soft)] bg-[var(--accent-soft-bg)] px-4 text-sm font-medium text-[var(--accent-text)] transition hover:border-[color:var(--accent-border-strong)]"
+              type="button"
+              onClick={addUrlDraft}
+            >
+              Add URL
+            </button>
+          </div>
         </label>
       ) : (
         <div
@@ -327,7 +356,7 @@ export default function ScreenshotInput({
             onChange={(event) => handleFileSelection(event.target.files)}
           />
           <p className="text-sm font-medium text-[var(--foreground)]">
-            Drop image here or click to upload
+            Drop images here or click to upload
           </p>
           <p className="mt-2 text-sm text-[var(--muted)]">
             PNG, JPG, JPEG or WebP up to {getReadableSize(MAX_SCREENSHOT_BYTES)}.
@@ -350,29 +379,47 @@ export default function ScreenshotInput({
         </p>
       ) : null}
 
-      {screenshotUrl ? (
+      {screenshotUrls.length > 0 ? (
         imageFailed ? (
           <div className="mt-4 rounded-[20px] border border-dashed border-[color:var(--border-color)] bg-[var(--surface)] px-4 py-5 text-sm text-[var(--muted)]">
             Preview unavailable. The URL will still be saved.
           </div>
         ) : (
-          <a
-            className="group mt-4 block overflow-hidden rounded-[20px] border border-[color:var(--border-color)] bg-[var(--surface)]"
-            href={screenshotUrl}
-            rel="noreferrer"
-            target="_blank"
-          >
-            <div className="aspect-[16/8.5] min-h-[150px] overflow-hidden">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                alt="Screenshot preview"
-                className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.02]"
-                loading="lazy"
-                src={screenshotUrl}
-                onError={() => setFailedImageUrl(screenshotUrl)}
-              />
-            </div>
-          </a>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            {screenshotUrls.map((url, index) => (
+              <a
+                key={`${url}-${index}`}
+                className="group block overflow-hidden rounded-[20px] border border-[color:var(--border-color)] bg-[var(--surface)]"
+                href={url}
+                rel="noreferrer"
+                target="_blank"
+              >
+                <div className="aspect-[16/9] min-h-[130px] overflow-hidden">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    alt={`Screenshot preview ${index + 1}`}
+                    className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.02]"
+                    loading="lazy"
+                    src={url}
+                    onError={() => setFailedImageUrl(url)}
+                  />
+                </div>
+                <div className="flex items-center justify-between gap-2 border-t border-[color:var(--border-color)] px-3 py-2">
+                  <span className="text-xs text-[var(--muted)]">Screenshot {index + 1}</span>
+                  <button
+                    className="rounded-full border border-rose-500/20 bg-rose-500/10 px-3 py-1 text-xs font-medium text-rose-700 dark:text-rose-300"
+                    type="button"
+                    onClick={(event) => {
+                      event.preventDefault();
+                      onChange(screenshotUrls.filter((item) => item !== url));
+                    }}
+                  >
+                    Remove
+                  </button>
+                </div>
+              </a>
+            ))}
+          </div>
         )
       ) : (
         <div className="mt-4 rounded-[20px] border border-dashed border-[color:var(--border-color)] bg-[var(--surface)] px-4 py-5 text-sm text-[var(--muted)]">

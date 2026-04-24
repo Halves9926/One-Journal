@@ -476,7 +476,7 @@ export default function HomeView() {
                 </div>
               </div>
 
-              <HeroBannerCard alt="One Journal dashboard banner">
+              <div className="rounded-[30px] border border-[color:var(--border-color)] bg-[linear-gradient(180deg,var(--surface-raised),var(--surface))] p-5 shadow-[0_22px_48px_-34px_var(--shadow-color)]">
                 <div className="flex h-full flex-col gap-4">
                   <div className="flex items-start justify-between gap-4">
                     <div>
@@ -560,7 +560,7 @@ export default function HomeView() {
                     </div>
                   </div>
                 </div>
-              </HeroBannerCard>
+              </div>
             </div>
           </Panel>
         </Reveal>

@@ -644,33 +644,22 @@ function SortableAnalyticsWidget({
       style={style}
     >
       {editing ? (
-        <>
+        <div className="mb-3 flex min-w-0 flex-wrap items-center gap-2 rounded-[22px] border border-[color:var(--accent-border-soft)] bg-[linear-gradient(180deg,var(--accent-soft-bg),var(--surface))] px-3 py-2 shadow-[0_14px_30px_-26px_var(--shadow-color)]">
           <button
             ref={setActivatorNodeRef}
             aria-label={`Drag ${metric.name}`}
-            className="absolute left-4 top-4 z-20 inline-flex h-12 w-12 touch-none items-center justify-center rounded-full border border-[color:var(--accent-border-soft)] bg-[var(--surface-raised)] text-[var(--accent-text)] shadow-[0_14px_32px_-26px_var(--shadow-color)] transition duration-150 hover:border-[color:var(--accent-border-strong)] hover:bg-[var(--accent-soft-bg)] active:scale-95"
+            className="inline-flex h-10 w-10 shrink-0 touch-none items-center justify-center rounded-full border border-[color:var(--accent-border-soft)] bg-[var(--surface-raised)] text-[var(--accent-text)] shadow-[0_14px_32px_-26px_var(--shadow-color)] transition duration-150 hover:border-[color:var(--accent-border-strong)] hover:bg-[var(--accent-soft-bg)] active:scale-95"
             title="Drag"
             type="button"
             {...handleProps}
           >
             <MoveIcon className="h-4 w-4" />
           </button>
-          <button
-            aria-label={`Remove ${metric.name}`}
-            className="absolute right-4 top-4 z-20 inline-flex h-10 w-10 items-center justify-center rounded-full border border-rose-200/70 bg-[var(--surface-raised)] text-rose-600 shadow-[0_14px_32px_-26px_var(--shadow-color)] transition duration-150 hover:bg-rose-50 hover:text-rose-700 active:scale-95 dark:border-rose-500/35 dark:text-rose-300 dark:hover:bg-rose-500/12"
-            title="Remove"
-            type="button"
-            onClick={(event) => {
-              event.preventDefault();
-              event.stopPropagation();
-              onRemove();
-            }}
-            onPointerDown={(event) => event.stopPropagation()}
-          >
-            <TrashIcon className="h-4 w-4" />
-          </button>
+          <span className="min-w-[8rem] flex-1 truncate text-sm font-medium text-[var(--foreground)]">
+            {metric.name}
+          </span>
           {metric.visualOptions && metric.visualOptions.length > 0 ? (
-            <div className="absolute left-4 right-16 top-[4.25rem] z-20 flex flex-wrap gap-1.5">
+            <div className="flex min-w-0 flex-wrap gap-1.5">
               {metric.visualOptions.map((option) => (
                 <button
                   key={option.id}
@@ -693,7 +682,21 @@ function SortableAnalyticsWidget({
               ))}
             </div>
           ) : null}
-        </>
+          <button
+            aria-label={`Remove ${metric.name}`}
+            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-rose-200/70 bg-[var(--surface-raised)] text-rose-600 shadow-[0_14px_32px_-26px_var(--shadow-color)] transition duration-150 hover:bg-rose-50 hover:text-rose-700 active:scale-95 dark:border-rose-500/35 dark:text-rose-300 dark:hover:bg-rose-500/12"
+            title="Remove"
+            type="button"
+            onClick={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              onRemove();
+            }}
+            onPointerDown={(event) => event.stopPropagation()}
+          >
+            <TrashIcon className="h-4 w-4" />
+          </button>
+        </div>
       ) : null}
       <div
         className={cx(
@@ -1089,7 +1092,7 @@ export function AnalyticsLayoutWorkspace({
             <div
               className={cx(
                 'grid grid-cols-1 items-stretch gap-4 sm:grid-cols-2 xl:grid-cols-12',
-                editing && 'select-none',
+                editing && 'gap-7 select-none sm:gap-8 xl:gap-9',
               )}
             >
               {selectedMetrics.map((metric, index) => (

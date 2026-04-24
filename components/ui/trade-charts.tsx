@@ -121,6 +121,7 @@ function buildEquityData(trades: TradeView[], baselineEquity = 0) {
   const points = trades.length > 0
     ? [
         {
+          delta: 0,
           equity: Number(cumulative.toFixed(2)),
           label: 'Start',
         },
@@ -131,6 +132,7 @@ function buildEquityData(trades: TradeView[], baselineEquity = 0) {
     cumulative += trade.pnl ?? 0;
 
     points.push({
+      delta: Number((cumulative - baselineEquity).toFixed(2)),
       equity: Number(cumulative.toFixed(2)),
       label: trade.date
         ? new Date(trade.date).toLocaleDateString('en-GB', {
@@ -184,11 +186,11 @@ export function EquitySparkline({
   const gradientId = useId().replace(/:/g, '');
   const data = buildEquityData(trades, baselineEquity);
   const yScale = getSmartYAxisDomain(
-    data.map((point) => point.equity),
+    data.map((point) => point.delta),
     {
       includeZero: false,
-      minRange: Math.max(Math.abs(baselineEquity) * 0.002, 1),
-      paddingRatio: 0.18,
+      minRange: 1,
+      paddingRatio: 0.12,
       tickCount: 3,
     },
   );
@@ -221,9 +223,9 @@ export function EquitySparkline({
             content={<ChartTooltip formatter={(value) => formatChartCurrencyTick(value)} />}
           />
           <YAxis hide domain={yScale.domain} />
-          {baselineEquity >= yScale.domain[0] && baselineEquity <= yScale.domain[1] ? (
+          {0 >= yScale.domain[0] && 0 <= yScale.domain[1] ? (
             <ReferenceLine
-              y={baselineEquity}
+              y={0}
               stroke={chartColors.neutral}
               strokeDasharray="3 6"
               strokeOpacity={0.5}
@@ -231,7 +233,7 @@ export function EquitySparkline({
           ) : null}
           <Area
             type="natural"
-            dataKey="equity"
+            dataKey="delta"
             stroke={chartColors.accent}
             strokeWidth={2.5}
             fill={`url(#${gradientId})`}
@@ -262,11 +264,11 @@ export function EquityCurveCard({
   const latestDelta = latestValue - baselineEquity;
   const recentWindowValue = buildRecentWindowValue(trades);
   const yScale = getSmartYAxisDomain(
-    data.map((point) => point.equity),
+    data.map((point) => point.delta),
     {
       includeZero: false,
-      minRange: Math.max(Math.abs(baselineEquity) * 0.002, 1),
-      paddingRatio: 0.18,
+      minRange: 1,
+      paddingRatio: 0.12,
       tickCount: 5,
     },
   );
@@ -323,9 +325,9 @@ export function EquityCurveCard({
                 strokeDasharray="4 8"
                 vertical={false}
               />
-              {baselineEquity >= yScale.domain[0] && baselineEquity <= yScale.domain[1] ? (
+              {0 >= yScale.domain[0] && 0 <= yScale.domain[1] ? (
                 <ReferenceLine
-                  y={baselineEquity}
+                  y={0}
                   stroke={chartColors.neutral}
                   strokeDasharray="3 6"
                   strokeOpacity={0.55}
@@ -347,18 +349,20 @@ export function EquityCurveCard({
                 domain={yScale.domain}
                 tick={axisTickStyle}
                 tickLine={false}
-                tickFormatter={(value: number) => formatChartCurrencyTick(value)}
+                tickFormatter={(value: number) =>
+                  formatChartCurrencyTick(value, { signed: true })
+                }
                 tickMargin={12}
                 ticks={yScale.ticks}
                 width={92}
               />
               <Tooltip
                 cursor={{ stroke: 'var(--border-strong)', strokeDasharray: '4 6' }}
-                content={<ChartTooltip formatter={(value) => formatChartCurrencyTick(value)} />}
+                content={<ChartTooltip formatter={(value) => formatPnl(value)} valueTone="pnl" />}
               />
               <Area
                 type="natural"
-                dataKey="equity"
+                dataKey="delta"
                 stroke={chartColors.accent}
                 strokeWidth={3}
                 fill={`url(#${gradientId})`}
