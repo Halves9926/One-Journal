@@ -249,7 +249,7 @@ function AllMatchedTradesDrawer({
         </div>
         <div className="overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
           {trades.length > 0 ? (
-            <div className="grid gap-4">
+            <div className="grid items-start gap-4">
               {trades.map((trade, index) => (
                 <TradeCard
                   key={`analytics-all-trade-${trade.id}`}
@@ -864,7 +864,7 @@ export default function AnalyticsView() {
 
               {!tradesState.loading && !tradesState.error && visibleFilteredTrades.length > 0 ? (
                 <>
-                  <div className="grid gap-4">
+                  <div className="grid items-start gap-4">
                     {visibleFilteredTrades.map((trade, index) => (
                       <TradeCard
                         key={`analytics-trade-${trade.id}`}

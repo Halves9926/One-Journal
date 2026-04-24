@@ -266,7 +266,7 @@ export default function TradesView() {
                 ) : (
                   <div
                     className={cx(
-                      'grid gap-4',
+                      'grid items-start gap-4',
                       tradeListMode === 'stacked' || tradeListMode === 'compact'
                         ? 'grid-cols-1'
                         : 'xl:grid-cols-2',

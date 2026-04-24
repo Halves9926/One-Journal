@@ -364,7 +364,7 @@ export default function AccountsView() {
                       emptyMessage="No active account trades available for this calendar."
                     />
                   ) : (
-                    <div className="grid gap-4">
+                    <div className="grid items-start gap-4">
                       {visibleAccountTrades.map((trade, index) => (
                         <TradeCard
                           key={`account-visible-trade-${trade.id}`}

@@ -411,7 +411,7 @@ export default function AnalysesView() {
               filteredAnalyses.length > 0 ? (
                 <div
                   className={cx(
-                    'grid gap-4',
+                    'grid items-start gap-4',
                     analysisListMode === 'stacked'
                       ? 'grid-cols-1'
                       : analysisListMode === 'compact'

@@ -556,7 +556,7 @@ export default function TradeCard({
         viewport={{ once: true, amount: 0.2 }}
         whileInView={{ opacity: 1, y: 0 }}
         className={cx(
-          'group rounded-[20px] border border-[color:var(--border-color)] bg-[linear-gradient(180deg,var(--surface-raised),var(--surface))] px-3 py-2.5 shadow-[0_14px_30px_-28px_var(--shadow-color)] transition hover:border-[color:var(--accent-border-soft)] sm:px-4',
+          'group self-start rounded-[20px] border border-[color:var(--border-color)] bg-[linear-gradient(180deg,var(--surface-raised),var(--surface))] px-3 py-2.5 shadow-[0_14px_30px_-28px_var(--shadow-color)] transition hover:border-[color:var(--accent-border-soft)] sm:px-4',
           className,
         )}
       >
@@ -699,7 +699,7 @@ export default function TradeCard({
         viewport={{ once: true, amount: 0.2 }}
         whileInView={{ opacity: 1, y: 0 }}
         className={cx(
-          'group relative overflow-hidden rounded-[28px] border border-[color:var(--border-color)] bg-[linear-gradient(180deg,var(--surface-raised),var(--surface))] p-4 pl-8 shadow-[0_22px_48px_-36px_var(--shadow-color),inset_0_1px_0_rgba(255,255,255,0.08)] transition duration-300 hover:border-[color:var(--accent-border-soft)] sm:p-5 sm:pl-10',
+          'group relative self-start overflow-hidden rounded-[28px] border border-[color:var(--border-color)] bg-[linear-gradient(180deg,var(--surface-raised),var(--surface))] p-4 pl-8 shadow-[0_22px_48px_-36px_var(--shadow-color),inset_0_1px_0_rgba(255,255,255,0.08)] transition duration-300 hover:border-[color:var(--accent-border-soft)] sm:p-5 sm:pl-10',
           className,
         )}
       >
@@ -881,7 +881,7 @@ export default function TradeCard({
         ease: [0.22, 1, 0.36, 1],
       }}
       className={cx(
-        'group overflow-hidden rounded-[30px] border border-[color:var(--border-strong)] bg-[linear-gradient(180deg,var(--surface-strong),var(--surface))] p-4 shadow-[0_30px_68px_-42px_var(--shadow-color),inset_0_1px_0_rgba(255,255,255,0.08)] transition duration-300 lg:hover:-translate-y-1 lg:hover:border-[color:var(--accent-border-soft)] lg:hover:shadow-[0_34px_74px_-42px_var(--shadow-color)] sm:p-5',
+        'group self-start overflow-hidden rounded-[30px] border border-[color:var(--border-strong)] bg-[linear-gradient(180deg,var(--surface-strong),var(--surface))] p-4 shadow-[0_30px_68px_-42px_var(--shadow-color),inset_0_1px_0_rgba(255,255,255,0.08)] transition duration-300 lg:hover:-translate-y-1 lg:hover:border-[color:var(--accent-border-soft)] lg:hover:shadow-[0_34px_74px_-42px_var(--shadow-color)] sm:p-5',
         featured &&
           'bg-[linear-gradient(180deg,var(--surface-raised),var(--accent-primary-soft))] shadow-[0_36px_82px_-42px_var(--shadow-color),inset_0_1px_0_rgba(255,255,255,0.1)]',
         compact && 'p-4',

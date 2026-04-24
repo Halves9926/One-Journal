@@ -693,7 +693,7 @@ export default function DashboardView() {
                     emptyMessage="No visible trades available for this calendar."
                   />
                 ) : (
-                  <div className="grid gap-4">
+                  <div className="grid items-start gap-4">
                     {visibleTrades.map((trade, index) => (
                       <TradeCard
                         key={`visible-trade-${trade.id}`}
@@ -940,7 +940,7 @@ export default function DashboardView() {
                     ) : (
                       <div
                         className={cx(
-                          'grid gap-4',
+                          'grid items-start gap-4',
                           feedUsesStacked || feedUsesCompact
                             ? 'grid-cols-1'
                             : 'xl:grid-cols-2',
