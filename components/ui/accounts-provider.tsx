@@ -24,6 +24,7 @@ import {
   mapAccountFormToInsert,
 } from '@/lib/accounts';
 import type { AccountRow, AccountUpdate } from '@/lib/supabase';
+import type { TradeFieldPreferences } from '@/lib/trade-form-preferences';
 
 type AccountsContextValue = {
   accounts: AccountView[];
@@ -37,6 +38,13 @@ type AccountsContextValue = {
   refreshAccounts: () => Promise<void>;
   setActiveAccount: (accountId: string) => Promise<{ error: string | null }>;
   startNextPhase: (accountId: string) => Promise<{ error: string | null }>;
+  updateAccountFieldSettings: (
+    accountId: string,
+    settings: {
+      analysisFieldSettings?: Record<string, boolean>;
+      tradeFieldSettings?: TradeFieldPreferences;
+    },
+  ) => Promise<{ error: string | null }>;
   updateAccount: (
     accountId: string,
     input: AccountFormInput,
@@ -367,6 +375,36 @@ export function AccountsProvider({ children }: { children: ReactNode }) {
     return { error: null };
   }
 
+  async function updateAccountFieldSettings(
+    accountId: string,
+    settings: {
+      analysisFieldSettings?: Record<string, boolean>;
+      tradeFieldSettings?: TradeFieldPreferences;
+    },
+  ) {
+    const account = state.accounts.find((item) => item.id === accountId);
+
+    if (!account) {
+      return { error: 'Account not found.' };
+    }
+
+    if (!account.canManageAccount) {
+      return { error: 'You do not have permission to edit this account.' };
+    }
+
+    const payload: AccountUpdate = {};
+
+    if (settings.tradeFieldSettings) {
+      payload.trade_field_settings = settings.tradeFieldSettings;
+    }
+
+    if (settings.analysisFieldSettings) {
+      payload.analysis_field_settings = settings.analysisFieldSettings;
+    }
+
+    return applyAccountUpdate(accountId, payload);
+  }
+
   async function markPhasePassed(accountId: string) {
     const account = state.accounts.find((item) => item.id === accountId);
 
@@ -430,6 +468,7 @@ export function AccountsProvider({ children }: { children: ReactNode }) {
     refreshAccounts,
     setActiveAccount,
     startNextPhase,
+    updateAccountFieldSettings,
     updateAccount,
   };
 

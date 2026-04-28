@@ -61,6 +61,10 @@ import {
   writeAnalyticsLayoutPreference,
 } from '@/lib/analytics-layout';
 import type { AnalyticsFilters, AnalyticsSnapshot } from '@/lib/analytics';
+import {
+  isPnlDisplayMode,
+  type PnlDisplayMode,
+} from '@/lib/pnl-display';
 import { cx } from '@/lib/utils';
 
 const ANALYTICS_LAYOUT_CHANGE_EVENT = 'one-journal:analytics-layout-change';
@@ -295,21 +299,25 @@ function getMetricVariantLabel(
 function MetricFinderModal({
   activeMetricIds,
   allMetricsActive,
+  metricDisplayModes,
   metricVariants,
   onAdd,
   onAddAll,
   onClose,
   onRemove,
+  onDisplayModeChange,
   onVariantChange,
   open,
 }: {
   activeMetricIds: AnalyticsMetricId[];
   allMetricsActive: boolean;
+  metricDisplayModes: Partial<Record<AnalyticsMetricId, PnlDisplayMode>>;
   metricVariants: AnalyticsMetricVariantMap;
   onAdd: (metricId: AnalyticsMetricId, variant?: AnalyticsMetricVariant) => void;
   onAddAll: () => void;
   onClose: () => void;
   onRemove: (metricId: AnalyticsMetricId) => void;
+  onDisplayModeChange: (metricId: AnalyticsMetricId, mode: PnlDisplayMode) => void;
   onVariantChange: (
     metricId: AnalyticsMetricId,
     variant: AnalyticsMetricVariant,
@@ -564,6 +572,28 @@ function MetricFinderModal({
                           Remove
                         </Button>
                       ) : null}
+                      {isActive && metric.id === 'net-pnl' ? (
+                        <>
+                          {(['currency', 'percent'] as PnlDisplayMode[]).map(
+                            (mode) => (
+                              <Button
+                                key={mode}
+                                size="sm"
+                                type="button"
+                                variant={
+                                  (metricDisplayModes['net-pnl'] ?? 'currency') ===
+                                  mode
+                                    ? 'primary'
+                                    : 'secondary'
+                                }
+                                onClick={() => onDisplayModeChange(metric.id, mode)}
+                              >
+                                {mode === 'currency' ? 'Currency' : 'Percent'}
+                              </Button>
+                            ),
+                          )}
+                        </>
+                      ) : null}
                     </div>
                   </article>
                 );
@@ -587,10 +617,12 @@ function SortableAnalyticsWidget({
   children,
   editing,
   metric,
+  metricDisplayModes,
   metricVariants,
   onMoveDown,
   onMoveUp,
   onRemove,
+  onDisplayModeChange,
   onVariantChange,
 }: {
   canMoveDown: boolean;
@@ -598,10 +630,12 @@ function SortableAnalyticsWidget({
   children: ReactNode;
   editing: boolean;
   metric: AnalyticsMetricDefinition;
+  metricDisplayModes: Partial<Record<AnalyticsMetricId, PnlDisplayMode>>;
   metricVariants: AnalyticsMetricVariantMap;
   onMoveDown: () => void;
   onMoveUp: () => void;
   onRemove: () => void;
+  onDisplayModeChange: (mode: PnlDisplayMode) => void;
   onVariantChange: (variant: AnalyticsMetricVariant) => void;
 }) {
   const {
@@ -682,6 +716,30 @@ function SortableAnalyticsWidget({
               ))}
             </div>
           ) : null}
+          {metric.id === 'net-pnl' ? (
+            <div className="flex min-w-0 flex-wrap gap-1.5">
+              {(['currency', 'percent'] as PnlDisplayMode[]).map((mode) => (
+                <button
+                  key={mode}
+                  className={cx(
+                    'rounded-full border px-3 py-1.5 text-[11px] font-medium transition',
+                    (metricDisplayModes['net-pnl'] ?? 'currency') === mode
+                      ? 'border-[color:var(--accent-border-soft)] bg-[var(--accent-soft-bg)] text-[var(--accent-text)]'
+                      : 'border-[color:var(--border-color)] bg-[var(--surface-raised)] text-[var(--muted-strong)] hover:border-[color:var(--border-strong)] hover:text-[var(--foreground)]',
+                  )}
+                  type="button"
+                  onClick={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    onDisplayModeChange(mode);
+                  }}
+                  onPointerDown={(event) => event.stopPropagation()}
+                >
+                  {mode === 'currency' ? 'Currency' : 'Percent'}
+                </button>
+              ))}
+            </div>
+          ) : null}
           <button
             aria-label={`Remove ${metric.name}`}
             className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-rose-200/70 bg-[var(--surface-raised)] text-rose-600 shadow-[0_14px_32px_-26px_var(--shadow-color)] transition duration-150 hover:bg-rose-50 hover:text-rose-700 active:scale-95 dark:border-rose-500/35 dark:text-rose-300 dark:hover:bg-rose-500/12"
@@ -739,12 +797,14 @@ function SortableAnalyticsWidget({
 export function AnalyticsLayoutWorkspace({
   analytics,
   filters,
+  pnlBaseline,
   scopeLabel,
   totalTradesAvailable,
   userId,
 }: {
   analytics: AnalyticsSnapshot;
   filters: AnalyticsFilters;
+  pnlBaseline: number | null;
   scopeLabel: string;
   totalTradesAvailable: number;
   userId: string;
@@ -788,6 +848,16 @@ export function AnalyticsLayoutWorkspace({
         }
       : defaultVariants;
   }, [layoutSnapshot, widgetPreferences.defaultWinRateVariant]);
+  const metricDisplayModes = useMemo(() => {
+    const preference = parseAnalyticsLayoutPreference(layoutSnapshot);
+    const rawDisplayModes = preference?.metricDisplayModes ?? {};
+
+    return {
+      ...(isPnlDisplayMode(rawDisplayModes['net-pnl'])
+        ? { 'net-pnl': rawDisplayModes['net-pnl'] }
+        : {}),
+    } satisfies Partial<Record<AnalyticsMetricId, PnlDisplayMode>>;
+  }, [layoutSnapshot]);
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
@@ -808,11 +878,21 @@ export function AnalyticsLayoutWorkspace({
     () => ({
       analytics,
       filters,
+      metricDisplayModes,
       metricVariants,
+      pnlBaseline,
       scopeLabel,
       totalTradesAvailable,
     }),
-    [analytics, filters, metricVariants, scopeLabel, totalTradesAvailable],
+    [
+      analytics,
+      filters,
+      metricDisplayModes,
+      metricVariants,
+      pnlBaseline,
+      scopeLabel,
+      totalTradesAvailable,
+    ],
   );
   const selectedMetrics = useMemo(
     () =>
@@ -831,13 +911,21 @@ export function AnalyticsLayoutWorkspace({
       ) &&
       (metricVariants['net-pnl'] ?? 'compact') === 'compact' &&
       (metricVariants['win-rate'] ?? 'radial') ===
-        widgetPreferences.defaultWinRateVariant,
-    [metricIds, metricVariants, widgetPreferences.defaultWinRateVariant],
+        widgetPreferences.defaultWinRateVariant &&
+      Object.keys(metricDisplayModes).length === 0,
+    [
+      metricDisplayModes,
+      metricIds,
+      metricVariants,
+      widgetPreferences.defaultWinRateVariant,
+    ],
   );
 
   function saveLayout(
     nextMetricIds: AnalyticsMetricId[],
     nextMetricVariants: AnalyticsMetricVariantMap = metricVariants,
+    nextMetricDisplayModes: Partial<Record<AnalyticsMetricId, PnlDisplayMode>> =
+      metricDisplayModes,
   ) {
     const activeMetricIdSet = new Set(nextMetricIds);
     const prunedMetricVariants = Object.fromEntries(
@@ -852,6 +940,12 @@ export function AnalyticsLayoutWorkspace({
       storageKey,
       nextMetricIds,
       prunedMetricVariants,
+      Object.fromEntries(
+        Object.entries(nextMetricDisplayModes).filter(([metricId, value]) =>
+          activeMetricIdSet.has(metricId as AnalyticsMetricId) &&
+          typeof value === 'string',
+        ),
+      ),
     );
     dispatchAnalyticsLayoutChange();
   }
@@ -925,6 +1019,13 @@ export function AnalyticsLayoutWorkspace({
     saveLayout(metricIds, {
       ...metricVariants,
       [metricId]: variant,
+    });
+  }
+
+  function updateMetricDisplayMode(metricId: AnalyticsMetricId, mode: PnlDisplayMode) {
+    saveLayout(metricIds, metricVariants, {
+      ...metricDisplayModes,
+      [metricId]: mode,
     });
   }
 
@@ -1102,10 +1203,14 @@ export function AnalyticsLayoutWorkspace({
                   canMoveUp={index > 0}
                   editing={editing}
                   metric={metric}
+                  metricDisplayModes={metricDisplayModes}
                   metricVariants={metricVariants}
                   onMoveDown={() => moveMetric(metric.id, 'down')}
                   onMoveUp={() => moveMetric(metric.id, 'up')}
                   onRemove={() => removeMetric(metric.id)}
+                  onDisplayModeChange={(mode) =>
+                    updateMetricDisplayMode(metric.id, mode)
+                  }
                   onVariantChange={(variant) =>
                     updateMetricVariant(metric.id, variant)
                   }
@@ -1139,11 +1244,13 @@ export function AnalyticsLayoutWorkspace({
       <MetricFinderModal
         activeMetricIds={metricIds}
         allMetricsActive={allMetricsActive}
+        metricDisplayModes={metricDisplayModes}
         metricVariants={metricVariants}
         onAdd={addMetric}
         onAddAll={addAllMetrics}
         onClose={() => setFinderOpen(false)}
         onRemove={removeMetric}
+        onDisplayModeChange={updateMetricDisplayMode}
         onVariantChange={updateMetricVariant}
         open={finderOpen}
       />

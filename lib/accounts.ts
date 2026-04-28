@@ -1,6 +1,11 @@
 import type { AccountInsert, AccountRow, AccountUpdate } from '@/lib/supabase';
 import { scopeRecordsToAccount, type AccountScopeOptions } from '@/lib/account-scope';
 import {
+  DEFAULT_TRADE_FIELD_PREFERENCES,
+  mergeTradeFieldPreferences,
+  type TradeFieldPreferences,
+} from '@/lib/trade-form-preferences';
+import {
   canRoleDeleteAccount,
   canRoleManageAccount,
   canRoleManageMembers,
@@ -45,11 +50,14 @@ export const ACCOUNT_SELECT = [
   'max_drawdown',
   'daily_drawdown_max',
   'prop_target',
+  'trade_field_settings',
+  'analysis_field_settings',
   'created_at',
   'updated_at',
 ].join(',');
 
 export type AccountView = {
+  analysisFieldSettings: Record<string, boolean> | null;
   createdAt: string | null;
   currentEquity: number;
   currentPhase: number;
@@ -75,6 +83,7 @@ export type AccountView = {
   phaseStatus: AccountPhaseStatus;
   propTarget: number | null;
   type: AccountType;
+  tradeFieldSettings: TradeFieldPreferences | null;
   updatedAt: string | null;
   userId: string | null;
 };
@@ -180,6 +189,27 @@ function parseAccountType(value: unknown): AccountType {
     : 'Demo Account';
 }
 
+function normalizeNullableBooleanRecord(value: unknown) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return null;
+  }
+
+  const entries = Object.entries(value).filter(
+    (entry): entry is [string, boolean] =>
+      typeof entry[0] === 'string' && typeof entry[1] === 'boolean',
+  );
+
+  return entries.length > 0 ? Object.fromEntries(entries) : null;
+}
+
+function normalizeNullableTradeFieldSettings(value: unknown) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return null;
+  }
+
+  return mergeTradeFieldPreferences(value);
+}
+
 export function isPropAccount(account: AccountView | null | undefined) {
   return account?.type === 'Propfirm Account';
 }
@@ -207,6 +237,7 @@ export function normalizeAccount(
   );
 
   return {
+    analysisFieldSettings: normalizeNullableBooleanRecord(row.analysis_field_settings),
     canDeleteAccount: canRoleDeleteAccount(coopRole),
     canManageAccount: canRoleManageAccount(coopRole),
     canManageMembers: canRoleManageMembers(coopRole),
@@ -232,6 +263,7 @@ export function normalizeAccount(
     phaseStatus: toBoolean(row.is_funded) ? 'funded' : phaseStatus,
     propTarget: toFiniteNumber(row.prop_target),
     type: parseAccountType(row.type),
+    tradeFieldSettings: normalizeNullableTradeFieldSettings(row.trade_field_settings),
     updatedAt: cleanText(row.updated_at),
     userId,
   };
@@ -304,6 +336,8 @@ export function mapAccountFormToInsert(
     phases_enabled: phasesEnabled,
     prop_target:
       isProp && phasesEnabled ? toFiniteNumber(input.prop_target) : null,
+    trade_field_settings: DEFAULT_TRADE_FIELD_PREFERENCES,
+    analysis_field_settings: {},
     type: input.type,
     user_id: userId,
   };

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 
 import AuthRequired from '@/components/ui/auth-required';
+import { useAccounts } from '@/components/ui/accounts-provider';
 import { useAuth } from '@/components/ui/auth-provider';
 import { Button, ButtonLink } from '@/components/ui/button';
 import { SwitchField } from '@/components/ui/form-fields';
@@ -136,6 +137,7 @@ function ListViewSelector({
 export default function SettingsView() {
   const { loading, user } = useAuth();
   const [settingsQuery, setSettingsQuery] = useState('');
+  const { activeAccount } = useAccounts();
   const {
     accentColors,
     pnlVisualEmphasis,
@@ -422,18 +424,25 @@ export default function SettingsView() {
       },
       {
         id: 'trade-form',
-        keywords: `trade form columns fields ${TRADE_FIELD_DEFINITIONS.map((field) => field.label).join(' ')}`,
-        title: 'Trade Form',
+        keywords: `account trade form columns fields ${TRADE_FIELD_DEFINITIONS.map((field) => field.label).join(' ')}`,
+        title: 'Account Fields',
         content: (
-          <SectionShell eyebrow="trade form" title="Trade Form">
+          <SectionShell eyebrow="account settings" title="Account field settings">
             <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-sm text-[var(--muted)]">
-                {activeCount} visible fields. {ready ? 'Device saved.' : 'Loading preferences.'}
-              </p>
+              <div>
+                <p className="text-sm font-medium text-[var(--foreground)]">
+                  Trade fields for this account
+                </p>
+                <p className="mt-1 text-sm text-[var(--muted)]">
+                  {activeAccount?.name ?? 'No active account'} - {activeCount} visible fields.{' '}
+                  {ready ? 'Saved on the account.' : 'Loading preferences.'}
+                </p>
+              </div>
               <Button
                 size="md"
                 type="button"
                 variant="secondary"
+                disabled={!activeAccount?.canManageAccount}
                 onClick={resetPreferences}
               >
                 Reset fields
@@ -462,6 +471,7 @@ export default function SettingsView() {
                         key={field.key}
                         checked={preferences[field.key]}
                         description={`${field.description} ${field.requiredWhenVisible ? 'Required when visible.' : 'Optional.'}`}
+                        disabled={!activeAccount?.canManageAccount}
                         label={field.label}
                         onCheckedChange={(checked) =>
                           setFieldPreference(field.key, checked)

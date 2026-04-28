@@ -19,6 +19,8 @@ export type AccountRow = {
   max_drawdown?: number | string | null;
   daily_drawdown_max?: number | string | null;
   prop_target?: number | string | null;
+  trade_field_settings?: unknown;
+  analysis_field_settings?: unknown;
   created_at?: string | null;
   updated_at?: string | null;
   coop_role?: string | null;

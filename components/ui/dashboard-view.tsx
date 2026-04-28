@@ -12,6 +12,8 @@ import { Button, ButtonLink } from '@/components/ui/button';
 import { MessageBanner } from '@/components/ui/form-fields';
 import { useListViewPreferences } from '@/components/ui/list-view-preferences';
 import PageShell from '@/components/ui/page-shell';
+import { TradeViewModeControl } from '@/components/ui/trade-view-mode-control';
+import { useWidgetTradeViewMode } from '@/components/ui/use-widget-trade-view-mode';
 import {
   EquityCurveCard,
   EquitySparkline,
@@ -125,6 +127,18 @@ export default function DashboardView() {
   const [feedScope, setFeedScope] = useState<FeedScope>('all');
   const [feedSearchValue, setFeedSearchValue] = useState('');
   const { preferences: listViewPreferences } = useListViewPreferences();
+  const [visibleTradesViewMode, setVisibleTradesViewMode] = useWidgetTradeViewMode(
+    activeAccount?.id
+      ? `dashboard:${activeAccount.id}:visible-trades`
+      : 'dashboard:visible-trades',
+    listViewPreferences.trades,
+  );
+  const [journalTradesViewMode, setJournalTradesViewMode] = useWidgetTradeViewMode(
+    activeAccount?.id
+      ? `dashboard:${activeAccount.id}:journal-trades`
+      : 'dashboard:journal-trades',
+    listViewPreferences.trades,
+  );
   const deferredFeedSearchValue = useDeferredValue(feedSearchValue.trim().toLowerCase());
   const tradesState = useUserTrades({
     accountId: activeAccount?.id ?? null,
@@ -339,13 +353,13 @@ export default function DashboardView() {
     [deferredFeedSearchValue, feedScope, journalFeed],
   );
   const feedUsesStacked =
-    listViewPreferences.trades === 'stacked' ||
+    journalTradesViewMode === 'stacked' ||
     listViewPreferences.analyses === 'stacked';
   const feedUsesCompact =
-    listViewPreferences.trades === 'compact' ||
+    journalTradesViewMode === 'compact' ||
     listViewPreferences.analyses === 'compact';
   const visibleTrades =
-    listViewPreferences.trades === 'calendar'
+    visibleTradesViewMode === 'calendar'
       ? tradesState.items
       : tradesState.items.slice(0, 6);
   const filteredFeedTrades = useMemo(
@@ -358,7 +372,7 @@ export default function DashboardView() {
     [filteredJournalFeed],
   );
   const shouldShowFeedCalendar =
-    feedScope === 'trades' && listViewPreferences.trades === 'calendar';
+    feedScope === 'trades' && journalTradesViewMode === 'calendar';
 
   async function handleLogout() {
     if (!supabase) {
@@ -668,9 +682,15 @@ export default function DashboardView() {
               title="Visible trades"
               description={`${tradesState.items.length} trades loaded for this account. Recent executions are shown here directly.`}
               action={
-                <ButtonLink href="/trades/new" variant="secondary">
-                  Add Trade
-                </ButtonLink>
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                  <TradeViewModeControl
+                    mode={visibleTradesViewMode}
+                    onChange={setVisibleTradesViewMode}
+                  />
+                  <ButtonLink href="/trades/new" variant="secondary">
+                    Add Trade
+                  </ButtonLink>
+                </div>
               }
             />
             <div className="px-6 pb-6 pt-2 sm:px-8 sm:pb-8">
@@ -687,7 +707,7 @@ export default function DashboardView() {
               ) : null}
 
               {!tradesState.loading && !tradesState.error && visibleTrades.length > 0 ? (
-                listViewPreferences.trades === 'calendar' ? (
+                visibleTradesViewMode === 'calendar' ? (
                   <TradeCalendarView
                     trades={visibleTrades}
                     emptyMessage="No visible trades available for this calendar."
@@ -699,10 +719,11 @@ export default function DashboardView() {
                         key={`visible-trade-${trade.id}`}
                         trade={trade}
                         index={index}
-                        compact
+                        compact={visibleTradesViewMode === 'compact'}
                         editHref={`/trades/${trade.id}/edit`}
                         onDelete={handleDeleteTrade}
-                        variant="stacked"
+                        featured={visibleTradesViewMode === 'cards' && index === 0}
+                        variant={visibleTradesViewMode === 'stacked' ? 'stacked' : undefined}
                       />
                     ))}
                   </div>
@@ -832,6 +853,10 @@ export default function DashboardView() {
                       <span className="hidden text-sm text-[var(--muted)] sm:inline">
                         Showing {filteredJournalFeed.length} results
                       </span>
+                      <TradeViewModeControl
+                        mode={journalTradesViewMode}
+                        onChange={setJournalTradesViewMode}
+                      />
                       <div className="flex items-center gap-2">
                         <ButtonLink href="/trades/new" variant="secondary">
                           Add Trade
@@ -952,11 +977,11 @@ export default function DashboardView() {
                               key={`trade-${entry.id}`}
                               trade={entry.value}
                               index={index}
-                              compact={listViewPreferences.trades !== 'cards'}
+                              compact={journalTradesViewMode !== 'cards'}
                               editHref={`/trades/${entry.value.id}/edit`}
                               onDelete={handleDeleteTrade}
                               variant={
-                                listViewPreferences.trades === 'stacked'
+                                journalTradesViewMode === 'stacked'
                                   ? 'stacked'
                                   : undefined
                               }

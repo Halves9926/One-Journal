@@ -5,6 +5,7 @@ export type HomeLayoutPreference = {
   updatedAt: string;
   version: typeof HOME_LAYOUT_VERSION;
   widgetIds: string[];
+  widgetDisplayModes: Record<string, string>;
   widgetVariants: Record<string, string>;
 };
 
@@ -46,6 +47,17 @@ export function parseHomeLayoutPreference(value: string | null) {
       widgetIds: parsedValue.widgetIds.filter(
         (widgetId): widgetId is string => typeof widgetId === 'string',
       ),
+      widgetDisplayModes:
+        parsedValue.widgetDisplayModes &&
+        typeof parsedValue.widgetDisplayModes === 'object' &&
+        !Array.isArray(parsedValue.widgetDisplayModes)
+          ? Object.fromEntries(
+              Object.entries(parsedValue.widgetDisplayModes).filter(
+                (entry): entry is [string, string] =>
+                  typeof entry[0] === 'string' && typeof entry[1] === 'string',
+              ),
+            )
+          : {},
       widgetVariants:
         parsedValue.widgetVariants &&
         typeof parsedValue.widgetVariants === 'object' &&
@@ -67,6 +79,7 @@ export function writeHomeLayoutPreference(
   storageKey: string,
   widgetIds: string[],
   widgetVariants: Record<string, string> = {},
+  widgetDisplayModes: Record<string, string> = {},
 ) {
   if (typeof window === 'undefined') {
     return;
@@ -76,6 +89,7 @@ export function writeHomeLayoutPreference(
     updatedAt: new Date().toISOString(),
     version: HOME_LAYOUT_VERSION,
     widgetIds,
+    widgetDisplayModes,
     widgetVariants,
   };
 

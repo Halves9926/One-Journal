@@ -12,9 +12,17 @@ import { MessageBanner } from '@/components/ui/form-fields';
 import PageShell from '@/components/ui/page-shell';
 import { Panel, PanelHeader } from '@/components/ui/panel';
 import { Reveal } from '@/components/ui/reveal';
+import { TradeViewModeControl } from '@/components/ui/trade-view-mode-control';
+import TradeCalendarView from '@/components/ui/trade-calendar-view';
 import TradeCard from '@/components/ui/trade-card';
+import { useWidgetTradeViewMode } from '@/components/ui/use-widget-trade-view-mode';
 import { useUserTrades } from '@/components/ui/use-user-trades';
 import { scopeRecordsToAccount } from '@/lib/account-scope';
+import { buildAccountMetrics } from '@/lib/accounts';
+import {
+  DEFAULT_LIST_VIEW_PREFERENCES,
+  type ListViewMode,
+} from '@/components/ui/list-view-preferences';
 import {
   buildAnalyticsFilterOptions,
   buildAnalyticsSnapshot,
@@ -109,6 +117,12 @@ function buildAccountLabel(accountName: string | null) {
   return accountName ?? 'All accounts';
 }
 
+function resolvedAnalyticsWidgetKey(activeAccountId: string | null | undefined) {
+  return activeAccountId
+    ? `analytics:${activeAccountId}:matched-trades`
+    : 'analytics:matched-trades';
+}
+
 function AddFilterMenu({
   availableFilterKeys,
   onAdd,
@@ -181,10 +195,12 @@ function AddFilterMenu({
 function AllMatchedTradesDrawer({
   onClose,
   open,
+  tradeViewMode,
   trades,
 }: {
   onClose: () => void;
   open: boolean;
+  tradeViewMode: ListViewMode;
   trades: AnalyticsTrade[];
 }) {
   useEffect(() => {
@@ -248,15 +264,23 @@ function AllMatchedTradesDrawer({
           </button>
         </div>
         <div className="overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
-          {trades.length > 0 ? (
+          {trades.length > 0 && tradeViewMode === 'calendar' ? (
+            <TradeCalendarView
+              trades={trades}
+              emptyMessage="No matched trades available for this calendar."
+            />
+          ) : null}
+          {trades.length > 0 && tradeViewMode !== 'calendar' ? (
             <div className="grid items-start gap-4">
               {trades.map((trade, index) => (
                 <TradeCard
                   key={`analytics-all-trade-${trade.id}`}
                   trade={trade}
                   index={index}
-                  compact
+                  compact={tradeViewMode === 'compact'}
                   editHref={`/trades/${trade.id}/edit`}
+                  featured={tradeViewMode === 'cards' && index === 0}
+                  variant={tradeViewMode === 'stacked' ? 'stacked' : undefined}
                 />
               ))}
             </div>
@@ -284,7 +308,7 @@ export default function AnalyticsView() {
     enabled: Boolean(user),
     limit: null,
   });
-  const [accountScope, setAccountScope] = useState<'active' | 'all' | string>('all');
+  const [accountScope, setAccountScope] = useState<'active' | 'all' | string>('active');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [direction, setDirection] = useState('all');
@@ -295,6 +319,10 @@ export default function AnalyticsView() {
   const [matchedTradesDrawerOpen, setMatchedTradesDrawerOpen] = useState(false);
   const [matchedTradesVisibleCount, setMatchedTradesVisibleCount] = useState(3);
   const [visibleFilterKeys, setVisibleFilterKeys] = useState<AnalyticsFilterKey[]>([]);
+  const [matchedTradesViewMode, setMatchedTradesViewMode] = useWidgetTradeViewMode(
+    resolvedAnalyticsWidgetKey(activeAccount?.id),
+    DEFAULT_LIST_VIEW_PREFERENCES.trades,
+  );
 
   const analyticsTrades = useMemo(
     () => enrichTradesForAnalytics(tradesState.items),
@@ -376,6 +404,18 @@ export default function AnalyticsView() {
   );
   const visibleFilteredTrades = filteredTrades.slice(0, matchedTradesVisibleCount);
   const selectedAccount = accounts.find((account) => account.id === resolvedAccountId) ?? null;
+  const pnlBaseline = useMemo(() => {
+    if (selectedAccount) {
+      return buildAccountMetrics(selectedAccount, accountScopedTrades).equityBaseline;
+    }
+
+    const accountBaseline = accounts.reduce(
+      (total, account) => total + account.initialEquity,
+      0,
+    );
+
+    return accountBaseline > 0 ? accountBaseline : null;
+  }, [accountScopedTrades, accounts, selectedAccount]);
   const scopeLabel =
     accountScope === 'all'
       ? 'All accounts'
@@ -455,7 +495,7 @@ export default function AnalyticsView() {
   }, [filters]);
 
   function resetFilters() {
-    setAccountScope('all');
+    setAccountScope('active');
     setDateFrom('');
     setDateTo('');
     setDirection('all');
@@ -834,6 +874,10 @@ export default function AnalyticsView() {
               description={`Showing ${Math.min(visibleFilteredTrades.length, filteredTrades.length)} of ${filteredTrades.length} matched trade${filteredTrades.length === 1 ? '' : 's'}.`}
               action={
                 <div className="flex flex-col gap-2 sm:flex-row">
+                  <TradeViewModeControl
+                    mode={matchedTradesViewMode}
+                    onChange={setMatchedTradesViewMode}
+                  />
                   <Button
                     disabled={filteredTrades.length === 0}
                     size="lg"
@@ -864,18 +908,26 @@ export default function AnalyticsView() {
 
               {!tradesState.loading && !tradesState.error && visibleFilteredTrades.length > 0 ? (
                 <>
-                  <div className="grid items-start gap-4">
-                    {visibleFilteredTrades.map((trade, index) => (
-                      <TradeCard
-                        key={`analytics-trade-${trade.id}`}
-                        trade={trade}
-                        index={index}
-                        compact
-                        editHref={`/trades/${trade.id}/edit`}
-                        variant="stacked"
-                      />
-                    ))}
-                  </div>
+                  {matchedTradesViewMode === 'calendar' ? (
+                    <TradeCalendarView
+                      trades={filteredTrades}
+                      emptyMessage="No matched trades available for this calendar."
+                    />
+                  ) : (
+                    <div className="grid items-start gap-4">
+                      {visibleFilteredTrades.map((trade, index) => (
+                        <TradeCard
+                          key={`analytics-trade-${trade.id}`}
+                          trade={trade}
+                          index={index}
+                          compact={matchedTradesViewMode === 'compact'}
+                          editHref={`/trades/${trade.id}/edit`}
+                          featured={matchedTradesViewMode === 'cards' && index === 0}
+                          variant={matchedTradesViewMode === 'stacked' ? 'stacked' : undefined}
+                        />
+                      ))}
+                    </div>
+                  )}
                   {visibleFilteredTrades.length < filteredTrades.length ? (
                     <div className="mt-5 flex flex-col gap-2 sm:flex-row">
                       <Button
@@ -907,6 +959,7 @@ export default function AnalyticsView() {
         <AllMatchedTradesDrawer
           onClose={() => setMatchedTradesDrawerOpen(false)}
           open={matchedTradesDrawerOpen}
+          tradeViewMode={matchedTradesViewMode}
           trades={filteredTrades}
         />
 
@@ -936,6 +989,7 @@ export default function AnalyticsView() {
           <AnalyticsLayoutWorkspace
             analytics={analytics}
             filters={filters}
+            pnlBaseline={pnlBaseline}
             scopeLabel={scopeLabel}
             totalTradesAvailable={tradesState.items.length}
             userId={user.id}

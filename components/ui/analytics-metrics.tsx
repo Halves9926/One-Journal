@@ -25,6 +25,10 @@ import {
   type AnalyticsSnapshot,
 } from '@/lib/analytics';
 import {
+  formatPnlDisplayValue,
+  type PnlDisplayMode,
+} from '@/lib/pnl-display';
+import {
   formatCompactNumber,
   formatCurrency,
   formatPnl,
@@ -87,7 +91,9 @@ export type AnalyticsMetricVariant = WinRateWidgetVariant | NetPnlWidgetVariant;
 export type AnalyticsMetricRenderContext = {
   analytics: AnalyticsSnapshot;
   filters: AnalyticsFilters;
+  metricDisplayModes: Partial<Record<AnalyticsMetricId, PnlDisplayMode>>;
   metricVariants: AnalyticsMetricVariantMap;
+  pnlBaseline: number | null;
   scopeLabel: string;
   totalTradesAvailable: number;
 };
@@ -229,9 +235,13 @@ function SummaryWidget({
 
 function NetPnlWidget({
   analytics,
+  displayMode,
+  pnlBaseline,
   variant,
 }: {
   analytics: AnalyticsSnapshot;
+  displayMode: PnlDisplayMode;
+  pnlBaseline: number | null;
   variant: NetPnlWidgetVariant;
 }) {
   const netPnl = analytics.summary.netPnl;
@@ -270,7 +280,12 @@ function NetPnlWidget({
                 getPnlTextClassName(netPnl),
               )}
             >
-              {formatPnl(netPnl, 0)}
+              {formatPnlDisplayValue({
+                baseline: pnlBaseline,
+                digits: displayMode === 'percent' ? 2 : 0,
+                mode: displayMode,
+                pnl: netPnl,
+              })}
             </p>
           </div>
           <span className="rounded-full border border-[color:var(--border-color)] bg-[var(--surface)] px-3 py-1.5 text-xs text-[var(--muted-strong)]">
@@ -328,7 +343,12 @@ function NetPnlWidget({
       className={getPnlCardClassName(netPnl)}
       label="Net PnL"
       tone={tone}
-      value={formatPnl(netPnl, 0)}
+      value={formatPnlDisplayValue({
+        baseline: pnlBaseline,
+        digits: displayMode === 'percent' ? 2 : 0,
+        mode: displayMode,
+        pnl: netPnl,
+      })}
       valueClassName={getPnlTextClassName(netPnl)}
     />
   );
@@ -405,9 +425,11 @@ export const analyticsMetricRegistry = [
         label: 'Visual',
       },
     ],
-    render: ({ analytics, metricVariants }) => (
+    render: ({ analytics, metricDisplayModes, metricVariants, pnlBaseline }) => (
       <NetPnlWidget
         analytics={analytics}
+        displayMode={metricDisplayModes['net-pnl'] ?? 'currency'}
+        pnlBaseline={pnlBaseline}
         variant={
           metricVariants['net-pnl'] === 'visual' ? 'visual' : 'compact'
         }

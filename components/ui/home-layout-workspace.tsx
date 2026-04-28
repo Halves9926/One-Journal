@@ -23,6 +23,7 @@ import {
 import {
   useEffect,
   useId,
+  useCallback,
   useMemo,
   useState,
   useSyncExternalStore,
@@ -35,6 +36,7 @@ import { Button, ButtonLink } from '@/components/ui/button';
 import { MessageBanner } from '@/components/ui/form-fields';
 import type { ListViewMode } from '@/components/ui/list-view-preferences';
 import { MetricCard, Panel, PanelHeader } from '@/components/ui/panel';
+import { TradeViewModeControl } from '@/components/ui/trade-view-mode-control';
 import TradeCalendarView from '@/components/ui/trade-calendar-view';
 import TradeCard from '@/components/ui/trade-card';
 import WinRateWidget, {
@@ -50,8 +52,12 @@ import {
   writeHomeLayoutPreference,
 } from '@/lib/home-layout';
 import {
+  formatPnlDisplayValue,
+  isPnlDisplayMode,
+  type PnlDisplayMode,
+} from '@/lib/pnl-display';
+import {
   formatCompactNumber,
-  formatPnl,
   formatTradeDate,
   getPnlCardClassName,
   getPnlTextClassName,
@@ -75,6 +81,7 @@ export const HOME_WIDGET_IDS = [
 type HomeWidgetId = (typeof HOME_WIDGET_IDS)[number];
 type HomeWidgetSize = 'compact' | 'medium' | 'full';
 type HomeWidgetVariantMap = Partial<Record<HomeWidgetId, WinRateWidgetVariant>>;
+type HomeWidgetDisplayModeMap = Partial<Record<HomeWidgetId, PnlDisplayMode | ListViewMode>>;
 
 type HomeWidgetDefinition = {
   description: string;
@@ -93,6 +100,12 @@ type HomeLayoutRenderContext = {
   activeAccountName: string;
   recentTrades: TradeView[];
   summary: TradeSummary;
+  pnlBaseline: number | null;
+  onWidgetDisplayModeChange: (
+    widgetId: HomeWidgetId,
+    mode: PnlDisplayMode | ListViewMode,
+  ) => void;
+  widgetDisplayModes: HomeWidgetDisplayModeMap;
   tradeListMode: ListViewMode;
   tradesError: string | null;
   tradesLoading: boolean;
@@ -333,13 +346,20 @@ const homeWidgetRegistry = [
     id: 'net-pnl',
     name: 'Net PnL',
     size: 'compact',
-    render: ({ summary }) => (
+    render: ({ pnlBaseline, summary, widgetDisplayModes }) => (
       <MetricCard
         caption="net performance on this account"
         className={getPnlCardClassName(summary.netPnl)}
         label="Net PnL"
         tone={summary.netPnl < 0 ? 'danger' : 'accent'}
-        value={formatPnl(summary.netPnl)}
+        value={formatPnlDisplayValue({
+          baseline: pnlBaseline,
+          mode:
+            widgetDisplayModes['net-pnl'] === 'percent'
+              ? 'percent'
+              : 'currency',
+          pnl: summary.netPnl,
+        })}
         valueClassName={getPnlTextClassName(summary.netPnl)}
       />
     ),
@@ -406,15 +426,30 @@ const homeWidgetRegistry = [
     render: ({
       activeAccountName,
       onDeleteTrade,
+      onWidgetDisplayModeChange,
       recentTrades,
       tradeListMode,
       tradesError,
       tradesLoading,
+      widgetDisplayModes,
     }) => (
       <Panel className="h-full overflow-hidden">
         <PanelHeader
           action={
-            <div className="flex flex-col gap-3 sm:flex-row">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+              <TradeViewModeControl
+                mode={
+                  widgetDisplayModes['recent-trades'] === 'compact' ||
+                  widgetDisplayModes['recent-trades'] === 'cards' ||
+                  widgetDisplayModes['recent-trades'] === 'stacked' ||
+                  widgetDisplayModes['recent-trades'] === 'calendar'
+                    ? widgetDisplayModes['recent-trades']
+                    : tradeListMode
+                }
+                onChange={(mode) =>
+                  onWidgetDisplayModeChange('recent-trades', mode)
+                }
+              />
               <ButtonLink href="/dashboard" variant="secondary">
                 Full Dashboard
               </ButtonLink>
@@ -451,7 +486,7 @@ const homeWidgetRegistry = [
           {!tradesLoading &&
           !tradesError &&
           recentTrades.length > 0 &&
-          tradeListMode === 'calendar' ? (
+          (widgetDisplayModes['recent-trades'] ?? tradeListMode) === 'calendar' ? (
             <TradeCalendarView
               trades={recentTrades}
               emptyMessage="No recent trades available for the calendar."
@@ -461,11 +496,12 @@ const homeWidgetRegistry = [
           {!tradesLoading &&
           !tradesError &&
           recentTrades.length > 0 &&
-          tradeListMode !== 'calendar' ? (
+          (widgetDisplayModes['recent-trades'] ?? tradeListMode) !== 'calendar' ? (
             <div
               className={cx(
                 'grid gap-4',
-                tradeListMode === 'stacked' || tradeListMode === 'compact'
+                (widgetDisplayModes['recent-trades'] ?? tradeListMode) === 'stacked' ||
+                  (widgetDisplayModes['recent-trades'] ?? tradeListMode) === 'compact'
                   ? 'grid-cols-1'
                   : 'xl:grid-cols-2',
               )}
@@ -474,17 +510,17 @@ const homeWidgetRegistry = [
                 <TradeCard
                   key={trade.id}
                   className={
-                    tradeListMode === 'cards' && index === 0
+                    (widgetDisplayModes['recent-trades'] ?? tradeListMode) === 'cards' && index === 0
                       ? 'xl:col-span-2'
                       : ''
                   }
-                  compact={tradeListMode === 'compact'}
+                  compact={(widgetDisplayModes['recent-trades'] ?? tradeListMode) === 'compact'}
                   editHref={`/trades/${trade.id}/edit`}
-                  featured={tradeListMode === 'cards' && index === 0}
+                  featured={(widgetDisplayModes['recent-trades'] ?? tradeListMode) === 'cards' && index === 0}
                   index={index}
                   onDelete={onDeleteTrade}
                   trade={trade}
-                  variant={tradeListMode === 'stacked' ? 'stacked' : undefined}
+                  variant={(widgetDisplayModes['recent-trades'] ?? tradeListMode) === 'stacked' ? 'stacked' : undefined}
                 />
               ))}
             </div>
@@ -760,16 +796,20 @@ function SortableHomeWidget({
   children,
   editing,
   onRemove,
+  onDisplayModeChange,
   onVariantChange,
   widget,
+  widgetDisplayModes,
   widgetVariants,
 }: {
   canRemove: boolean;
   children: ReactNode;
   editing: boolean;
   onRemove: () => void;
+  onDisplayModeChange: (mode: PnlDisplayMode | ListViewMode) => void;
   onVariantChange: (variant: WinRateWidgetVariant) => void;
   widget: HomeWidgetDefinition;
+  widgetDisplayModes: HomeWidgetDisplayModeMap;
   widgetVariants: HomeWidgetVariantMap;
 }) {
   const {
@@ -842,6 +882,30 @@ function SortableHomeWidget({
               ))}
             </div>
           ) : null}
+          {widget.id === 'net-pnl' ? (
+            <div className="flex min-w-0 flex-wrap gap-1.5">
+              {(['currency', 'percent'] as PnlDisplayMode[]).map((mode) => (
+                <button
+                  key={mode}
+                  className={cx(
+                    'rounded-full border px-3 py-1.5 text-[11px] font-medium transition',
+                    (widgetDisplayModes['net-pnl'] ?? 'currency') === mode
+                      ? 'border-[color:var(--accent-border-soft)] bg-[var(--accent-soft-bg)] text-[var(--accent-text)]'
+                      : 'border-[color:var(--border-color)] bg-[var(--surface-raised)] text-[var(--muted-strong)] hover:border-[color:var(--border-strong)] hover:text-[var(--foreground)]',
+                  )}
+                  type="button"
+                  onClick={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    onDisplayModeChange(mode);
+                  }}
+                  onPointerDown={(event) => event.stopPropagation()}
+                >
+                  {mode === 'currency' ? 'Currency' : 'Percent'}
+                </button>
+              ))}
+            </div>
+          ) : null}
           {canRemove ? (
             <button
               aria-label={`Remove ${widget.name}`}
@@ -905,6 +969,7 @@ export function HomeLayoutWorkspace({
   accountId,
   activeAccountName,
   onDeleteTrade,
+  pnlBaseline,
   recentTrades,
   summary,
   tradeListMode,
@@ -915,6 +980,7 @@ export function HomeLayoutWorkspace({
   accountId: string | null;
   activeAccountName: string;
   onDeleteTrade: (tradeId: string) => Promise<{ error: string | null }>;
+  pnlBaseline: number | null;
   recentTrades: TradeView[];
   summary: TradeSummary;
   tradeListMode: ListViewMode;
@@ -955,6 +1021,26 @@ export function HomeLayoutWorkspace({
         }
       : defaultVariants;
   }, [layoutSnapshot, widgetPreferences.defaultWinRateVariant]);
+  const widgetDisplayModes = useMemo(() => {
+    const preference = parseHomeLayoutPreference(layoutSnapshot);
+    const rawDisplayModes = preference?.widgetDisplayModes ?? {};
+    const displayModes: HomeWidgetDisplayModeMap = {};
+
+    if (isPnlDisplayMode(rawDisplayModes['net-pnl'])) {
+      displayModes['net-pnl'] = rawDisplayModes['net-pnl'];
+    }
+
+    if (
+      typeof rawDisplayModes['recent-trades'] === 'string' &&
+      (['compact', 'cards', 'stacked', 'calendar'] as string[]).includes(
+        rawDisplayModes['recent-trades'],
+      )
+    ) {
+      displayModes['recent-trades'] = rawDisplayModes['recent-trades'] as ListViewMode;
+    }
+
+    return displayModes;
+  }, [layoutSnapshot]);
   const selectedWidgets = useMemo(
     () =>
       widgetIds
@@ -972,7 +1058,8 @@ export function HomeLayoutWorkspace({
       (widgetId, index) => widgetId === DEFAULT_HOME_WIDGET_IDS[index],
     ) &&
     (widgetVariants['win-rate'] ?? 'radial') ===
-      widgetPreferences.defaultWinRateVariant;
+      widgetPreferences.defaultWinRateVariant &&
+    Object.keys(widgetDisplayModes).length === 0;
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
@@ -989,32 +1076,10 @@ export function HomeLayoutWorkspace({
       coordinateGetter: sortableKeyboardCoordinates,
     }),
   );
-  const renderContext = useMemo(
-    () => ({
-      activeAccountName,
-      onDeleteTrade,
-      recentTrades,
-      summary,
-      tradeListMode,
-      tradesError,
-      tradesLoading,
-      widgetVariants,
-    }),
-    [
-      activeAccountName,
-      onDeleteTrade,
-      recentTrades,
-      summary,
-      tradeListMode,
-      tradesError,
-      tradesLoading,
-      widgetVariants,
-    ],
-  );
-
-  function saveLayout(
+  const saveLayout = useCallback(function saveLayout(
     nextWidgetIds: HomeWidgetId[],
     nextWidgetVariants: HomeWidgetVariantMap = widgetVariants,
+    nextWidgetDisplayModes: HomeWidgetDisplayModeMap = widgetDisplayModes,
   ) {
     const activeWidgetIdSet = new Set(nextWidgetIds);
     const prunedWidgetVariants = Object.fromEntries(
@@ -1025,9 +1090,20 @@ export function HomeLayoutWorkspace({
       ),
     );
 
-    writeHomeLayoutPreference(storageKey, nextWidgetIds, prunedWidgetVariants);
+    const prunedWidgetDisplayModes = Object.fromEntries(
+      Object.entries(nextWidgetDisplayModes).filter(([widgetId, value]) =>
+        activeWidgetIdSet.has(widgetId as HomeWidgetId) && typeof value === 'string',
+      ),
+    );
+
+    writeHomeLayoutPreference(
+      storageKey,
+      nextWidgetIds,
+      prunedWidgetVariants,
+      prunedWidgetDisplayModes,
+    );
     dispatchHomeLayoutChange();
-  }
+  }, [storageKey, widgetDisplayModes, widgetVariants]);
 
   function addWidget(widgetId: HomeWidgetId, variant?: WinRateWidgetVariant) {
     if (widgetIds.includes(widgetId)) {
@@ -1080,6 +1156,45 @@ export function HomeLayoutWorkspace({
       [widgetId]: variant,
     });
   }
+
+  const updateWidgetDisplayMode = useCallback(function updateWidgetDisplayMode(
+    widgetId: HomeWidgetId,
+    mode: PnlDisplayMode | ListViewMode,
+  ) {
+    saveLayout(widgetIds, widgetVariants, {
+      ...widgetDisplayModes,
+      [widgetId]: mode,
+    });
+  }, [saveLayout, widgetDisplayModes, widgetIds, widgetVariants]);
+
+  const renderContext = useMemo(
+    () => ({
+      activeAccountName,
+      onDeleteTrade,
+      onWidgetDisplayModeChange: updateWidgetDisplayMode,
+      recentTrades,
+      summary,
+      tradeListMode,
+      tradesError,
+      tradesLoading,
+      pnlBaseline,
+      widgetDisplayModes,
+      widgetVariants,
+    }),
+    [
+      activeAccountName,
+      onDeleteTrade,
+      updateWidgetDisplayMode,
+      pnlBaseline,
+      recentTrades,
+      summary,
+      tradeListMode,
+      tradesError,
+      tradesLoading,
+      widgetDisplayModes,
+      widgetVariants,
+    ],
+  );
 
   function handleDragStart(event: DragStartEvent) {
     const activeId = String(event.active.id);
@@ -1225,8 +1340,12 @@ export function HomeLayoutWorkspace({
                   canRemove={selectedWidgets.length > 1}
                   editing={editing}
                   widget={widget}
+                  widgetDisplayModes={widgetDisplayModes}
                   widgetVariants={widgetVariants}
                   onRemove={() => removeWidget(widget.id)}
+                  onDisplayModeChange={(mode) =>
+                    updateWidgetDisplayMode(widget.id, mode)
+                  }
                   onVariantChange={(variant) =>
                     updateWidgetVariant(widget.id, variant)
                   }

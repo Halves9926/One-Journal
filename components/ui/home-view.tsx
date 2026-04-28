@@ -573,6 +573,7 @@ export default function HomeView() {
             activeAccountName={activeAccount.name}
             onDeleteTrade={handleDeleteTrade}
             recentTrades={recentTrades}
+            pnlBaseline={accountMetrics?.equityBaseline ?? activeAccount.initialEquity}
             summary={summary}
             tradeListMode={tradeListMode}
             tradesError={tradesState.error}

@@ -8,6 +8,7 @@ import {
   type ReactNode,
 } from 'react';
 
+import { useAccounts } from '@/components/ui/accounts-provider';
 import {
   DEFAULT_TRADE_FIELD_PREFERENCES,
   TRADE_PREFERENCES_STORAGE_KEY,
@@ -17,6 +18,9 @@ import {
 } from '@/lib/trade-form-preferences';
 
 type TradePreferencesContextValue = {
+  getTradePreferencesForAccount: (
+    accountId: string | null | undefined,
+  ) => TradeFieldPreferences;
   preferences: TradeFieldPreferences;
   ready: boolean;
   resetPreferences: () => void;
@@ -94,6 +98,7 @@ export function TradePreferencesProvider({
 }: {
   children: ReactNode;
 }) {
+  const { activeAccount, accounts, updateAccountFieldSettings } = useAccounts();
   const preferencesSnapshot = useSyncExternalStore(
     subscribeToTradePreferences,
     getTradePreferencesSnapshot,
@@ -103,6 +108,19 @@ export function TradePreferencesProvider({
     () => parseStoredPreferences(preferencesSnapshot),
     [preferencesSnapshot],
   );
+  const accountPreferenceMap = useMemo(
+    () =>
+      new Map(
+        accounts.map((account) => [
+          account.id,
+          account.tradeFieldSettings ?? preferences,
+        ]),
+      ),
+    [accounts, preferences],
+  );
+  const activePreferences =
+    activeAccount?.tradeFieldSettings ??
+    (activeAccount ? preferences : DEFAULT_TRADE_FIELD_PREFERENCES);
   const ready = useSyncExternalStore(
     subscribeToHydration,
     () => true,
@@ -111,25 +129,66 @@ export function TradePreferencesProvider({
 
   const value = useMemo<TradePreferencesContextValue>(
     () => ({
-      preferences,
+      preferences: activePreferences,
+      getTradePreferencesForAccount(accountId) {
+        if (!accountId) {
+          return activePreferences;
+        }
+
+        return accountPreferenceMap.get(accountId) ?? preferences;
+      },
       ready,
       resetPreferences() {
+        if (activeAccount?.id && activeAccount.canManageAccount) {
+          void updateAccountFieldSettings(activeAccount.id, {
+            tradeFieldSettings: DEFAULT_TRADE_FIELD_PREFERENCES,
+          });
+          return;
+        }
+
         writeTradePreferences(DEFAULT_TRADE_FIELD_PREFERENCES);
       },
       setFieldPreference(field, value) {
+        if (activeAccount?.id && activeAccount.canManageAccount) {
+          void updateAccountFieldSettings(activeAccount.id, {
+            tradeFieldSettings: {
+              ...activePreferences,
+              [field]: value,
+            },
+          });
+          return;
+        }
+
         writeTradePreferences({
           ...preferences,
           [field]: value,
         });
       },
       toggleFieldPreference(field) {
+        if (activeAccount?.id && activeAccount.canManageAccount) {
+          void updateAccountFieldSettings(activeAccount.id, {
+            tradeFieldSettings: {
+              ...activePreferences,
+              [field]: !activePreferences[field],
+            },
+          });
+          return;
+        }
+
         writeTradePreferences({
           ...preferences,
           [field]: !preferences[field],
         });
       },
     }),
-    [preferences, ready],
+    [
+      accountPreferenceMap,
+      activeAccount,
+      activePreferences,
+      preferences,
+      ready,
+      updateAccountFieldSettings,
+    ],
   );
 
   return (

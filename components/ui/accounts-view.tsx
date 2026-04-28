@@ -16,8 +16,10 @@ import {
 import PageShell from '@/components/ui/page-shell';
 import { MetricCard, Panel, PanelHeader } from '@/components/ui/panel';
 import { Reveal } from '@/components/ui/reveal';
+import { TradeViewModeControl } from '@/components/ui/trade-view-mode-control';
 import TradeCalendarView from '@/components/ui/trade-calendar-view';
 import TradeCard from '@/components/ui/trade-card';
+import { useWidgetTradeViewMode } from '@/components/ui/use-widget-trade-view-mode';
 import { useUserTrades } from '@/components/ui/use-user-trades';
 import { useWidgetPreferences } from '@/components/ui/widget-preferences';
 import { buildAccountMetrics, getTradesForAccount } from '@/lib/accounts';
@@ -49,6 +51,12 @@ export default function AccountsView() {
     limit: null,
   });
   const { preferences } = useListViewPreferences();
+  const [activeTradesViewMode, setActiveTradesViewMode] = useWidgetTradeViewMode(
+    activeAccount?.id
+      ? `accounts:${activeAccount.id}:active-trades`
+      : 'accounts:active-trades',
+    preferences.trades,
+  );
   const { preferences: widgetPreferences } = useWidgetPreferences();
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<Feedback>(null);
@@ -73,7 +81,7 @@ export default function AccountsView() {
     accountEntries.find((entry) => entry.account.id === activeAccount?.id)?.trades ??
     tradesState.items;
   const visibleAccountTrades =
-    preferences.trades === 'calendar'
+    activeTradesViewMode === 'calendar'
       ? activeAccountTrades
       : activeAccountTrades.slice(0, 6);
   const fundedAccounts = accounts.filter((account) => account.isFunded).length;
@@ -339,9 +347,15 @@ export default function AccountsView() {
                 title="Active account trades"
                 description={`${activeAccountTrades.length} trades loaded for ${activeAccount?.name ?? 'the active account'}.`}
                 action={
-                  <ButtonLink href="/trades/new" size="lg" variant="secondary">
-                    Add Trade
-                  </ButtonLink>
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                    <TradeViewModeControl
+                      mode={activeTradesViewMode}
+                      onChange={setActiveTradesViewMode}
+                    />
+                    <ButtonLink href="/trades/new" size="lg" variant="secondary">
+                      Add Trade
+                    </ButtonLink>
+                  </div>
                 }
               />
               <div className="px-6 pb-6 pt-2 sm:px-8 sm:pb-8">
@@ -358,7 +372,7 @@ export default function AccountsView() {
                 ) : null}
 
                 {!tradesState.loading && !tradesState.error && visibleAccountTrades.length > 0 ? (
-                  preferences.trades === 'calendar' ? (
+                  activeTradesViewMode === 'calendar' ? (
                     <TradeCalendarView
                       trades={visibleAccountTrades}
                       emptyMessage="No active account trades available for this calendar."
@@ -370,9 +384,10 @@ export default function AccountsView() {
                           key={`account-visible-trade-${trade.id}`}
                           trade={trade}
                           index={index}
-                          compact
+                          compact={activeTradesViewMode === 'compact'}
                           editHref={`/trades/${trade.id}/edit`}
-                          variant="stacked"
+                          featured={activeTradesViewMode === 'cards' && index === 0}
+                          variant={activeTradesViewMode === 'stacked' ? 'stacked' : undefined}
                         />
                       ))}
                     </div>

@@ -155,7 +155,7 @@ export default function NewTradeForm({
     loading: accountsLoading,
     refreshAccounts,
   } = useAccounts();
-  const { preferences, ready } = useTradePreferences();
+  const { getTradePreferencesForAccount, ready } = useTradePreferences();
   const isEditMode = mode === 'edit' && Boolean(tradeId);
   const draftStorageKey = buildTradeDraftStorageKey(mode, tradeId);
   const [values, setValues] = useState<TradeFormInput>(() =>
@@ -179,6 +179,9 @@ export default function NewTradeForm({
     : writableAccounts;
   const selectedAccount =
     accounts.find((account) => account.id === values.account_id) ?? activeAccount ?? null;
+  const selectedTradePreferences = getTradePreferencesForAccount(
+    selectedAccount?.id ?? values.account_id,
+  );
 
   function clearDraft() {
     clearFormDraft(draftStorageKey);
@@ -382,7 +385,7 @@ export default function NewTradeForm({
     }
 
     const visibleFields = TRADE_FIELD_DEFINITIONS.filter(
-      (field) => preferences[field.key],
+      (field) => selectedTradePreferences[field.key],
     );
     const requiredFields = visibleFields.filter((field) => field.requiredWhenVisible);
     const missingFields = requiredFields.filter((field) =>
@@ -610,7 +613,7 @@ export default function NewTradeForm({
     );
   }
 
-  const visibleFieldCount = Object.values(preferences).filter(Boolean).length;
+  const visibleFieldCount = Object.values(selectedTradePreferences).filter(Boolean).length;
 
   return (
     <PageShell size="wide">
@@ -703,7 +706,7 @@ export default function NewTradeForm({
                 (field) =>
                   field.section === section.key &&
                   field.key !== 'screenshot_url' &&
-                  preferences[field.key],
+                  selectedTradePreferences[field.key],
               );
 
               if (fields.length === 0) {
