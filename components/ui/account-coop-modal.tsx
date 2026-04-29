@@ -205,13 +205,14 @@ export default function AccountCoopButton({
     setFeedback(null);
 
     const profileResult = await supabase
-      .from(PROFILES_TABLE)
-      .select(PROFILE_SELECT)
-      .eq('username', usernameResult.username)
-      .limit(1)
+      .rpc('find_profile_by_username', {
+        target_username: usernameResult.username,
+      })
       .overrideTypes<ProfileRow[], { merge: false }>();
 
-    const profileRow = profileResult.data?.[0] ?? null;
+    const profileRow = Array.isArray(profileResult.data)
+      ? profileResult.data[0] ?? null
+      : null;
 
     if (profileResult.error || !profileRow?.user_id) {
       setFeedback({

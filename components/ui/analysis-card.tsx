@@ -6,6 +6,7 @@ import Link from 'next/link';
 
 import { useAccounts } from '@/components/ui/accounts-provider';
 import { useAuth } from '@/components/ui/auth-provider';
+import { useSignedScreenshotUrls } from '@/lib/screenshot-urls';
 import {
   buildAnalysisSharePath,
   buildAnalysisShareUrl,
@@ -158,7 +159,8 @@ export default function AnalysisCard({
   >(undefined);
   const symbolLabel = analysis.symbol ?? 'Account thesis';
   const screenshotUrls = screenshotOverride ?? analysis.screenshotUrls;
-  const screenshotUrl = screenshotUrls[0] ?? null;
+  const signedScreenshotUrls = useSignedScreenshotUrls(supabase, screenshotUrls);
+  const screenshotUrl = signedScreenshotUrls[0] ?? screenshotUrls[0] ?? null;
   const shareEnabled = shareOverride?.enabled ?? analysis.shareEnabled;
   const shareToken = shareOverride?.token ?? analysis.shareToken;
   const sharePath = shareToken ? buildAnalysisSharePath(shareToken) : null;

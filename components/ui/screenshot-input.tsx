@@ -3,9 +3,9 @@
 import { useRef, useState } from 'react';
 
 import { useAuth } from '@/components/ui/auth-provider';
+import { SCREENSHOT_BUCKET, useSignedScreenshotUrls } from '@/lib/screenshot-urls';
 import { cx } from '@/lib/utils';
 
-const SCREENSHOT_BUCKET = 'journal-screenshots';
 const MAX_SCREENSHOT_BYTES = 10 * 1024 * 1024;
 
 const ALLOWED_IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
@@ -132,6 +132,7 @@ export default function ScreenshotInput({
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const screenshotUrls = value.map((item) => item.trim()).filter(Boolean);
+  const signedScreenshotUrls = useSignedScreenshotUrls(supabase, screenshotUrls);
   const screenshotUrl = screenshotUrls[0] ?? '';
   const imageFailed = Boolean(screenshotUrl && failedImageUrl === screenshotUrl);
 
@@ -386,11 +387,14 @@ export default function ScreenshotInput({
           </div>
         ) : (
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            {screenshotUrls.map((url, index) => (
+            {screenshotUrls.map((url, index) => {
+              const displayUrl = signedScreenshotUrls[index] ?? url;
+
+              return (
               <a
                 key={`${url}-${index}`}
                 className="group block overflow-hidden rounded-[20px] border border-[color:var(--border-color)] bg-[var(--surface)]"
-                href={url}
+                href={displayUrl}
                 rel="noreferrer"
                 target="_blank"
               >
@@ -400,7 +404,7 @@ export default function ScreenshotInput({
                     alt={`Screenshot preview ${index + 1}`}
                     className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.02]"
                     loading="lazy"
-                    src={url}
+                    src={displayUrl}
                     onError={() => setFailedImageUrl(url)}
                   />
                 </div>
@@ -418,7 +422,8 @@ export default function ScreenshotInput({
                   </button>
                 </div>
               </a>
-            ))}
+              );
+            })}
           </div>
         )
       ) : (

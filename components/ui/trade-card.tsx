@@ -6,6 +6,7 @@ import Link from 'next/link';
 
 import { useAccounts } from '@/components/ui/accounts-provider';
 import { useAuth } from '@/components/ui/auth-provider';
+import { useSignedScreenshotUrls } from '@/lib/screenshot-urls';
 import {
   buildTradeSharePath,
   buildTradeShareUrl,
@@ -193,7 +194,8 @@ export default function TradeCard({
     string[] | undefined
   >(undefined);
   const screenshotUrls = screenshotOverride ?? trade.screenshotUrls;
-  const screenshotUrl = screenshotUrls[0] ?? null;
+  const signedScreenshotUrls = useSignedScreenshotUrls(supabase, screenshotUrls);
+  const screenshotUrl = signedScreenshotUrls[0] ?? screenshotUrls[0] ?? null;
   const hasScreenshot = screenshotUrls.length > 0;
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const [isSharePanelOpen, setIsSharePanelOpen] = useState(false);

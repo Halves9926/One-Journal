@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@/components/ui/auth-provider';
 import BrandMark from '@/components/ui/brand-mark';
 import { ButtonLink } from '@/components/ui/button';
+import { useSignedScreenshotUrls } from '@/lib/screenshot-urls';
 import {
   EMPTY_VALUE,
   formatCompactNumber,
@@ -107,6 +108,10 @@ export default function PublicSharedTradeView({ token }: { token: string }) {
   const { loading: authLoading, supabase } = useAuth();
   const [state, setState] = useState<PublicSharedTradeState>(initialState);
   const trade = state.item;
+  const signedScreenshotUrls = useSignedScreenshotUrls(
+    supabase,
+    trade?.screenshotUrls ?? [],
+  );
   const parsedNotes = parseTradeNotes(trade?.notes ?? null);
   const authorLabel = useMemo(() => {
     if (!trade) {
@@ -289,11 +294,14 @@ export default function PublicSharedTradeView({ token }: { token: string }) {
 
           {trade.screenshotUrls.length > 0 ? (
             <div className="grid gap-4 md:grid-cols-2">
-              {trade.screenshotUrls.map((url, index) => (
+              {trade.screenshotUrls.map((url, index) => {
+                const displayUrl = signedScreenshotUrls[index] ?? url;
+
+                return (
                 <a
                   key={`${url}-${index}`}
                   className="block overflow-hidden rounded-[30px] border border-[color:var(--border-color)] bg-[var(--surface)] shadow-[0_24px_56px_-38px_var(--shadow-color)]"
-                  href={url}
+                  href={displayUrl}
                   rel="noreferrer"
                   target="_blank"
                 >
@@ -302,11 +310,12 @@ export default function PublicSharedTradeView({ token }: { token: string }) {
                     <img
                       alt={`${trade.symbol || 'Shared'} trade screenshot ${index + 1}`}
                       className="h-full w-full object-cover"
-                      src={url}
+                      src={displayUrl}
                     />
                   </div>
                 </a>
-              ))}
+                );
+              })}
             </div>
           ) : null}
 
