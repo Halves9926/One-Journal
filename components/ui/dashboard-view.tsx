@@ -849,7 +849,7 @@ export default function DashboardView() {
                   title="Account activity"
                   description="Search and filter trades plus analyses for the active account."
                   action={
-                    <div className="flex items-center gap-3">
+                    <div className="flex min-w-0 flex-wrap items-center gap-3 sm:justify-end">
                       <span className="hidden text-sm text-[var(--muted)] sm:inline">
                         Showing {filteredJournalFeed.length} results
                       </span>
@@ -857,7 +857,7 @@ export default function DashboardView() {
                         mode={journalTradesViewMode}
                         onChange={setJournalTradesViewMode}
                       />
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
                         <ButtonLink href="/trades/new" variant="secondary">
                           Add Trade
                         </ButtonLink>

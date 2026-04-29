@@ -36,6 +36,13 @@ type TradeCardProps = {
   variant?: 'stacked';
 };
 
+const actionButtonClassNames = {
+  compact:
+    'inline-flex min-h-8 max-w-full items-center justify-center rounded-full border px-3 text-center text-xs font-medium leading-snug transition',
+  default:
+    'inline-flex min-h-9 max-w-full items-center justify-center rounded-full border px-3 text-center text-xs font-medium leading-snug transition',
+} as const;
+
 function getDirectionToneClassName(direction: string | null) {
   if (direction === 'Long') {
     return 'border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300';
@@ -79,12 +86,12 @@ function TradeTags({
   }
 
   return (
-    <div className={cx('flex flex-wrap gap-2', className)}>
+    <div className={cx('flex min-w-0 flex-wrap gap-2', className)}>
       {visibleTags.map((tag) => (
         <span
           key={tag}
           className={cx(
-            'rounded-full border px-3 py-1 text-xs text-[var(--muted-strong)]',
+            'max-w-full rounded-full border px-3 py-1 text-xs text-[var(--muted-strong)]',
             tag === 'Missed'
               ? 'border-amber-500/24 bg-amber-500/10 text-amber-700 dark:text-amber-300'
               : 'border-[color:var(--border-color)] bg-[var(--surface-raised)]',
@@ -94,7 +101,7 @@ function TradeTags({
         </span>
       ))}
       {typeof limit === 'number' && tags.length > limit ? (
-        <span className="rounded-full border border-[color:var(--border-color)] bg-[var(--surface)] px-3 py-1 text-xs text-[var(--muted)]">
+        <span className="max-w-full rounded-full border border-[color:var(--border-color)] bg-[var(--surface)] px-3 py-1 text-xs text-[var(--muted)]">
           +{tags.length - limit}
         </span>
       ) : null}
@@ -150,7 +157,7 @@ function TradeCover({
       target="_blank"
       rel="noreferrer"
       className={cx(
-        'group/cover relative block overflow-hidden rounded-[24px] border border-[color:var(--border-color)] bg-[var(--surface)] shadow-[0_22px_48px_-34px_var(--shadow-color)] transition duration-300 lg:hover:border-[color:var(--border-strong)] lg:hover:shadow-[0_26px_56px_-34px_var(--shadow-color)]',
+        'group/cover relative block min-w-0 overflow-hidden rounded-[24px] border border-[color:var(--border-color)] bg-[var(--surface)] shadow-[0_22px_48px_-34px_var(--shadow-color)] transition duration-300 lg:hover:border-[color:var(--border-strong)] lg:hover:shadow-[0_26px_56px_-34px_var(--shadow-color)]',
         className,
       )}
     >
@@ -406,10 +413,7 @@ export default function TradeCard({
   }
 
   function renderScreenshotActions(size: 'compact' | 'default' = 'default') {
-    const baseClassName =
-      size === 'compact'
-        ? 'inline-flex min-h-8 items-center rounded-full border px-3 text-xs font-medium transition'
-        : 'inline-flex min-h-9 items-center rounded-full border px-3 text-xs font-medium transition';
+    const baseClassName = actionButtonClassNames[size];
     const neutralClassName =
       'border-[color:var(--border-color)] bg-[var(--surface)] text-[var(--muted-strong)] hover:border-[color:var(--border-strong)] hover:text-[var(--foreground)]';
 
@@ -452,10 +456,7 @@ export default function TradeCard({
       return null;
     }
 
-    const baseClassName =
-      size === 'compact'
-        ? 'inline-flex min-h-8 items-center rounded-full border px-3 text-xs font-medium transition'
-        : 'inline-flex min-h-9 items-center rounded-full border px-3 text-xs font-medium transition';
+    const baseClassName = actionButtonClassNames[size];
 
     return (
       <button
@@ -505,11 +506,11 @@ export default function TradeCard({
               <p className="mt-2 text-sm text-[var(--success)]">{shareMessage}</p>
             ) : null}
           </div>
-          <div className="flex flex-col gap-2 sm:flex-row lg:shrink-0">
+          <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:flex-wrap lg:shrink-0 lg:justify-end">
             {shareEnabled ? (
               <>
                 <button
-                  className="inline-flex min-h-10 items-center justify-center rounded-full border border-[color:var(--border-color)] bg-[var(--surface-raised)] px-4 text-sm font-medium text-[var(--muted-strong)] transition hover:border-[color:var(--border-strong)] hover:text-[var(--foreground)]"
+                  className="inline-flex min-h-10 max-w-full items-center justify-center rounded-full border border-[color:var(--border-color)] bg-[var(--surface-raised)] px-4 text-center text-sm font-medium leading-snug text-[var(--muted-strong)] transition hover:border-[color:var(--border-strong)] hover:text-[var(--foreground)]"
                   type="button"
                   onClick={() => {
                     void handleCopyShareLink();
@@ -518,7 +519,7 @@ export default function TradeCard({
                   Copy link
                 </button>
                 <button
-                  className="inline-flex min-h-10 items-center justify-center rounded-full border border-rose-500/20 bg-rose-500/10 px-4 text-sm font-medium text-rose-700 transition hover:border-rose-500/34 hover:bg-rose-500/16 disabled:cursor-not-allowed disabled:opacity-60 dark:text-rose-300"
+                  className="inline-flex min-h-10 max-w-full items-center justify-center rounded-full border border-rose-500/20 bg-rose-500/10 px-4 text-center text-sm font-medium leading-snug text-rose-700 transition hover:border-rose-500/34 hover:bg-rose-500/16 disabled:cursor-not-allowed disabled:opacity-60 dark:text-rose-300"
                   disabled={isSharing}
                   type="button"
                   onClick={() => {
@@ -530,7 +531,7 @@ export default function TradeCard({
               </>
             ) : (
               <button
-                className="inline-flex min-h-10 items-center justify-center rounded-full border border-[color:var(--accent-border-soft)] bg-[linear-gradient(135deg,var(--accent-gradient-start),var(--accent-gradient-mid)_60%,var(--accent-gradient-end))] px-4 text-sm font-medium text-[var(--accent-button-text)] shadow-[0_18px_38px_-24px_var(--accent-button-shadow)] transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
+                className="inline-flex min-h-10 max-w-full items-center justify-center rounded-full border border-[color:var(--accent-border-soft)] bg-[linear-gradient(135deg,var(--accent-gradient-start),var(--accent-gradient-mid)_60%,var(--accent-gradient-end))] px-4 text-center text-sm font-medium leading-snug text-[var(--accent-button-text)] shadow-[0_18px_38px_-24px_var(--accent-button-shadow)] transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
                 disabled={isSharing}
                 type="button"
                 onClick={() => {
@@ -558,11 +559,11 @@ export default function TradeCard({
         viewport={{ once: true, amount: 0.2 }}
         whileInView={{ opacity: 1, y: 0 }}
         className={cx(
-          'group self-start rounded-[20px] border border-[color:var(--border-color)] bg-[linear-gradient(180deg,var(--surface-raised),var(--surface))] px-3 py-2.5 shadow-[0_14px_30px_-28px_var(--shadow-color)] transition hover:border-[color:var(--accent-border-soft)] sm:px-4',
+          'group min-w-0 self-start rounded-[20px] border border-[color:var(--border-color)] bg-[linear-gradient(180deg,var(--surface-raised),var(--surface))] px-3 py-2.5 shadow-[0_14px_30px_-28px_var(--shadow-color)] transition hover:border-[color:var(--accent-border-soft)] sm:px-4',
           className,
         )}
       >
-        <div className="grid min-w-0 gap-2 md:grid-cols-[minmax(120px,0.95fr)_minmax(120px,0.8fr)_minmax(120px,0.72fr)_auto] md:items-center">
+        <div className="grid min-w-0 gap-2 md:grid-cols-[minmax(0,0.95fr)_minmax(0,0.8fr)_minmax(0,0.72fr)_minmax(0,auto)] md:items-center">
           <div className="min-w-0">
             <div className="flex min-w-0 items-center gap-2">
               <span className="truncate text-base font-semibold tracking-tight text-[var(--foreground)]">
@@ -585,14 +586,14 @@ export default function TradeCard({
             </p>
           </div>
 
-          <div className="flex flex-wrap gap-1.5 text-xs text-[var(--muted-strong)]">
+          <div className="flex min-w-0 flex-wrap gap-1.5 text-xs text-[var(--muted-strong)]">
             {trade.rr !== null ? (
-              <span className="rounded-full border border-[color:var(--border-color)] bg-[var(--surface)] px-2 py-1">
+              <span className="max-w-full rounded-full border border-[color:var(--border-color)] bg-[var(--surface)] px-2 py-1">
                 RR {formatCompactNumber(trade.rr)}
               </span>
             ) : null}
             {trade.riskPercent !== null ? (
-              <span className="rounded-full border border-[color:var(--border-color)] bg-[var(--surface)] px-2 py-1">
+              <span className="max-w-full rounded-full border border-[color:var(--border-color)] bg-[var(--surface)] px-2 py-1">
                 Risk {formatPercentValue(trade.riskPercent)}
               </span>
             ) : null}
@@ -614,12 +615,12 @@ export default function TradeCard({
           </p>
 
           {hasActions ? (
-            <div className="flex flex-wrap items-center gap-2 md:justify-end">
+            <div className="flex min-w-0 flex-wrap items-center gap-2 md:justify-end">
               {renderScreenshotActions('compact')}
               {renderShareButton('compact')}
               {effectiveEditHref ? (
                 <Link
-                  className="inline-flex min-h-8 items-center rounded-full border border-[color:var(--border-color)] bg-[var(--surface)] px-3 text-xs font-medium text-[var(--muted-strong)] transition hover:border-[color:var(--border-strong)] hover:text-[var(--foreground)]"
+                  className={cx(actionButtonClassNames.compact, 'border-[color:var(--border-color)] bg-[var(--surface)] text-[var(--muted-strong)] hover:border-[color:var(--border-strong)] hover:text-[var(--foreground)]')}
                   href={effectiveEditHref}
                 >
                   Edit
@@ -628,7 +629,7 @@ export default function TradeCard({
               {onDelete && canManageTradeEntry ? (
                 <button
                   aria-label="Delete trade"
-                  className="inline-flex min-h-8 items-center rounded-full border border-[color:color-mix(in_srgb,var(--danger)_20%,transparent)] bg-[color:color-mix(in_srgb,var(--danger)_10%,transparent)] px-3 text-xs font-medium text-[var(--danger)] transition hover:border-[color:color-mix(in_srgb,var(--danger)_34%,transparent)]"
+                  className={cx(actionButtonClassNames.compact, 'border-[color:color-mix(in_srgb,var(--danger)_20%,transparent)] bg-[color:color-mix(in_srgb,var(--danger)_10%,transparent)] text-[var(--danger)] hover:border-[color:color-mix(in_srgb,var(--danger)_34%,transparent)]')}
                   type="button"
                   onClick={() => {
                     setActionError(null);
@@ -659,7 +660,7 @@ export default function TradeCard({
                 ) : null}
               </div>
               {isDeleteConfirmOpen ? (
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                 <button
                   className="inline-flex min-h-9 items-center rounded-full border border-[color:var(--border-color)] bg-[var(--surface-raised)] px-3 text-xs font-medium text-[var(--muted-strong)] transition hover:border-[color:var(--border-strong)] hover:text-[var(--foreground)]"
                   type="button"
@@ -701,7 +702,7 @@ export default function TradeCard({
         viewport={{ once: true, amount: 0.2 }}
         whileInView={{ opacity: 1, y: 0 }}
         className={cx(
-          'group relative self-start overflow-hidden rounded-[28px] border border-[color:var(--border-color)] bg-[linear-gradient(180deg,var(--surface-raised),var(--surface))] p-4 pl-8 shadow-[0_22px_48px_-36px_var(--shadow-color),inset_0_1px_0_rgba(255,255,255,0.08)] transition duration-300 hover:border-[color:var(--accent-border-soft)] sm:p-5 sm:pl-10',
+          'group relative min-w-0 self-start overflow-hidden rounded-[28px] border border-[color:var(--border-color)] bg-[linear-gradient(180deg,var(--surface-raised),var(--surface))] p-4 pl-8 shadow-[0_22px_48px_-36px_var(--shadow-color),inset_0_1px_0_rgba(255,255,255,0.08)] transition duration-300 hover:border-[color:var(--accent-border-soft)] sm:p-5 sm:pl-10',
           className,
         )}
       >
@@ -718,18 +719,18 @@ export default function TradeCard({
         />
         <div
           className={cx(
-            'grid gap-4',
+            'grid min-w-0 gap-4',
             screenshotUrl &&
-              'lg:grid-cols-[minmax(0,1fr)_minmax(220px,320px)] lg:items-start',
+              'lg:grid-cols-[minmax(0,1fr)_minmax(0,320px)] lg:items-start',
           )}
         >
           <div className="min-w-0">
-            <p className="mb-3 font-mono text-[11px] uppercase tracking-[0.28em] text-[var(--muted)]">
+            <p className="mb-3 break-words font-mono text-[11px] uppercase tracking-[0.28em] text-[var(--muted)]">
               {formatTradeDate(trade.date)}
               {tradeTimeRangeLabel ? ` / ${tradeTimeRangeLabel}` : ''}
             </p>
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="rounded-full border border-[color:var(--accent-border-soft)] bg-[var(--accent-soft-bg)] px-3 py-1 font-mono text-[11px] uppercase tracking-[0.22em] text-[var(--accent-text)]">
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              <span className="max-w-full rounded-full border border-[color:var(--accent-border-soft)] bg-[var(--accent-soft-bg)] px-3 py-1 font-mono text-[11px] uppercase tracking-[0.22em] text-[var(--accent-text)]">
                 {symbolLabel}
               </span>
               {trade.bias ? (
@@ -754,7 +755,7 @@ export default function TradeCard({
 
             <TradeTags tags={trade.tags} limit={5} className="mt-3" />
 
-            <div className="mt-4 flex flex-wrap gap-2 text-sm text-[var(--muted)]">
+            <div className="mt-4 flex min-w-0 flex-wrap gap-2 text-sm text-[var(--muted)]">
               {trade.rr !== null ? <span>RR {formatCompactNumber(trade.rr)}</span> : null}
               {trade.riskPercent !== null ? (
                 <span>Risk {formatPercentValue(trade.riskPercent)}</span>
@@ -764,18 +765,18 @@ export default function TradeCard({
             </div>
 
             {notesPreview ? (
-              <p className="mt-4 max-h-12 overflow-hidden text-sm leading-6 text-[var(--muted-strong)]">
+              <p className="mt-4 max-h-12 overflow-hidden break-words text-sm leading-6 text-[var(--muted-strong)]">
                 {notesPreview}
               </p>
             ) : (
               <p className="mt-4 text-sm text-[var(--muted)]">No notes yet.</p>
             )}
 
-          <div className="mt-5 rounded-[20px] border border-[color:var(--border-color)] bg-[var(--surface)] p-3">
-            <div className="flex flex-wrap items-center gap-2">
+          <div className="mt-5 min-w-0 rounded-[20px] border border-[color:var(--border-color)] bg-[var(--surface)] p-3">
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
               {effectiveEditHref ? (
                 <Link
-                  className="inline-flex min-h-9 items-center rounded-full border border-[color:var(--border-color)] bg-[var(--surface)] px-3 text-xs font-medium text-[var(--muted-strong)] transition hover:border-[color:var(--border-strong)] hover:text-[var(--foreground)]"
+                  className={cx(actionButtonClassNames.default, 'border-[color:var(--border-color)] bg-[var(--surface)] text-[var(--muted-strong)] hover:border-[color:var(--border-strong)] hover:text-[var(--foreground)]')}
                   href={effectiveEditHref}
                 >
                   Edit
@@ -785,7 +786,7 @@ export default function TradeCard({
               {onDelete && canManageTradeEntry ? (
                 <button
                   aria-label="Delete trade"
-                  className="inline-flex min-h-9 items-center rounded-full border border-[color:color-mix(in_srgb,var(--danger)_20%,transparent)] bg-[color:color-mix(in_srgb,var(--danger)_10%,transparent)] px-3 text-xs font-medium text-[var(--danger)] transition hover:border-[color:color-mix(in_srgb,var(--danger)_34%,transparent)]"
+                  className={cx(actionButtonClassNames.default, 'border-[color:color-mix(in_srgb,var(--danger)_20%,transparent)] bg-[color:color-mix(in_srgb,var(--danger)_10%,transparent)] text-[var(--danger)] hover:border-[color:color-mix(in_srgb,var(--danger)_34%,transparent)]')}
                   type="button"
                   onClick={() => {
                     setActionError(null);
@@ -797,14 +798,14 @@ export default function TradeCard({
               ) : null}
             </div>
             {hasScreenshotActions ? (
-              <div className="mt-2 flex flex-wrap gap-2">{renderScreenshotActions()}</div>
+              <div className="mt-2 flex min-w-0 flex-wrap gap-2">{renderScreenshotActions()}</div>
             ) : null}
           </div>
           </div>
 
           {screenshotUrl ? (
             <a
-              className="relative block overflow-hidden rounded-[22px] border border-[color:var(--border-color)] bg-[var(--surface)]"
+              className="relative block min-w-0 overflow-hidden rounded-[22px] border border-[color:var(--border-color)] bg-[var(--surface)]"
               href={screenshotUrl}
               rel="noreferrer"
               target="_blank"
@@ -842,7 +843,7 @@ export default function TradeCard({
                 ) : null}
               </div>
               {isDeleteConfirmOpen ? (
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                 <button
                   className="inline-flex min-h-10 items-center rounded-full border border-[color:var(--border-color)] bg-[var(--surface-raised)] px-4 text-sm font-medium text-[var(--muted-strong)] transition hover:border-[color:var(--border-strong)] hover:text-[var(--foreground)]"
                   type="button"
@@ -883,7 +884,7 @@ export default function TradeCard({
         ease: [0.22, 1, 0.36, 1],
       }}
       className={cx(
-        'group self-start overflow-hidden rounded-[30px] border border-[color:var(--border-strong)] bg-[linear-gradient(180deg,var(--surface-strong),var(--surface))] p-4 shadow-[0_30px_68px_-42px_var(--shadow-color),inset_0_1px_0_rgba(255,255,255,0.08)] transition duration-300 lg:hover:-translate-y-1 lg:hover:border-[color:var(--accent-border-soft)] lg:hover:shadow-[0_34px_74px_-42px_var(--shadow-color)] sm:p-5',
+        'group min-w-0 self-start overflow-hidden rounded-[30px] border border-[color:var(--border-strong)] bg-[linear-gradient(180deg,var(--surface-strong),var(--surface))] p-4 shadow-[0_30px_68px_-42px_var(--shadow-color),inset_0_1px_0_rgba(255,255,255,0.08)] transition duration-300 lg:hover:-translate-y-1 lg:hover:border-[color:var(--accent-border-soft)] lg:hover:shadow-[0_34px_74px_-42px_var(--shadow-color)] sm:p-5',
         featured &&
           'bg-[linear-gradient(180deg,var(--surface-raised),var(--accent-primary-soft))] shadow-[0_36px_82px_-42px_var(--shadow-color),inset_0_1px_0_rgba(255,255,255,0.1)]',
         compact && 'p-4',
@@ -892,17 +893,17 @@ export default function TradeCard({
     >
       <div
         className={cx(
-          'flex h-full flex-col gap-4',
+          'flex h-full min-w-0 flex-col gap-4',
           featured &&
             hasScreenshot &&
             'xl:grid xl:grid-cols-[minmax(0,1.1fr)_minmax(300px,360px)] xl:items-start',
         )}
       >
-        <div className="flex h-full flex-col gap-4">
-          <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+        <div className="flex h-full min-w-0 flex-col gap-4">
+          <div className="grid min-w-0 gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,18rem)] md:items-start">
             <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-2.5">
-                <span className="rounded-full border border-[color:var(--accent-border-soft)] bg-[var(--accent-soft-bg)] px-3 py-1 font-mono text-[11px] uppercase tracking-[0.24em] text-[var(--accent-text)]">
+              <div className="flex min-w-0 flex-wrap items-center gap-2.5">
+                <span className="max-w-full rounded-full border border-[color:var(--accent-border-soft)] bg-[var(--accent-soft-bg)] px-3 py-1 font-mono text-[11px] uppercase tracking-[0.24em] text-[var(--accent-text)]">
                   {symbolLabel}
                 </span>
                 {trade.bias ? (
@@ -931,15 +932,15 @@ export default function TradeCard({
               <TradeTags tags={trade.tags} className="mt-3" />
             </div>
 
-            <div className="flex flex-col gap-2 md:items-end">
+            <div className="flex min-w-0 flex-col gap-2 md:items-end">
               {hasActions ? (
-                <div className="flex flex-wrap items-center gap-2 self-start md:self-end">
+                <div className="flex min-w-0 flex-wrap items-center gap-2 self-start md:justify-end md:self-end">
                   {renderScreenshotActions()}
                   {renderShareButton()}
                   {effectiveEditHref ? (
                     <Link
                       href={effectiveEditHref}
-                      className="inline-flex min-h-9 items-center rounded-full border border-[color:var(--border-color)] bg-[var(--surface)] px-3 text-xs font-medium text-[var(--muted-strong)] transition hover:border-[color:var(--border-strong)] hover:text-[var(--foreground)]"
+                      className={cx(actionButtonClassNames.default, 'border-[color:var(--border-color)] bg-[var(--surface)] text-[var(--muted-strong)] hover:border-[color:var(--border-strong)] hover:text-[var(--foreground)]')}
                     >
                       Edit
                     </Link>
@@ -977,7 +978,7 @@ export default function TradeCard({
 
               <div
                 className={cx(
-                  'rounded-[22px] border px-4 py-3 shadow-[0_18px_36px_-30px_var(--shadow-color)] md:min-w-[148px]',
+                  'w-full max-w-full rounded-[22px] border px-4 py-3 shadow-[0_18px_36px_-30px_var(--shadow-color)] sm:w-auto md:min-w-[148px]',
                   getPnlBadgeClassName(trade.pnl),
                 )}
               >
@@ -986,7 +987,7 @@ export default function TradeCard({
                 </p>
                 <p
                   className={cx(
-                    'mt-2 text-2xl font-semibold tracking-tight',
+                    'mt-2 break-words text-2xl font-semibold tracking-tight',
                     getPnlTextClassName(trade.pnl),
                   )}
                 >
@@ -1008,11 +1009,11 @@ export default function TradeCard({
           ) : null}
 
           {details.length > 0 ? (
-            <div className="flex flex-wrap gap-2">
+            <div className="flex min-w-0 flex-wrap gap-2">
               {details.map((detail) => (
                 <span
                   key={detail.label}
-                  className="rounded-full border border-[color:var(--border-color)] bg-[var(--surface-raised)] px-3 py-1.5 text-xs text-[var(--muted-strong)] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
+                  className="max-w-full rounded-full border border-[color:var(--border-color)] bg-[var(--surface-raised)] px-3 py-1.5 text-xs text-[var(--muted-strong)] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
                 >
                   <span className="mr-1 text-[var(--muted)]">{detail.label}</span>
                   <span className="text-[var(--foreground)]">{detail.value}</span>
@@ -1026,7 +1027,7 @@ export default function TradeCard({
               <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-[var(--muted)]">
                 Notes
               </p>
-              <p className="mt-2 text-sm leading-6 text-[var(--muted-strong)]">
+              <p className="mt-2 break-words text-sm leading-6 text-[var(--muted-strong)]">
                 {notesPreview}
               </p>
             </div>
@@ -1052,7 +1053,7 @@ export default function TradeCard({
                   ) : null}
                 </div>
                 {isDeleteConfirmOpen ? (
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                   <button
                     type="button"
                     onClick={() => {
