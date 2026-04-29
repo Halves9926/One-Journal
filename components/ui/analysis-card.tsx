@@ -406,7 +406,7 @@ export default function AnalysisCard({
           className,
         )}
       >
-        <div className="grid min-w-0 gap-2 md:grid-cols-[minmax(130px,0.95fr)_minmax(120px,0.75fr)_minmax(120px,1fr)_auto] md:items-center">
+        <div className="grid min-w-0 gap-2 md:grid-cols-[minmax(0,1fr)_minmax(0,auto)] md:items-center">
           <div className="min-w-0">
             <div className="flex min-w-0 items-center gap-2">
               <span className="truncate text-base font-semibold tracking-tight text-[var(--foreground)]">
@@ -430,7 +430,7 @@ export default function AnalysisCard({
             </p>
           </div>
 
-          <div className="flex flex-wrap gap-1.5">
+          <div className="flex min-w-0 flex-wrap gap-1.5 md:col-span-2">
             {analysis.tags.slice(0, 2).map((tag) => (
               <span
                 key={tag}
@@ -446,7 +446,7 @@ export default function AnalysisCard({
             ) : null}
           </div>
 
-          <p className="truncate text-sm text-[var(--muted-strong)]">
+          <p className="min-w-0 truncate text-sm text-[var(--muted-strong)] md:col-span-2">
             {getPreviewText(getAnalysisPreview(analysis), 96) ?? 'No preview yet'}
           </p>
 
@@ -454,7 +454,7 @@ export default function AnalysisCard({
           (onDelete && canManageAnalysisEntry) ||
           canManageSharing ||
           hasScreenshotActions ? (
-            <div className="flex flex-wrap items-center gap-2 md:justify-end">
+            <div className="flex min-w-0 flex-wrap items-center gap-2 md:col-span-2">
               {renderScreenshotActions('compact')}
               {canManageSharing ? (
                 <button

@@ -265,6 +265,8 @@ html {
   background-attachment: fixed;
   background-repeat: no-repeat;
   background-size: cover;
+  overflow-x: clip;
+  scrollbar-gutter: stable;
   scroll-behavior: smooth;
 }
 
@@ -280,6 +282,7 @@ body {
   background-size: cover;
   color: var(--foreground);
   font-family: var(--font-space-grotesk), sans-serif;
+  overflow-x: clip;
 }
 
 body::before {

@@ -563,7 +563,7 @@ export default function TradeCard({
           className,
         )}
       >
-        <div className="grid min-w-0 gap-2 md:grid-cols-[minmax(0,0.95fr)_minmax(0,0.8fr)_minmax(0,0.72fr)_minmax(0,auto)] md:items-center">
+        <div className="grid min-w-0 gap-2 md:grid-cols-[minmax(0,1fr)_minmax(0,auto)] md:items-center">
           <div className="min-w-0">
             <div className="flex min-w-0 items-center gap-2">
               <span className="truncate text-base font-semibold tracking-tight text-[var(--foreground)]">
@@ -586,7 +586,7 @@ export default function TradeCard({
             </p>
           </div>
 
-          <div className="flex min-w-0 flex-wrap gap-1.5 text-xs text-[var(--muted-strong)]">
+          <div className="flex min-w-0 flex-wrap gap-1.5 text-xs text-[var(--muted-strong)] md:col-span-2">
             {trade.rr !== null ? (
               <span className="max-w-full rounded-full border border-[color:var(--border-color)] bg-[var(--surface)] px-2 py-1">
                 RR {formatCompactNumber(trade.rr)}
@@ -615,7 +615,7 @@ export default function TradeCard({
           </p>
 
           {hasActions ? (
-            <div className="flex min-w-0 flex-wrap items-center gap-2 md:justify-end">
+            <div className="flex min-w-0 flex-wrap items-center gap-2 md:col-span-2">
               {renderScreenshotActions('compact')}
               {renderShareButton('compact')}
               {effectiveEditHref ? (
