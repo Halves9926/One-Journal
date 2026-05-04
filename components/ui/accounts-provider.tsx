@@ -282,13 +282,35 @@ export function AccountsProvider({ children }: { children: ReactNode }) {
 
     const payload = mapAccountFormToInsert(input, user.id);
     const shouldActivate = state.accounts.length === 0;
+    const accountPayload = {
+      ...payload,
+      is_active: shouldActivate,
+    };
+    const rpcResult = await supabase
+      .rpc('create_account', { account_payload: accountPayload })
+      .overrideTypes<string, { merge: false }>();
+
+    if (!rpcResult.error) {
+      await refreshAccounts();
+
+      if (shouldActivate && rpcResult.data) {
+        persistActiveAccountId(String(rpcResult.data));
+      }
+
+      return { error: null };
+    }
+
+    const isMissingCreateAccountRpc =
+      rpcResult.error.code === 'PGRST202' ||
+      rpcResult.error.message.toLowerCase().includes('create_account');
+
+    if (!isMissingCreateAccountRpc) {
+      return { error: rpcResult.error.message };
+    }
 
     const { data, error } = await supabase
       .from(ACCOUNTS_TABLE)
-      .insert({
-        ...payload,
-        is_active: shouldActivate,
-      })
+      .insert(accountPayload)
       .select('id')
       .single();
 
